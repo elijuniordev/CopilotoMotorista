@@ -35,11 +35,6 @@ android {
         targetCompatibility = JavaVersion.VERSION_11
     }
 
-    // Correção para AGP moderno: Configuração de Toolchain do compilador Kotlin
-    kotlin {
-        jvmToolchain(11)
-    }
-
     buildFeatures {
         compose = true
     }
@@ -55,27 +50,30 @@ android {
     }
 }
 
-dependencies {
-    // Android Core & Lifecycle (Utilizando os aliases corretos do Version Catalog se disponíveis, ou strings diretas limpas)
-    implementation(libs.androidx.core.ktx)
-    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.4")
-    implementation("androidx.activity:activity-compose:1.9.1")
+kotlin {
+    jvmToolchain(11)
+}
 
-    // Jetpack Compose BOM unificado (Declarado estritamente UMA ÚNICA VEZ)
-    val composeBom = platform("androidx.compose:compose-bom:2024.04.01")
+dependencies {
+    implementation(libs.androidx.core.ktx)
+    implementation(libs.androidx.lifecycle.runtime.ktx)
+    implementation(libs.androidx.activity.compose)
+
+    // Jetpack Compose BOM unificado (Declarado uma única vez)
+    val composeBom = platform(libs.androidx.compose.bom)
     implementation(composeBom)
     androidTestImplementation(composeBom)
 
-    implementation("androidx.compose.material3:material3")
-    implementation("androidx.compose.ui:ui")
-    implementation("androidx.compose.ui:ui-graphics")
-    implementation("androidx.compose.ui:ui-tooling-preview")
+    implementation(libs.androidx.material3)
+    implementation(libs.androidx.ui)
+    implementation(libs.androidx.ui.graphics)
+    implementation(libs.androidx.ui.tooling.preview)
 
-    // Testes Unitários e de UI
+    // Testes
     testImplementation(libs.junit)
-    androidTestImplementation("androidx.compose.ui:ui-test-junit4")
-    androidTestImplementation("androidx.test.ext:junit:1.1.5")
-    androidTestImplementation("androidx.test.espresso:espresso-core:3.5.1")
-    debugImplementation("androidx.compose.ui:ui-test-manifest")
-    debugImplementation("androidx.compose.ui:ui-tooling")
+    androidTestImplementation(libs.androidx.junit)
+    androidTestImplementation(libs.androidx.espresso.core)
+    androidTestImplementation(libs.androidx.ui.test.junit4)
+    debugImplementation(libs.androidx.ui.tooling)
+    debugImplementation(libs.androidx.ui.test.manifest)
 }
