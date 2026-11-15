@@ -43,6 +43,7 @@ import com.copilotomotorista.domain.model.VehicleOperatingCosts
 import com.copilotomotorista.domain.usecase.EvaluateOfferUseCase
 import com.copilotomotorista.service.AccessibilityReaderService
 import com.copilotomotorista.service.OverlayWindowManager
+import com.copilotomotorista.presentation.dashboard.DashboardScreen
 import com.copilotomotorista.ui.theme.CopilotoMotoristaTheme
 
 private data class PermissionStatus(
@@ -59,6 +60,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var evaluateOfferUseCase: EvaluateOfferUseCase
 
     private var permissionStatus by mutableStateOf(PermissionStatus())
+    private var showDashboard by mutableStateOf(false)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -71,13 +73,21 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    InitialSetupScreen(
-                        permissions = permissionStatus,
-                        onRequestOverlayPermission = ::requestOverlayPermission,
-                        onRequestAccessibility = ::openAccessibilitySettings,
-                        onRequestBatterySettings = ::openBatterySettings,
-                        onTestOverlay = ::triggerMockOffer
-                    )
+                    if (showDashboard) {
+                        DashboardScreen(
+                            onOpenSetup = { showDashboard = false },
+                            onTestOverlay = ::triggerMockOffer
+                        )
+                    } else {
+                        InitialSetupScreen(
+                            permissions = permissionStatus,
+                            onRequestOverlayPermission = ::requestOverlayPermission,
+                            onRequestAccessibility = ::openAccessibilitySettings,
+                            onRequestBatterySettings = ::openBatterySettings,
+                            onTestOverlay = ::triggerMockOffer,
+                            onOpenDashboard = { showDashboard = true }
+                        )
+                    }
                 }
             }
         }
@@ -162,7 +172,8 @@ private fun InitialSetupScreen(
     onRequestOverlayPermission: () -> Unit,
     onRequestAccessibility: () -> Unit,
     onRequestBatterySettings: () -> Unit,
-    onTestOverlay: () -> Unit
+    onTestOverlay: () -> Unit,
+    onOpenDashboard: () -> Unit
 ) {
     val completedSteps = listOf(
         permissions.overlayGranted,
@@ -294,6 +305,13 @@ private fun InitialSetupScreen(
                 shape = RoundedCornerShape(14.dp)
             ) {
                 Text("Revisar permissões")
+            }
+            OutlinedButton(
+                onClick = onOpenDashboard,
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp)
+            ) {
+                Text("Abrir painel financeiro")
             }
             Text(
                 text = "O teste utiliza uma oferta demonstrativa. Ele não representa uma corrida real nem ativa o monitoramento automático.",
