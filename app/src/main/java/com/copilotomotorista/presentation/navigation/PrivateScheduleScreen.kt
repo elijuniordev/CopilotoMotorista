@@ -56,11 +56,11 @@ fun PrivateScheduleScreen(repository: PrivateTripRepository, clientRepository: C
     val clientNames = remember(clients) { clients.associateBy { it.id } }
 
     Column(Modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        ScreenHeader("CORRIDAS PARTICULARES", "Agenda", "Organize seus compromissos, clientes, trajetos e pagamentos.")
+        ScheduleScreenHeader("CORRIDAS PARTICULARES", "Agenda", "Organize seus compromissos, clientes, trajetos e pagamentos.")
         Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(18.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
             Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Eyebrow("COMPROMISSOS CADASTRADOS")
+                    ScheduleEyebrow("COMPROMISSOS CADASTRADOS")
                     Text(trips.count { it.status == "scheduled" }.toString() + " agendadas", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurface)
                     Text(trips.count { it.status == "completed" }.toString() + " concluídas · " + trips.count { it.status == "cancelled" }.toString() + " canceladas", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
@@ -77,7 +77,7 @@ fun PrivateScheduleScreen(repository: PrivateTripRepository, clientRepository: C
             }
         }
         if (filteredTrips.isEmpty()) {
-            EmptyState("▦", if (filter == "Todas") "Sua agenda está vazia" else "Nenhum compromisso neste filtro", "Cadastre uma corrida particular para organizar horário, cliente, trajeto e valor combinado.")
+            ScheduleEmptyState("▦", if (filter == "Todas") "Sua agenda está vazia" else "Nenhum compromisso neste filtro", "Cadastre uma corrida particular para organizar horário, cliente, trajeto e valor combinado.")
         } else {
             LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 items(filteredTrips, key = { it.id }) { trip ->
@@ -332,4 +332,31 @@ private fun parseDecimal(value: String): Double {
     val number = value.trim().replace(",", ".").toDouble()
     require(number.isFinite() && number >= 0.0) { "A distância não pode ser negativa." }
     return number
+}
+
+@Composable
+private fun ScheduleScreenHeader(eyebrow: String, title: String, description: String) {
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        ScheduleEyebrow(eyebrow)
+        Text(title, style = MaterialTheme.typography.headlineLarge, color = MaterialTheme.colorScheme.onBackground)
+        Text(description, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+@Composable
+private fun ScheduleEyebrow(value: String) {
+    Text(value, color = MaterialTheme.colorScheme.primary, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.1.sp)
+}
+
+@Composable
+private fun ScheduleEmptyState(symbol: String, title: String, description: String) {
+    Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(18.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)) {
+        Column(Modifier.fillMaxWidth().padding(horizontal = 22.dp, vertical = 28.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Surface(color = MaterialTheme.colorScheme.surfaceContainerHigh, shape = RoundedCornerShape(18.dp)) {
+                Text(symbol, Modifier.padding(horizontal = 18.dp, vertical = 12.dp), color = MaterialTheme.colorScheme.primary, fontSize = 26.sp, fontWeight = FontWeight.Bold)
+            }
+            Text(title, color = MaterialTheme.colorScheme.onSurface, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            Text(description, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+        }
+    }
 }
