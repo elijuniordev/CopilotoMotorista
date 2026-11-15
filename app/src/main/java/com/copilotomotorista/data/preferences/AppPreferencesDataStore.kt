@@ -8,13 +8,17 @@ import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.copilotomotorista.domain.model.FinancialTargets
-import com.copilotomotorista.presentation.dashboard.DashboardPreferences
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
 private val Context.appPreferencesDataStore: DataStore<Preferences> by preferencesDataStore(
     name = "app_preferences"
 )
+
+interface DashboardPreferences {
+    val selectedVehicleId: Flow<String?>
+    val financialTargets: Flow<FinancialTargets>
+}
 
 class AppPreferencesDataStore(context: Context) : DashboardPreferences {
     private val dataStore = context.applicationContext.appPreferencesDataStore

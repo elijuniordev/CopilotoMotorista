@@ -57,6 +57,26 @@ class DashboardDailyMetricsTest {
         assertNull(result.balanceCentsPerHour)
     }
 
+
+    @Test
+    fun acceptedTripsDoNotCountAsRevenueAndExpenseOnlyProducesNegativeRecordedBalance() {
+        val result = useCase.execute(
+            trips = listOf(trip(id = "accepted", status = "accepted", fare = 8_000, completedAt = today)),
+            expenses = listOf(expense(id = "expense", amount = 1_500, occurredAt = today)),
+            nowEpochMillis = today,
+            zoneId = zone
+        )
+
+        assertEquals(0, result.completedTrips)
+        assertEquals(0L, result.receivedFareCents)
+        assertEquals(1_500L, result.recordedExpensesCents)
+        assertEquals(-1_500L, result.registeredBalanceCents)
+        assertEquals(0.0, result.totalDistanceKm, 0.001)
+        assertEquals(0, result.totalDurationMinutes)
+        assertNull(result.balanceCentsPerKm)
+        assertNull(result.balanceCentsPerHour)
+    }
+
     @Test
     fun usesCreationTimeWhenCompletedTimestampIsMissing() {
         val result = useCase.execute(

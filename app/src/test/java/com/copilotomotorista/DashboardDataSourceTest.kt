@@ -1,5 +1,6 @@
 package com.copilotomotorista
 
+import com.copilotomotorista.data.preferences.DashboardPreferences
 import com.copilotomotorista.data.repository.ExpenseRepository
 import com.copilotomotorista.data.repository.TripRecordRepository
 import com.copilotomotorista.data.repository.VehicleRepository
@@ -10,7 +11,6 @@ import com.copilotomotorista.domain.model.Vehicle
 import com.copilotomotorista.domain.model.VehicleEnergy
 import com.copilotomotorista.domain.model.VehicleOperatingCosts
 import com.copilotomotorista.presentation.dashboard.DashboardDataSource
-import com.copilotomotorista.presentation.dashboard.DashboardPreferences
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
@@ -49,7 +49,7 @@ class DashboardDataSourceTest {
                 consumptionKmPerLiter = 12.0,
                 pricePerLiterCents = 599L
             ),
-            operatingCosts = VehicleOperatingCosts(maintenanceCentsPerKm = 10L)
+            operatingCosts = VehicleOperatingCosts(maintenanceCentsPerKm = 10L, depreciationCentsPerKm = 20L)
         )
         vehicles.value = listOf(vehicle)
         selectedVehicleId.value = vehicle.id

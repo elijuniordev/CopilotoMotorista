@@ -69,7 +69,7 @@ fun DashboardScreen(
     val vehicleInfo = remember(snapshot.selectedVehicle) {
         snapshot.selectedVehicle?.let { BuildDashboardVehicleInfoUseCase().execute(it) }
     }
-    val currency = remember { NumberFormat.getCurrencyInstance(Locale("pt", "BR")) }
+    val currency = remember { NumberFormat.getCurrencyInstance(Locale.forLanguageTag("pt-BR")) }
     val balanceText = currency.format(metrics.registeredBalanceCents / 100.0)
     val hasRecords = metrics.completedTrips > 0 || metrics.recordedExpensesCents > 0L
     val targets = snapshot.financialTargets
