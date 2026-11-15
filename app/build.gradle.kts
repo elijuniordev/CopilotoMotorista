@@ -35,6 +35,10 @@ android {
         targetCompatibility = JavaVersion.VERSION_11
     }
 
+    kotlinOptions {
+        jvmTarget = "11"
+    }
+
     buildFeatures {
         compose = true
     }
@@ -50,16 +54,12 @@ android {
     }
 }
 
-kotlin {
-    jvmToolchain(11)
-}
-
 dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.activity.compose)
 
-    // Jetpack Compose BOM unificado (Declarado uma única vez)
+    // Jetpack Compose BOM unificado
     val composeBom = platform(libs.androidx.compose.bom)
     implementation(composeBom)
     androidTestImplementation(composeBom)
