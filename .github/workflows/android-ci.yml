@@ -10,15 +10,13 @@ on:
 permissions:
   contents: read
 
-# Keep the latest run for a branch. Older runs may be cancelled when a newer
-# commit is pushed to the same branch; this does not indicate a build failure.
 concurrency:
   group: android-ci-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   build-and-test:
-    name: Build and unit tests
+    name: Build, unit and instrumentation tests
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout repository
@@ -43,3 +41,11 @@ jobs:
 
       - name: Run unit tests and build APKs
         run: bash ./gradlew --no-daemon testDebugUnitTest assembleDebug assembleRelease
+
+      - name: Run database persistence tests on emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          arch: x86_64
+          profile: pixel_2
+          script: bash ./gradlew --no-daemon connectedDebugAndroidTest
