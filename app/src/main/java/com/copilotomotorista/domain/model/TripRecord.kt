@@ -18,5 +18,7 @@ data class TripRecord(
     val vehicleId: String?,
     val evidenceUri: String?,
     val notes: String?,
-    val createdAtEpochMillis: Long
+    val createdAtEpochMillis: Long,
+    val operatingCostCentsSnapshot: Long? = null,
+    val vehicleNameSnapshot: String? = null
 )

@@ -87,7 +87,8 @@ class MainActivity : ComponentActivity() {
                         MainNavigationScreen(
                             dashboardDataSource = dashboardDataSource,
                             onOpenSetup = { showDashboard = false },
-                            onTestOverlay = ::triggerMockOffer
+                            onTestOverlay = ::triggerMockOffer,
+                            tripRecordRepository = appContainer.tripRecordRepository
                         )
                     } else {
                         InitialSetupScreen(

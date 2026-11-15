@@ -21,7 +21,7 @@ import com.copilotomotorista.data.local.entity.PrivateTripEntity
 
 @Database(
     entities = [AppMetadataEntity::class, VehicleEntity::class, TripRecordEntity::class, ExpenseEntity::class, ClientEntity::class, PrivateTripEntity::class],
-    version = 3,
+    version = 4,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -73,6 +73,13 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE trip_records ADD COLUMN operatingCostCentsSnapshot INTEGER")
+                db.execSQL("ALTER TABLE trip_records ADD COLUMN vehicleNameSnapshot TEXT")
+            }
+        }
+
         @Volatile
         private var instance: AppDatabase? = null
 
@@ -83,7 +90,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     DATABASE_NAME
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
                     .build()
                     .also { instance = it }
             }

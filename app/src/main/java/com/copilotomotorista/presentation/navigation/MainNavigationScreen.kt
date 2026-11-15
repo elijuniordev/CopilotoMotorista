@@ -20,6 +20,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.getValue
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -37,7 +41,8 @@ private enum class MainTab(val label: String, val symbol: String) {
 fun MainNavigationScreen(
     dashboardDataSource: DashboardDataSource,
     onOpenSetup: () -> Unit,
-    onTestOverlay: () -> Unit
+    onTestOverlay: () -> Unit,
+    tripRecordRepository: com.copilotomotorista.data.repository.TripRecordRepository
 ) {
     var selectedIndex by remember { mutableIntStateOf(0) }
     val selected = MainTab.entries[selectedIndex]
@@ -45,7 +50,7 @@ fun MainNavigationScreen(
         Box(Modifier.weight(1f)) {
             when (selected) {
                 MainTab.DASHBOARD -> DashboardScreen(dashboardDataSource, onOpenSetup, onTestOverlay)
-                MainTab.HISTORY -> HistoryScreen()
+                MainTab.HISTORY -> HistoryScreen(tripRecordRepository)
                 MainTab.SCHEDULE -> PrivateScheduleScreen()
                 MainTab.REPORTS -> FinancialReportScreen()
             }
@@ -70,17 +75,85 @@ fun MainNavigationScreen(
 }
 
 @Composable
-private fun HistoryScreen() {
-    Column(Modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
-        ScreenHeader("CONTROLE DE CORRIDAS", "Histórico", "Consulte corridas e acompanhe os resultados de cada turno.")
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            listOf("Todas", "Concluídas", "Canceladas").forEachIndexed { index, label ->
-                Surface(color = if (index == 0) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerHigh, shape = RoundedCornerShape(50)) {
-                    Text(label, Modifier.padding(horizontal = 13.dp, vertical = 9.dp), color = if (index == 0) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+private fun HistoryScreen(
+    repository: com.copilotomotorista.data.repository.TripRecordRepository
+) {
+    val trips by repository.observeTrips().collectAsState(initial = emptyList())
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    var filter by remember { androidx.compose.runtime.mutableStateOf("Todas") }
+    val filtered = remember(trips, filter) {
+        trips.filter { trip ->
+            when (filter) {
+                "Aceitas" -> trip.status == "accepted"
+                "Concluídas" -> trip.status == "completed"
+                "Canceladas" -> trip.status == "cancelled"
+                else -> true
+            }
+        }.sortedByDescending { it.completedAtEpochMillis ?: it.createdAtEpochMillis }
+    }
+    Column(Modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        ScreenHeader("CONTROLE DE CORRIDAS", "Histórico", "Acompanhe os registros confirmados e finalize corridas aceitas.")
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            listOf("Todas", "Aceitas", "Concluídas", "Canceladas").forEach { label ->
+                val selected = filter == label
+                Surface(
+                    onClick = { filter = label },
+                    color = if (selected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerHigh,
+                    shape = RoundedCornerShape(50)
+                ) {
+                    Text(label, Modifier.padding(horizontal = 11.dp, vertical = 9.dp),
+                        color = if (selected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
                 }
             }
         }
-        EmptyState("↻", "Nenhuma corrida registrada", "Quando houver registros, você poderá consultar valores, distância, duração, resultado e comprovantes nesta área.")
+        if (filtered.isEmpty()) {
+            EmptyState("↻", "Nenhuma corrida neste filtro", "As corridas confirmadas pelo motorista aparecerão aqui.")
+        } else {
+            androidx.compose.foundation.lazy.LazyColumn(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                items(filtered, key = { it.id }) { trip ->
+                    Card(
+                        Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)
+                    ) {
+                        Column(Modifier.padding(15.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text(if (trip.platform == "99") "99" else "Uber",
+                                    color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold)
+                                Text(if (trip.status == "completed") "Concluída" else trip.status.replaceFirstChar { it.uppercase() },
+                                    color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
+                            }
+                            Text("Recebido: " + java.text.NumberFormat.getCurrencyInstance(java.util.Locale.forLanguageTag("pt-BR")).format(trip.receivedFareCents / 100.0),
+                                color = MaterialTheme.colorScheme.onSurface, style = MaterialTheme.typography.titleLarge)
+                            Text("Busca + viagem: %.1f km · %d min".format(java.util.Locale("pt", "BR"),
+                                trip.pickupDistanceKm + trip.tripDistanceKm, trip.pickupTimeMinutes + trip.tripTimeMinutes),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+                            trip.vehicleNameSnapshot?.let { Text("Veículo: $it", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall) }
+                            trip.operatingCostCentsSnapshot?.let {
+                                Text("Custo operacional estimado no registro: " +
+                                    java.text.NumberFormat.getCurrencyInstance(java.util.Locale.forLanguageTag("pt-BR")).format(it / 100.0),
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+                            }
+                            if (trip.status == "accepted") {
+                                androidx.compose.material3.OutlinedButton(
+                                    onClick = {
+                                        scope.launch {
+                                            val useCase = com.copilotomotorista.domain.usecase.TransitionTripStatusUseCase()
+                                            repository.saveTrip(useCase.complete(trip, System.currentTimeMillis()))
+                                        }
+                                    },
+                                    modifier = Modifier.fillMaxWidth()
+                                ) { Text("Marcar como concluída") }
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 

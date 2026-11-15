@@ -154,10 +154,10 @@ class AccessibilityReaderService : AccessibilityService() {
                 isDemo = false,
                 onDismiss = {},
                 onAccepted = {
-                    saveConfirmedTrip(recordId, platform, currentOffer, vehicle.id, TRIP_STATUS_ACCEPTED)
+                    saveConfirmedTrip(recordId, platform, currentOffer, vehicle.id, vehicle.name, analysis.operatingCostCents, TRIP_STATUS_ACCEPTED)
                 },
                 onCompleted = {
-                    saveConfirmedTrip(recordId, platform, currentOffer, vehicle.id, TRIP_STATUS_COMPLETED)
+                    saveConfirmedTrip(recordId, platform, currentOffer, vehicle.id, vehicle.name, analysis.operatingCostCents, TRIP_STATUS_COMPLETED)
                 }
             )
         }
@@ -168,11 +168,14 @@ class AccessibilityReaderService : AccessibilityService() {
         platform: String,
         offer: OfferInput,
         vehicleId: String,
+        vehicleName: String,
+        operatingCostCents: Long,
         status: String
     ) {
         if (serviceDestroyed) return
         serviceScope.launch {
             val now = System.currentTimeMillis()
+            val existing = withContext(Dispatchers.IO) { appContainer.tripRecordRepository.getTrip(recordId) }
             val record = TripRecord(
                 id = recordId,
                 platform = platform,
@@ -191,7 +194,9 @@ class AccessibilityReaderService : AccessibilityService() {
                 vehicleId = vehicleId,
                 evidenceUri = null,
                 notes = "Registro confirmado manualmente pelo motorista.",
-                createdAtEpochMillis = now
+                createdAtEpochMillis = existing?.createdAtEpochMillis ?: now,
+                operatingCostCentsSnapshot = operatingCostCents,
+                vehicleNameSnapshot = vehicleName
             )
             val saved = runCatching {
                 withContext(Dispatchers.IO) {
