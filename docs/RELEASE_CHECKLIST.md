@@ -5,7 +5,8 @@
 - [ ] Concluir e documentar a validação física com Uber Driver e 99 Motorista.
 - [ ] Validar compatibilidade nos aparelhos/versões Android que serão declarados suportados.
 - [ ] Resolver todos os defeitos críticos de captura, OCR, overlay, ciclo de vida e persistência.
-- [ ] Finalizar telas funcionais de veículos/metas, agenda particular, despesas e relatórios; remover placeholders que possam sugerir funções disponíveis. O histórico de corridas está implementado, mas ainda precisa de validação em aparelho real.
+- [x] Implementar cadastro/edição/exclusão de veículos, custos operacionais, seleção do veículo ativo e metas financeiras (Bloco 9).
+- [ ] Finalizar agenda particular, despesas e relatórios; remover placeholders que possam sugerir funções disponíveis. O histórico e a configuração de veículos estão implementados, mas ainda precisam de validação em aparelho real.
 - [x] Implementar edição de corrida, transição aceita → concluída e deduplicação persistente de ofertas confirmadas recentes (Bloco 8).
 - [ ] Definir política de retenção, exclusão e exportação dos dados locais.
 - [ ] Publicar política de privacidade acessível ao usuário e revisar declarações de dados/permissões da Play Store.

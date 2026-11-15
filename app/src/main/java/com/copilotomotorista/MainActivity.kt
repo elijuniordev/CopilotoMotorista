@@ -86,9 +86,10 @@ class MainActivity : ComponentActivity() {
                     if (showDashboard) {
                         MainNavigationScreen(
                             dashboardDataSource = dashboardDataSource,
-                            onOpenSetup = { showDashboard = false },
                             onTestOverlay = ::triggerMockOffer,
-                            tripRecordRepository = appContainer.tripRecordRepository
+                            tripRecordRepository = appContainer.tripRecordRepository,
+                            vehicleRepository = appContainer.vehicleRepository,
+                            preferences = appContainer.preferences
                         )
                     } else {
                         InitialSetupScreen(

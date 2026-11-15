@@ -35,25 +35,27 @@ import com.copilotomotorista.presentation.dashboard.DashboardScreen
 
 private enum class MainTab(val label: String, val symbol: String) {
     DASHBOARD("Painel", "⌂"), HISTORY("Histórico", "↻"),
-    SCHEDULE("Agenda", "▦"), REPORTS("Relatórios", "▤")
+    SCHEDULE("Agenda", "▦"), REPORTS("Relatórios", "▤"), VEHICLES("Veículos", "⚙")
 }
 
 @Composable
 fun MainNavigationScreen(
     dashboardDataSource: DashboardDataSource,
-    onOpenSetup: () -> Unit,
     onTestOverlay: () -> Unit,
-    tripRecordRepository: com.copilotomotorista.data.repository.TripRecordRepository
+    tripRecordRepository: com.copilotomotorista.data.repository.TripRecordRepository,
+    vehicleRepository: com.copilotomotorista.data.repository.VehicleRepository,
+    preferences: com.copilotomotorista.data.preferences.AppPreferencesDataStore
 ) {
     var selectedIndex by remember { mutableIntStateOf(0) }
     val selected = MainTab.entries[selectedIndex]
     Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         Box(Modifier.weight(1f)) {
             when (selected) {
-                MainTab.DASHBOARD -> DashboardScreen(dashboardDataSource, onOpenSetup, onTestOverlay)
+                MainTab.DASHBOARD -> DashboardScreen(dashboardDataSource, { selectedIndex = MainTab.VEHICLES.ordinal }, onTestOverlay)
                 MainTab.HISTORY -> HistoryScreen(tripRecordRepository)
                 MainTab.SCHEDULE -> PrivateScheduleScreen()
                 MainTab.REPORTS -> FinancialReportScreen()
+                MainTab.VEHICLES -> VehicleConfigurationScreen(vehicleRepository, preferences)
             }
         }
         Surface(color = MaterialTheme.colorScheme.surfaceContainer, tonalElevation = 4.dp) {
