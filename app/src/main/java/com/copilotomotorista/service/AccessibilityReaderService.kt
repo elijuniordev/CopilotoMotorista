@@ -9,34 +9,45 @@ import android.view.Display
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import androidx.core.content.ContextCompat
+import com.copilotomotorista.data.AppContainer
+import com.copilotomotorista.domain.usecase.EvaluateOfferUseCase
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
- * Captura texto das telas dos aplicativos de transporte.
- * A leitura da árvore é prioritária; OCR local é fallback quando o texto
- * disponibilizado pelo aplicativo é insuficiente e a API do Android permite.
+ * Captura texto das telas Uber/99 e só apresenta análise quando oferta,
+ * veículo selecionado e parâmetros financeiros estão disponíveis.
  */
 class AccessibilityReaderService : AccessibilityService() {
 
     private lateinit var overlayWindowManager: OverlayWindowManager
+    private lateinit var appContainer: AppContainer
     private val eventGate = AccessibilityEventGate()
     private val nodeTextReader = AccessibilityNodeTextReader()
+    private val offerTextParser = OfferTextParser()
+    private val evaluateOfferUseCase = EvaluateOfferUseCase()
+    private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private var ocrRecognizer: LocalOcrTextRecognizer? = null
     private var screenshotInProgress = false
     private var lastScreenshotRequestAt = 0L
     private var serviceDestroyed = false
-
-    @Volatile
-    private var latestScreenSnapshot: ScreenTextSnapshot? = null
+    private var lastOfferFingerprint: String? = null
+    private var lastOfferShownAt = 0L
 
     override fun onCreate() {
         super.onCreate()
         overlayWindowManager = OverlayWindowManager(this)
+        appContainer = AppContainer(applicationContext)
         ocrRecognizer = LocalOcrTextRecognizer()
     }
 
     override fun onServiceConnected() {
         super.onServiceConnected()
-
         serviceInfo = serviceInfo.apply {
             packageNames = SupportedRideApps.packages.toTypedArray()
             eventTypes = AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED or
@@ -49,22 +60,71 @@ class AccessibilityReaderService : AccessibilityService() {
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         event ?: return
-
-        val packageName = event.packageName?.toString()
         val accepted = eventGate.shouldAccept(
-            packageName = packageName,
+            packageName = event.packageName?.toString(),
             eventType = event.eventType,
             nowMillis = SystemClock.uptimeMillis()
         )
         if (!accepted) return
 
         val capturedAt = SystemClock.uptimeMillis()
-        val root: AccessibilityNodeInfo? = rootInActiveWindow
-        val snapshot = nodeTextReader.read(root, capturedAt)
-        latestScreenSnapshot = snapshot
-
-        if (!snapshot.hasUsableText) {
+        val snapshot = nodeTextReader.read(rootInActiveWindow, capturedAt)
+        if (snapshot.hasUsableText) {
+            processSnapshot(snapshot)
+        } else {
             requestLocalOcr(capturedAt)
+        }
+    }
+
+    private fun processSnapshot(snapshot: ScreenTextSnapshot) {
+        if (serviceDestroyed) return
+        when (val parsed = offerTextParser.parse(snapshot.text)) {
+            is OfferTextParseResult -> {
+                if (parsed.status != OfferTextParseStatus.COMPLETE || parsed.offer == null) {
+                    if (parsed.status == OfferTextParseStatus.NOT_OFFER) {
+                        lastOfferFingerprint = null
+                        overlayWindowManager.hideOverlay()
+                    }
+                    return
+                }
+                val fingerprint = listOf(
+                    parsed.offer.receivedFareCents,
+                    parsed.offer.pickupDistanceKm,
+                    parsed.offer.tripDistanceKm,
+                    parsed.offer.pickupTimeMinutes,
+                    parsed.offer.tripTimeMinutes
+                ).joinToString("|")
+                val now = SystemClock.uptimeMillis()
+                if (fingerprint == lastOfferFingerprint &&
+                    now - lastOfferShownAt < OFFER_REPEAT_SUPPRESSION_MILLIS
+                ) return
+
+                lastOfferFingerprint = fingerprint
+                lastOfferShownAt = now
+                serviceScope.launch {
+                    val selected = withContext(Dispatchers.IO) {
+                        val vehicleId = appContainer.preferences.selectedVehicleId.first()
+                        val vehicle = vehicleId?.let { appContainer.vehicleRepository.getVehicle(it) }
+                        val targets = appContainer.preferences.financialTargets.first()
+                        vehicle?.let { Triple(it, targets, parsed.offer) }
+                    }
+                    if (serviceDestroyed) return@launch
+                    if (selected == null) {
+                        overlayWindowManager.hideOverlay()
+                        return@launch
+                    }
+                    val (vehicle, targets, offer) = selected
+                    val analysis = runCatching {
+                        evaluateOfferUseCase.execute(offer, vehicle, targets)
+                    }.getOrNull() ?: return@launch
+                    overlayWindowManager.showOverlay(
+                        analysisResult = analysis,
+                        grossFare = offer.receivedFareCents / 100.0,
+                        isDemo = false,
+                        onDismiss = {}
+                    )
+                }
+            }
         }
     }
 
@@ -75,7 +135,6 @@ class AccessibilityReaderService : AccessibilityService() {
 
         screenshotInProgress = true
         lastScreenshotRequestAt = requestedAtMillis
-
         try {
             takeScreenshot(
                 Display.DEFAULT_DISPLAY,
@@ -87,26 +146,23 @@ class AccessibilityReaderService : AccessibilityService() {
                             screenshot.hardwareBuffer.close()
                             return
                         }
-
                         val hardwareBitmap = Bitmap.wrapHardwareBuffer(
                             screenshot.hardwareBuffer,
                             screenshot.colorSpace
                         )
                         screenshot.hardwareBuffer.close()
-
                         val softwareBitmap = hardwareBitmap?.copy(Bitmap.Config.ARGB_8888, false)
-                        if (softwareBitmap == null) {
-                            hardwareBitmap?.recycle()
-                            return
-                        }
-                        hardwareBitmap.recycle()
+                        hardwareBitmap?.recycle()
+                        if (softwareBitmap == null) return
 
                         ocrRecognizer?.recognize(softwareBitmap) { recognizedText ->
                             if (!serviceDestroyed && recognizedText.isNotBlank()) {
-                                latestScreenSnapshot = ScreenTextSnapshot(
-                                    text = ScreenTextSnapshot.normalize(recognizedText),
-                                    source = ScreenTextSource.OCR,
-                                    capturedAtMillis = SystemClock.uptimeMillis()
+                                processSnapshot(
+                                    ScreenTextSnapshot(
+                                        text = ScreenTextSnapshot.normalize(recognizedText),
+                                        source = ScreenTextSource.OCR,
+                                        capturedAtMillis = SystemClock.uptimeMillis()
+                                    )
                                 )
                             }
                         } ?: softwareBitmap.recycle()
@@ -125,23 +181,21 @@ class AccessibilityReaderService : AccessibilityService() {
     }
 
     override fun onInterrupt() {
-        if (::overlayWindowManager.isInitialized) {
-            overlayWindowManager.hideOverlay()
-        }
+        if (::overlayWindowManager.isInitialized) overlayWindowManager.hideOverlay()
     }
 
     override fun onDestroy() {
         serviceDestroyed = true
         screenshotInProgress = false
+        serviceScope.cancel()
         ocrRecognizer?.close()
         ocrRecognizer = null
-        if (::overlayWindowManager.isInitialized) {
-            overlayWindowManager.hideOverlay()
-        }
+        if (::overlayWindowManager.isInitialized) overlayWindowManager.hideOverlay()
         super.onDestroy()
     }
 
     private companion object {
         const val SCREENSHOT_DEBOUNCE_MILLIS = 1_500L
+        const val OFFER_REPEAT_SUPPRESSION_MILLIS = 15_000L
     }
 }
