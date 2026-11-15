@@ -16,9 +16,9 @@ Aplicativo Android em Kotlin e Jetpack Compose para apoiar motoristas de aplicat
 No Windows (PowerShell):
 
 ```powershell
-.`gradlew.bat testDebugUnitTest
-.`gradlew.bat assembleDebug
-.`gradlew.bat assembleRelease
+.\gradlew.bat testDebugUnitTest
+.\gradlew.bat assembleDebug
+.\gradlew.bat assembleRelease
 ```
 
 No macOS/Linux:
