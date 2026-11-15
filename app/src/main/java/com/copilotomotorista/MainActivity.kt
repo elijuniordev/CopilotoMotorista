@@ -88,6 +88,8 @@ class MainActivity : ComponentActivity() {
                             dashboardDataSource = dashboardDataSource,
                             onTestOverlay = ::triggerMockOffer,
                             tripRecordRepository = appContainer.tripRecordRepository,
+                            privateTripRepository = appContainer.privateTripRepository,
+                            clientRepository = appContainer.clientRepository,
                             vehicleRepository = appContainer.vehicleRepository,
                             preferences = appContainer.preferences
                         )

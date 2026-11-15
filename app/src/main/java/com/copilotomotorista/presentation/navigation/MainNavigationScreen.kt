@@ -44,7 +44,9 @@ fun MainNavigationScreen(
     onTestOverlay: () -> Unit,
     tripRecordRepository: com.copilotomotorista.data.repository.TripRecordRepository,
     vehicleRepository: com.copilotomotorista.data.repository.VehicleRepository,
-    preferences: com.copilotomotorista.data.preferences.AppPreferencesDataStore
+    preferences: com.copilotomotorista.data.preferences.AppPreferencesDataStore,
+    privateTripRepository: com.copilotomotorista.data.repository.PrivateTripRepository,
+    clientRepository: com.copilotomotorista.data.repository.ClientRepository
 ) {
     var selectedIndex by remember { mutableIntStateOf(0) }
     val selected = MainTab.entries[selectedIndex]
@@ -53,7 +55,7 @@ fun MainNavigationScreen(
             when (selected) {
                 MainTab.DASHBOARD -> DashboardScreen(dashboardDataSource, { selectedIndex = MainTab.VEHICLES.ordinal }, onTestOverlay)
                 MainTab.HISTORY -> HistoryScreen(tripRecordRepository)
-                MainTab.SCHEDULE -> PrivateScheduleScreen()
+                MainTab.SCHEDULE -> PrivateScheduleScreen(privateTripRepository, clientRepository)
                 MainTab.REPORTS -> FinancialReportScreen()
                 MainTab.VEHICLES -> VehicleConfigurationScreen(vehicleRepository, preferences)
             }

@@ -105,4 +105,33 @@ class DatabasePersistenceTest {
             context.deleteDatabase(databaseName)
         }
     }
+
+    @Test
+    fun privateTripCreateUpdateAndDeletePersistAcrossDatabaseReopen() = runBlocking {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val databaseName = "private-trip-crud-${System.currentTimeMillis()}.db"
+        try {
+            var database = Room.databaseBuilder(context, AppDatabase::class.java, databaseName).build()
+            database.clientDao().upsert(ClientEntity("schedule-client", "Cliente Agenda", "11988887777", null, 10L, 10L))
+            val original = PrivateTripEntity(
+                "schedule-1", "schedule-client", "Transfer", "Osasco", "Aeroporto",
+                1_800_000_000_000L, 18000L, 42.5, 55, "scheduled", "pending", "pix",
+                "Buscar na portaria", 20L
+            )
+            database.privateTripDao().upsert(original)
+            assertEquals(original, database.privateTripDao().findById("schedule-1"))
+            database.privateTripDao().upsert(original.copy(status = "completed", paymentStatus = "paid"))
+            assertEquals("completed", database.privateTripDao().findById("schedule-1")?.status)
+            assertEquals("paid", database.privateTripDao().findById("schedule-1")?.paymentStatus)
+            database.close()
+            database = Room.databaseBuilder(context, AppDatabase::class.java, databaseName).build()
+            assertEquals("Aeroporto", database.privateTripDao().findById("schedule-1")?.destination)
+            database.privateTripDao().deleteById("schedule-1")
+            assertEquals(null, database.privateTripDao().findById("schedule-1"))
+            database.close()
+        } finally {
+            context.deleteDatabase(databaseName)
+        }
+    }
+
 }

@@ -6,7 +6,7 @@ Aplicativo Android em Kotlin e Jetpack Compose para apoiar motoristas de aplicat
 
 O núcleo do aplicativo está implementado: motor financeiro, persistência local, captura assistiva por AccessibilityService, OCR local de fallback, overlay de análise, Dashboard e histórico de corridas com edição, transição de status e deduplicação de confirmações recentes.
 
-**O aplicativo ainda não está liberado para uso produtivo ou publicação.** A captura e a leitura precisam ser validadas em aparelhos físicos com versões atuais dos aplicativos Uber Driver e 99 Motorista. Configuração de veículos e metas financeiras (Bloco 9) está implementada. Agenda particular, despesas e relatórios ainda estão em desenvolvimento.
+**O aplicativo ainda não está liberado para uso produtivo ou publicação.** A captura e a leitura precisam ser validadas em aparelhos físicos com versões atuais dos aplicativos Uber Driver e 99 Motorista. Configuração de veículos e metas financeiras (Bloco 9) e agenda particular de viagens com cadastro, edição, cancelamento, conclusão e controle de pagamentos (Bloco 10) estão implementadas. Despesas e relatórios ainda estão em desenvolvimento.
 
 ## Requisitos de desenvolvimento
 
@@ -43,7 +43,7 @@ O APK de depuração será gerado em `app/build/outputs/apk/debug/`. O artefato 
 - **Captura:** AccessibilityService, parser de ofertas e OCR local com ML Kit.
 - **Overlay:** apresentação flutuante da análise.
 
-O cadastro de veículos permite configurar elétrico, gasolina, etanol/flex e GNV, com consumo, preço da energia, manutenção, depreciação e outros custos por km. O veículo ativo e as metas financeiras são persistidos e utilizados pelo Dashboard e pela análise de ofertas. O motor financeiro suporta veículos elétricos, gasolina, etanol/flex e GNV. A distância considerada é busca + viagem. Não é presumido retorno vazio após o desembarque. O valor da oferta é tratado como valor recebido pelo motorista.
+A agenda particular permite cadastrar e editar compromissos com cliente, telefone, origem, destino, data, horário, valor combinado, distância, duração, forma de pagamento e observações; também permite concluir, cancelar, marcar pagamento recebido e excluir. Os dados são mantidos localmente em Room. O cadastro de veículos permite configurar elétrico, gasolina, etanol/flex e GNV, com consumo, preço da energia, manutenção, depreciação e outros custos por km. O veículo ativo e as metas financeiras são persistidos e utilizados pelo Dashboard e pela análise de ofertas. O motor financeiro suporta veículos elétricos, gasolina, etanol/flex e GNV. A distância considerada é busca + viagem. Não é presumido retorno vazio após o desembarque. O valor da oferta é tratado como valor recebido pelo motorista.
 
 O aplicativo não aceita nem recusa corridas automaticamente. A confirmação de corrida é manual. Somente corridas marcadas como concluídas entram no faturamento realizado do Dashboard.
 
