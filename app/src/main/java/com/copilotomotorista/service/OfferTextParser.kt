@@ -61,8 +61,8 @@ class OfferTextParser {
                 receivedFareCents = fareCandidates.single(),
                 pickupDistanceKm = pickupDistance.value ?: 0.0,
                 tripDistanceKm = tripDistance.value!!,
-                pickupTimeMinutes = pickupTime.value ?: 0,
-                tripTimeMinutes = tripTime.value!!
+                pickupTimeMinutes = pickupTime.value?.toInt() ?: 0,
+                tripTimeMinutes = tripTime.value!!.toInt()
             )
         }.getOrNull() ?: return OfferTextParseResult(
             OfferTextParseStatus.INCOMPLETE,
