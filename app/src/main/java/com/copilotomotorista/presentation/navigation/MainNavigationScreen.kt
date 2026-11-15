@@ -82,6 +82,7 @@ private fun HistoryScreen(
     val trips by repository.observeTrips().collectAsState(initial = emptyList())
     val scope = androidx.compose.runtime.rememberCoroutineScope()
     var filter by remember { androidx.compose.runtime.mutableStateOf("Todas") }
+    var selectedTrip by remember { androidx.compose.runtime.mutableStateOf<com.copilotomotorista.domain.model.TripRecord?>(null) }
     val filtered = remember(trips, filter) {
         trips.filter { trip ->
             when (filter) {
@@ -117,7 +118,7 @@ private fun HistoryScreen(
             ) {
                 items(filtered, key = { it.id }) { trip ->
                     Card(
-                        Modifier.fillMaxWidth(),
+                        Modifier.fillMaxWidth().clickable { selectedTrip = trip },
                         shape = RoundedCornerShape(16.dp),
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)
                     ) {
@@ -155,6 +156,26 @@ private fun HistoryScreen(
                 }
             }
         }
+    }
+    selectedTrip?.let { trip ->
+        TripDetailsDialog(
+            trip = trip,
+            onDismiss = { selectedTrip = null },
+            onSave = { edits ->
+                scope.launch {
+                    val updated = com.copilotomotorista.domain.usecase.UpdateTripRecordUseCase().execute(trip, edits)
+                    repository.saveTrip(updated)
+                    selectedTrip = null
+                }
+            },
+            onComplete = if (trip.status == "accepted") ({
+                scope.launch {
+                    val completed = com.copilotomotorista.domain.usecase.TransitionTripStatusUseCase().complete(trip, System.currentTimeMillis())
+                    repository.saveTrip(completed)
+                    selectedTrip = null
+                }
+            }) else null
+        )
     }
 }
 

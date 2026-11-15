@@ -2,6 +2,8 @@ package com.copilotomotorista
 
 import android.content.Context
 import androidx.room.Room
+import androidx.sqlite.db.SupportSQLiteOpenHelper
+import androidx.sqlite.db.framework.FrameworkSQLiteOpenHelperFactory
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.copilotomotorista.data.local.AppDatabase
@@ -18,6 +20,35 @@ import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
 class DatabasePersistenceTest {
+    @Test
+    fun migration3To4AddsSnapshotColumnsAndPreservesExistingTrip() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val name = "migration-3-4-${System.currentTimeMillis()}.db"
+        val config = SupportSQLiteOpenHelper.Configuration.builder(context)
+            .name(name)
+            .callback(object : SupportSQLiteOpenHelper.Callback(3) {
+                override fun onCreate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+                    db.execSQL("CREATE TABLE trip_records (id TEXT NOT NULL PRIMARY KEY, platform TEXT NOT NULL, status TEXT NOT NULL, receivedFareCents INTEGER NOT NULL, pickupDistanceKm REAL NOT NULL, tripDistanceKm REAL NOT NULL, pickupTimeMinutes INTEGER NOT NULL, tripTimeMinutes INTEGER NOT NULL, createdAtEpochMillis INTEGER NOT NULL)")
+                    db.execSQL("INSERT INTO trip_records VALUES ('legacy-trip','uber','completed',4500,1.5,8.0,5,20,1234)")
+                }
+                override fun onUpgrade(db: androidx.sqlite.db.SupportSQLiteDatabase, oldVersion: Int, newVersion: Int) = Unit
+            }).build()
+        val helper = FrameworkSQLiteOpenHelperFactory().create(config)
+        try {
+            val database = helper.writableDatabase
+            AppDatabase.MIGRATION_3_4.migrate(database)
+            database.query("SELECT id, operatingCostCentsSnapshot, vehicleNameSnapshot FROM trip_records WHERE id='legacy-trip'").use { cursor ->
+                org.junit.Assert.assertTrue(cursor.moveToFirst())
+                assertEquals("legacy-trip", cursor.getString(0))
+                assertEquals(true, cursor.isNull(1))
+                assertEquals(true, cursor.isNull(2))
+            }
+        } finally {
+            helper.close()
+            context.deleteDatabase(name)
+        }
+    }
+
     @Test
     fun recordsSurviveDatabaseReopenAndForeignKeysSetNull() = runBlocking {
         val context = ApplicationProvider.getApplicationContext<Context>()
@@ -46,6 +77,10 @@ class DatabasePersistenceTest {
                     null, null, null, null, null, 100L, "vehicle-1", null, "Confirmada pelo motorista", 51L)
             )
             assertEquals("completed", database.tripRecordDao().findById("trip-confirmation-1")?.status)
+            val duplicate = database.tripRecordDao().findRecentMatchingOffer(
+                "uber", 3200L, 0.0, 7.0, 0, 18, 0L
+            )
+            assertEquals("trip-confirmation-1", duplicate?.id)
             database.privateTripDao().upsert(
                 PrivateTripEntity("private-1", "client-1", "Particular", "A", "B", 60L,
                     15000L, 10.0, 30, "scheduled", "pending", "pix", null, 70L)

@@ -129,9 +129,23 @@ class AccessibilityReaderService : AccessibilityService() {
 
         lastOfferFingerprint = fingerprint
         lastOfferShownAt = now
-        val recordId = UUID.randomUUID().toString()
-        currentOfferRecordId = recordId
         serviceScope.launch {
+            val nowEpochMillis = System.currentTimeMillis()
+            val recentRecord = withContext(Dispatchers.IO) {
+                appContainer.tripRecordRepository.findRecentMatchingOffer(
+                    platform, offer.receivedFareCents, offer.pickupDistanceKm, offer.tripDistanceKm,
+                    offer.pickupTimeMinutes, offer.tripTimeMinutes,
+                    nowEpochMillis - DUPLICATE_OFFER_WINDOW_MILLIS
+                )
+            }
+            if (serviceDestroyed || generation != captureGeneration) return@launch
+            if (recentRecord?.status == TRIP_STATUS_COMPLETED) {
+                currentOfferRecordId = null
+                overlayWindowManager.hideOverlay()
+                return@launch
+            }
+            val recordId = recentRecord?.id ?: UUID.randomUUID().toString()
+            currentOfferRecordId = recordId
             val selected = withContext(Dispatchers.IO) {
                 val vehicleId = appContainer.preferences.selectedVehicleId.first()
                 val vehicle = vehicleId?.let { appContainer.vehicleRepository.getVehicle(it) }
@@ -293,6 +307,7 @@ class AccessibilityReaderService : AccessibilityService() {
         const val SCREENSHOT_DEBOUNCE_MILLIS = 1_500L
         const val OCR_MAX_RESULT_AGE_MILLIS = 5_000L
         const val OFFER_REPEAT_SUPPRESSION_MILLIS = 15_000L
+        const val DUPLICATE_OFFER_WINDOW_MILLIS = 120_000L
         const val TRIP_STATUS_ACCEPTED = "accepted"
         const val TRIP_STATUS_COMPLETED = "completed"
     }

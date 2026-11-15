@@ -8,6 +8,7 @@ import kotlinx.coroutines.flow.map
 class RoomTripRecordRepository(private val dao: TripRecordDao) : TripRecordRepository {
  override fun observeTrips(): Flow<List<TripRecord>> = dao.observeAll().map { rows -> rows.map { it.toDomain() } }
  override suspend fun getTrip(id: String): TripRecord? = dao.findById(id)?.toDomain()
+ override suspend fun findRecentMatchingOffer(platform: String, fareCents: Long, pickupDistanceKm: Double, tripDistanceKm: Double, pickupTimeMinutes: Int, tripTimeMinutes: Int, sinceEpochMillis: Long): TripRecord? = dao.findRecentMatchingOffer(platform, fareCents, pickupDistanceKm, tripDistanceKm, pickupTimeMinutes, tripTimeMinutes, sinceEpochMillis)?.toDomain()
  override suspend fun saveTrip(trip: TripRecord) = dao.upsert(trip.toEntity())
  override suspend fun deleteTrip(id: String) = dao.deleteById(id)
 }

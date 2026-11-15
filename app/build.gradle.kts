@@ -71,6 +71,7 @@ dependencies {
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
+    androidTestImplementation("androidx.sqlite:sqlite-framework:2.6.2")
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.ui.test.junit4)

@@ -4,9 +4,9 @@ Aplicativo Android em Kotlin e Jetpack Compose para apoiar motoristas de aplicat
 
 ## Estado do projeto
 
-O núcleo inicial está implementado: motor financeiro, persistência local, captura assistiva por AccessibilityService, OCR local de fallback, overlay de análise e Dashboard com dados reais registrados.
+O núcleo do aplicativo está implementado: motor financeiro, persistência local, captura assistiva por AccessibilityService, OCR local de fallback, overlay de análise, Dashboard e histórico de corridas com edição, transição de status e deduplicação de confirmações recentes.
 
-**O aplicativo ainda não está liberado para uso produtivo ou publicação.** A captura e a leitura precisam ser validadas em aparelhos físicos com versões atuais dos aplicativos Uber Driver e 99 Motorista. Histórico completo, agenda particular, relatórios e fluxo de configuração do veículo ainda têm áreas em desenvolvimento.
+**O aplicativo ainda não está liberado para uso produtivo ou publicação.** A captura e a leitura precisam ser validadas em aparelhos físicos com versões atuais dos aplicativos Uber Driver e 99 Motorista. Agenda particular, relatórios e fluxo completo de configuração do veículo ainda têm áreas em desenvolvimento.
 
 ## Requisitos de desenvolvimento
 
