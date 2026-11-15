@@ -1,4 +1,4 @@
 <resources>
     <string name="app_name">Copiloto Motorista</string>
-    <string name="accessibility_service_description">Monitor inteligente de rentabilidade para motoristas BYD Dolphin (Uber/99)</string>
+    <string name="accessibility_service_description">Monitor de ofertas e rentabilidade para motoristas de aplicativo, com suporte a diferentes tipos de veículo.</string>
 </resources>
