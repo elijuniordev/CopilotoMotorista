@@ -19,18 +19,21 @@ class AccessibilityReaderService : AccessibilityService() {
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         val rootNode = rootInActiveWindow ?: return
-
-        // Varre os nós de texto em busca de ofertas da Uber ou 99
-        scanNodeForOffers(rootNode)
+        try {
+            scanNodeForOffers(rootNode)
+        } catch (e: Exception) {
+            Log.e("CopilotoService", "Erro ao processar nós de acessibilidade", e)
+        } finally {
+            rootNode.recycle()
+        }
     }
 
     private fun scanNodeForOffers(node: AccessibilityNodeInfo) {
         val text = node.text?.toString() ?: ""
 
-        // Detecção heurística de preço e distância na tela de oferta
+        // Heurística moderna de deteção de corrida (Preço + Distância)
         if (text.contains("R$") && text.contains("km")) {
-            // Simulação controlada de oferta capturada para validação de bancada
-            triggerSimulatedOffer(grossFare = 25.0, distanceKm = 7.5)
+            triggerSimulatedOffer(grossFare = 32.00, distanceKm = 8.5)
         }
 
         for (i in 0 until node.childCount) {
@@ -45,7 +48,6 @@ class AccessibilityReaderService : AccessibilityService() {
     private fun triggerSimulatedOffer(grossFare: Double, distanceKm: Double) {
         val analysis = profitabilityUseCase.execute(grossFare, distanceKm)
 
-        // Exibe o overlay OLED de Cognição Zero por cima do app de transporte
         overlayWindowManager.showOverlay(
             analysisResult = analysis,
             grossFare = grossFare,

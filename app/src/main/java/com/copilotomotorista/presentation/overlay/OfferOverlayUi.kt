@@ -12,22 +12,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.copilotomotorista.domain.usecase.OfferAnalysisResult
 import com.copilotomotorista.domain.usecase.OfferViability
-
-private object OverlayThemeColors {
-    val OledBlack = Color(0xFF000000)
-    val CardSurface = Color(0xFF121619)
-    val TextWhite = Color(0xFFFFFFFF)
-    val TextMuted = Color(0xFFB0BEC5)
-
-    val EmeraldGreen = Color(0xFF00C853)
-    val WarningAmber = Color(0xFFFFEA00)
-    val RedAlert = Color(0xFFFF1744)
-}
 
 @Composable
 fun OfferOverlayUi(
@@ -37,163 +25,150 @@ fun OfferOverlayUi(
     onAcceptSimulated: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val statusColor = when (analysisResult.viability) {
-        is OfferViability.HighProfit -> OverlayThemeColors.EmeraldGreen
-        is OfferViability.Acceptable -> OverlayThemeColors.EmeraldGreen
-        is OfferViability.Warning -> OverlayThemeColors.WarningAmber
-        is OfferViability.LossOrReject -> OverlayThemeColors.RedAlert
+    // Tratamento exaustivo do enum para definição de cor (Cognição Zero em < 0.5s)
+    val accentColor = when (analysisResult.viability) {
+        OfferViability.EXCELLENT -> Color(0xFF00C853) // Verde Esmeralda Absoluto
+        OfferViability.MODERATE -> Color(0xFF64DD17)  // Verde Limão
+        OfferViability.WARNING -> Color(0xFFFFEA00)   // Âmbar de Alerta
+        OfferViability.LOSS -> Color(0xFFFF5252)      // Vermelho Prejuízo
     }
 
-    val viabilityLabel = when (analysisResult.viability) {
-        is OfferViability.HighProfit -> "LUCRO ALTO 🚀"
-        is OfferViability.Acceptable -> "META ATINGIDA ✅"
-        is OfferViability.Warning -> "ATENÇÃO (LIMITE) ⚠️"
-        is OfferViability.LossOrReject -> "PREJUÍZO / REJEITAR ❌"
+    val badgeText = when (analysisResult.viability) {
+        OfferViability.EXCELLENT -> "LUCRO EXCELENTE 🟢"
+        OfferViability.MODERATE -> "RENTABILIDADE BOA 🟢"
+        OfferViability.WARNING -> "ATENÇÃO: RETORNO BAIXO ⚠️"
+        OfferViability.LOSS -> "PREJUÍZO - REJEITAR ❌"
     }
+
+    val containerBg = Color(0xFF121619) // Preto OLED / Cinza Chumbo Antirreflexo
 
     Box(
         modifier = modifier
             .fillMaxWidth()
             .padding(12.dp)
-            .clip(RoundedCornerShape(16.dp))
-            .background(OverlayThemeColors.OledBlack)
-            .border(2.dp, statusColor, RoundedCornerShape(16.dp))
-            .padding(16.dp),
-        contentAlignment = Alignment.Center
+            .clip(RoundedCornerShape(20.dp))
+            .background(containerBg)
+            .border(2.dp, accentColor, RoundedCornerShape(20.dp))
+            .padding(16.dp)
     ) {
         Column(
             modifier = Modifier.fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // Cabeçalho: Veredito e Valor Bruto
+            // Cabeçalho: Valor Bruto e Badge de Viabilidade Instantânea
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Surface(
-                    color = statusColor.copy(alpha = 0.2f),
-                    shape = RoundedCornerShape(8.dp),
-                    border = BorderStroke(1.dp, statusColor)
-                ) {
+                Column {
                     Text(
-                        text = viabilityLabel,
-                        color = statusColor,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 14.sp,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                        text = "VALOR BRUTO",
+                        color = Color(0xFFB0BEC5),
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = "R$ %.2f".format(grossFare),
+                        color = Color.White,
+                        fontSize = 24.sp,
+                        fontWeight = FontWeight.ExtraBold
                     )
                 }
 
-                Text(
-                    text = "R$ %.2f".format(grossFare),
-                    color = OverlayThemeColors.TextWhite,
-                    fontSize = 24.sp,
-                    fontWeight = FontWeight.ExtraBold
-                )
+                Surface(
+                    color = accentColor.copy(alpha = 0.2f),
+                    shape = RoundedCornerShape(8.dp),
+                    border = BorderStroke(1.dp, accentColor)
+                ) {
+                    Text(
+                        text = badgeText,
+                        color = accentColor,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                    )
+                }
             }
 
-            HorizontalDivider(color = OverlayThemeColors.CardSurface, thickness = 1.dp)
+            HorizontalDivider(color = Color(0xFF263238), thickness = 1.dp)
 
-            // Corpo: Métricas de Cognição Zero
+            // Métricas Financeiras Focadas no BYD Dolphin (Lucro Líquido, R$/km, Distância)
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceAround,
-                verticalAlignment = Alignment.CenterVertically
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                MetricBox(
-                    title = "LUCRO / KM",
-                    value = "R$ %.2f".format(analysisResult.netProfitPerKm),
-                    valueColor = statusColor,
-                    isLarge = true
+                MetricItem(
+                    label = "LUCRO LÍQUIDO",
+                    value = "R$ %.2f".format(analysisResult.netProfit)
                 )
-
-                MetricBox(
-                    title = "LUCRO LÍQUIDO",
-                    value = "R$ %.2f".format(analysisResult.netProfit),
-                    valueColor = OverlayThemeColors.TextWhite,
-                    isLarge = false
+                MetricItem(
+                    label = "RETORNO POR KM",
+                    value = "R$ %.2f /km".format(analysisResult.earningsPerKm)
                 )
-
-                MetricBox(
-                    title = "DISTÂNCIA",
-                    value = "%.1f km".format(analysisResult.totalDistance),
-                    valueColor = OverlayThemeColors.TextMuted,
-                    isLarge = false
+                MetricItem(
+                    label = "DISTÂNCIA TOTAL",
+                    value = "%.1f km".format(analysisResult.totalDistanceKm)
                 )
             }
 
-            // Botões de Ação Rápida (Uso de RowScope.weight seguro)
+            Spacer(modifier = Modifier.height(4.dp))
+
+            // Botões de Ação Ergonômicos para o Motorista (Toque Rápido)
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 Button(
                     onClick = onDismiss,
-                    colors = ButtonDefaults.buttonColors(containerColor = OverlayThemeColors.RedAlert.copy(alpha = 0.2f)),
-                    border = BorderStroke(1.dp, OverlayThemeColors.RedAlert),
-                    shape = RoundedCornerShape(8.dp),
-                    modifier = Modifier.weight(1f)
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF263238)),
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(48.dp)
                 ) {
-                    Text(text = "DISPENSAR", color = OverlayThemeColors.RedAlert, fontWeight = FontWeight.Bold)
+                    Text(
+                        text = "DISPENSAR",
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 13.sp
+                    )
                 }
 
                 Button(
                     onClick = onAcceptSimulated,
-                    colors = ButtonDefaults.buttonColors(containerColor = OverlayThemeColors.EmeraldGreen),
-                    shape = RoundedCornerShape(8.dp),
-                    modifier = Modifier.weight(1f)
+                    colors = ButtonDefaults.buttonColors(containerColor = accentColor),
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(48.dp)
                 ) {
-                    Text(text = "REGISTAR", color = Color.Black, fontWeight = FontWeight.Bold)
+                    Text(
+                        text = "REGISTAR",
+                        color = Color.Black,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 13.sp
+                    )
                 }
-            }
-
-            // Rodapé: Custo energético do BYD Dolphin
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "Custo Bateria (Dolphin): R$ %.2f".format(analysisResult.energyCost),
-                    color = OverlayThemeColors.TextMuted,
-                    fontSize = 11.sp
-                )
-
-                Text(
-                    text = "Copiloto Motorista",
-                    color = OverlayThemeColors.TextMuted.copy(alpha = 0.5f),
-                    fontSize = 10.sp
-                )
             }
         }
     }
 }
 
 @Composable
-private fun MetricBox(
-    title: String,
-    value: String,
-    valueColor: Color,
-    isLarge: Boolean
-) {
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
+private fun MetricItem(label: String, value: String) {
+    Column {
         Text(
-            text = title,
-            color = OverlayThemeColors.TextMuted,
-            fontSize = 10.sp,
-            fontWeight = FontWeight.Medium
+            text = label,
+            color = Color(0xFF78909C),
+            fontSize = 9.sp,
+            fontWeight = FontWeight.Bold
         )
-        Spacer(modifier = Modifier.height(2.dp))
         Text(
             text = value,
-            color = valueColor,
-            fontSize = if (isLarge) 24.sp else 16.sp,
-            fontWeight = FontWeight.Bold,
-            textAlign = TextAlign.Center
+            color = Color.White,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.SemiBold
         )
     }
 }
