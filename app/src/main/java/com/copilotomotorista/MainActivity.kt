@@ -1,48 +1,110 @@
 package com.copilotomotorista
 
+import android.content.ComponentName
 import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
+import android.os.PowerManager
 import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.core.net.toUri
 import com.copilotomotorista.domain.model.OfferInput
 import com.copilotomotorista.domain.model.Vehicle
 import com.copilotomotorista.domain.model.VehicleEnergy
 import com.copilotomotorista.domain.model.VehicleOperatingCosts
 import com.copilotomotorista.domain.usecase.EvaluateOfferUseCase
+import com.copilotomotorista.service.AccessibilityReaderService
 import com.copilotomotorista.service.OverlayWindowManager
 import com.copilotomotorista.ui.theme.CopilotoMotoristaTheme
+
+private data class PermissionStatus(
+    val overlayGranted: Boolean = false,
+    val accessibilityEnabled: Boolean = false,
+    val batteryOptimizationDisabled: Boolean = false
+) {
+    val readyForOverlayTest: Boolean
+        get() = overlayGranted
+}
 
 class MainActivity : ComponentActivity() {
     private lateinit var overlayWindowManager: OverlayWindowManager
     private lateinit var evaluateOfferUseCase: EvaluateOfferUseCase
 
+    private var permissionStatus by mutableStateOf(PermissionStatus())
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         overlayWindowManager = OverlayWindowManager(this)
         evaluateOfferUseCase = EvaluateOfferUseCase()
+
         setContent {
             CopilotoMotoristaTheme {
-                Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-                    DriverDashboardScreen(
-                        onTestOverlay = { triggerMockOffer() },
-                        onRequestOverlayPermission = { requestOverlayPermission() },
-                        onRequestAccessibility = { openAccessibilitySettings() }
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color = MaterialTheme.colorScheme.background
+                ) {
+                    InitialSetupScreen(
+                        permissions = permissionStatus,
+                        onRequestOverlayPermission = ::requestOverlayPermission,
+                        onRequestAccessibility = ::openAccessibilitySettings,
+                        onRequestBatterySettings = ::openBatterySettings,
+                        onTestOverlay = ::triggerMockOffer
                     )
                 }
             }
         }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        refreshPermissionStatus()
+    }
+
+    private fun refreshPermissionStatus() {
+        val serviceComponent = ComponentName(this, AccessibilityReaderService::class.java)
+        val enabledServices = Settings.Secure.getString(
+            contentResolver,
+            Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
+        ).orEmpty().split(':')
+
+        val accessibilityEnabled = enabledServices.any { enabled ->
+            enabled.equals(serviceComponent.flattenToString(), ignoreCase = true)
+        }
+
+        val powerManager = getSystemService(POWER_SERVICE) as PowerManager
+        permissionStatus = PermissionStatus(
+            overlayGranted = Settings.canDrawOverlays(this),
+            accessibilityEnabled = accessibilityEnabled,
+            batteryOptimizationDisabled = powerManager.isIgnoringBatteryOptimizations(packageName)
+        )
     }
 
     private fun triggerMockOffer() {
@@ -50,7 +112,8 @@ class MainActivity : ComponentActivity() {
             requestOverlayPermission()
             return
         }
-        // Dados fictícios usados apenas para testar o motor e o overlay.
+
+        // Dados fictícios usados exclusivamente para validar o card flutuante.
         val testVehicle = Vehicle(
             id = "test-electric",
             name = "Veículo elétrico de teste",
@@ -77,55 +140,227 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun requestOverlayPermission() {
-        startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, "package:$packageName".toUri()))
+        val intent = Intent(
+            Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+            Uri.parse("package:$packageName")
+        )
+        startActivity(intent)
     }
 
     private fun openAccessibilitySettings() {
         startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
     }
+
+    private fun openBatterySettings() {
+        startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
+    }
 }
 
 @Composable
-fun DriverDashboardScreen(
-    onTestOverlay: () -> Unit,
+private fun InitialSetupScreen(
+    permissions: PermissionStatus,
     onRequestOverlayPermission: () -> Unit,
-    onRequestAccessibility: () -> Unit
+    onRequestAccessibility: () -> Unit,
+    onRequestBatterySettings: () -> Unit,
+    onTestOverlay: () -> Unit
 ) {
-    var isServiceActive by remember { mutableStateOf(false) }
+    val completedSteps = listOf(
+        permissions.overlayGranted,
+        permissions.accessibilityEnabled,
+        permissions.batteryOptimizationDisabled
+    ).count { it }
+
     Column(
-        modifier = Modifier.fillMaxSize().padding(20.dp),
-        verticalArrangement = Arrangement.SpaceBetween,
-        horizontalAlignment = Alignment.CenterHorizontally
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 20.dp, vertical = 28.dp),
+        verticalArrangement = Arrangement.spacedBy(20.dp)
     ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Spacer(Modifier.height(24.dp))
-            Text("COPILOTO MOTORISTA", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 1.5.sp)
-            Text("Análise inteligente de corridas", color = Color(0xFF00C853), fontSize = 12.sp, fontWeight = FontWeight.Medium)
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(
+                text = "COPILOTO MOTORISTA",
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.primary,
+                letterSpacing = 1.4.sp
+            )
+            Text(
+                text = "Vamos preparar seu copiloto",
+                style = MaterialTheme.typography.headlineLarge,
+                color = MaterialTheme.colorScheme.onBackground
+            )
+            Text(
+                text = "Conclua as configurações abaixo para permitir que o aplicativo analise ofertas e mostre o card flutuante.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
-        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            Card(colors = CardDefaults.cardColors(containerColor = Color(0xFF121619)), shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("ESTADO DO MONITOR", color = Color(0xFFB0BEC5), fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                        Text(if (isServiceActive) "EM TURNO (ATIVO) 🟢" else "EM PAUSA ⏸️", color = if (isServiceActive) Color(0xFF00C853) else Color(0xFFFFEA00), fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                        Switch(
-                            checked = isServiceActive,
-                            onCheckedChange = { isServiceActive = it },
-                            colors = SwitchDefaults.colors(checkedThumbColor = Color.Black, checkedTrackColor = Color(0xFF00C853))
-                        )
-                    }
+
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(20.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceContainer
+            )
+        ) {
+            Column(
+                modifier = Modifier.padding(18.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "CONFIGURAÇÃO INICIAL",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = "$completedSteps/3",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.primary
+                    )
                 }
-            }
-            Button(onClick = onRequestOverlayPermission, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1F2937)), shape = RoundedCornerShape(12.dp), modifier = Modifier.fillMaxWidth().height(50.dp)) {
-                Text("1. Conceder Permissão de Overlay", color = Color.White, fontWeight = FontWeight.SemiBold)
-            }
-            Button(onClick = onRequestAccessibility, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1F2937)), shape = RoundedCornerShape(12.dp), modifier = Modifier.fillMaxWidth().height(50.dp)) {
-                Text("2. Ativar Serviço de Acessibilidade", color = Color.White, fontWeight = FontWeight.SemiBold)
-            }
-            Button(onClick = onTestOverlay, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00C853)), shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth().height(56.dp)) {
-                Text("SIMULAR OFERTA DE CORRIDA 🚀", color = Color.Black, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                Text(
+                    text = when (completedSteps) {
+                        3 -> "Tudo pronto para o teste"
+                        0 -> "Precisamos de algumas permissões"
+                        else -> "Você está quase lá"
+                    },
+                    style = MaterialTheme.typography.titleLarge,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Text(
+                    text = "As permissões podem ser alteradas a qualquer momento nas configurações do Android.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
         }
-        Text("Análise demonstrativa. Configure seu veículo nas próximas etapas.", color = Color(0xFF78909C), fontSize = 11.sp, modifier = Modifier.padding(bottom = 12.dp))
+
+        PermissionStepCard(
+            number = "01",
+            title = "Exibir sobre outros aplicativos",
+            description = "Permite mostrar a análise flutuante sobre a tela do aplicativo de corridas.",
+            granted = permissions.overlayGranted,
+            grantedLabel = "Permissão concedida",
+            actionLabel = "Conceder permissão",
+            onAction = onRequestOverlayPermission
+        )
+
+        PermissionStepCard(
+            number = "02",
+            title = "Serviço de acessibilidade",
+            description = "Permite ao Copiloto identificar informações exibidas na tela. A leitura depende do conteúdo disponibilizado pelo aplicativo de corridas.",
+            granted = permissions.accessibilityEnabled,
+            grantedLabel = "Serviço ativado",
+            actionLabel = "Abrir configurações de acessibilidade",
+            onAction = onRequestAccessibility
+        )
+
+        PermissionStepCard(
+            number = "03",
+            title = "Otimização de bateria",
+            description = "Confira as restrições de bateria do Android. Alguns fabricantes podem interromper serviços em segundo plano.",
+            granted = permissions.batteryOptimizationDisabled,
+            grantedLabel = "Sem restrição de otimização",
+            actionLabel = "Ver configurações de bateria",
+            onAction = onRequestBatterySettings
+        )
+
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Button(
+                onClick = onTestOverlay,
+                enabled = permissions.readyForOverlayTest,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(54.dp),
+                shape = RoundedCornerShape(14.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary
+                )
+            ) {
+                Text(
+                    text = "TESTAR CARD FLUTUANTE",
+                    fontWeight = FontWeight.Bold
+                )
+            }
+            OutlinedButton(
+                onClick = onRequestAccessibility,
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp)
+            ) {
+                Text("Revisar permissões")
+            }
+            Text(
+                text = "O teste utiliza uma oferta demonstrativa. Ele não representa uma corrida real nem ativa o monitoramento automático.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+    }
+}
+
+@Composable
+private fun PermissionStepCard(
+    number: String,
+    title: String,
+    description: String,
+    granted: Boolean,
+    grantedLabel: String,
+    actionLabel: String,
+    onAction: () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+        )
+    ) {
+        Column(
+            modifier = Modifier.padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = number,
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Text(
+                    text = if (granted) "✓ $grantedLabel" else "Pendente",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = if (granted) MaterialTheme.colorScheme.primary
+                    else MaterialTheme.colorScheme.secondary
+                )
+            }
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Text(
+                text = description,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            OutlinedButton(
+                onClick = onAction,
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Text(if (granted) "Abrir configurações" else actionLabel)
+            }
+        }
     }
 }
