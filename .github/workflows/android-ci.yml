@@ -18,6 +18,11 @@ jobs:
   build-and-test:
     name: Build and unit tests (API ${{ matrix.api-level }})
     runs-on: ubuntu-24.04
+    env:
+      ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+      ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+      ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+      ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
     strategy:
       fail-fast: false
       matrix:
@@ -40,8 +45,26 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
       - name: Verify repository wrapper
         run: test -f ./gradlew && chmod +x ./gradlew
+      - name: Prepare private release signing key
+        if: ${{ env.ANDROID_KEYSTORE_BASE64 != '' && env.ANDROID_KEYSTORE_PASSWORD != '' && env.ANDROID_KEY_ALIAS != '' && env.ANDROID_KEY_PASSWORD != '' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          KEYSTORE_PATH="$RUNNER_TEMP/copiloto-release.jks"
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$KEYSTORE_PATH"
+          test -s "$KEYSTORE_PATH"
+          chmod 600 "$KEYSTORE_PATH"
+          echo "ANDROID_KEYSTORE_PATH=$KEYSTORE_PATH" >> "$GITHUB_ENV"
       - name: Run unit tests and build APKs
         run: ./gradlew --no-daemon testDebugUnitTest assembleDebug assembleRelease
+      - name: Verify signed release APK
+        if: ${{ env.ANDROID_KEYSTORE_BASE64 != '' && env.ANDROID_KEYSTORE_PASSWORD != '' && env.ANDROID_KEY_ALIAS != '' && env.ANDROID_KEY_PASSWORD != '' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          RELEASE_APK="$(find app/build/outputs/apk/release -maxdepth 1 -name '*.apk' -print -quit)"
+          test -n "$RELEASE_APK"
+          apksigner verify --verbose --print-certs "$RELEASE_APK"
       - name: Publish validation APKs
         if: matrix.api-level == 35
         uses: actions/upload-artifact@v6
