@@ -43,7 +43,7 @@ import com.copilotomotorista.domain.model.VehicleOperatingCosts
 import com.copilotomotorista.domain.usecase.EvaluateOfferUseCase
 import com.copilotomotorista.service.AccessibilityReaderService
 import com.copilotomotorista.service.OverlayWindowManager
-import com.copilotomotorista.presentation.dashboard.DashboardScreen
+import com.copilotomotorista.presentation.navigation.MainNavigationScreen
 import com.copilotomotorista.ui.theme.CopilotoMotoristaTheme
 
 private data class PermissionStatus(
@@ -74,7 +74,7 @@ class MainActivity : ComponentActivity() {
                     color = MaterialTheme.colorScheme.background
                 ) {
                     if (showDashboard) {
-                        DashboardScreen(
+                        MainNavigationScreen(
                             onOpenSetup = { showDashboard = false },
                             onTestOverlay = ::triggerMockOffer
                         )
