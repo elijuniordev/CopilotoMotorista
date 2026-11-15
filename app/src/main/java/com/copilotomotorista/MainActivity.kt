@@ -144,8 +144,8 @@ class MainActivity : ComponentActivity() {
         overlayWindowManager.showOverlay(
             analysisResult = analysis,
             grossFare = testOffer.receivedFareCents / 100.0,
-            onDismiss = {},
-            onAccept = {}
+            isDemo = true,
+            onDismiss = {}
         )
     }
 

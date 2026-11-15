@@ -10,6 +10,7 @@ import androidx.lifecycle.setViewTreeLifecycleOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import com.copilotomotorista.domain.usecase.OfferAnalysisResult
 import com.copilotomotorista.presentation.overlay.OfferOverlayUi
+import com.copilotomotorista.ui.theme.CopilotoMotoristaTheme
 
 class OverlayWindowManager(private val context: Context) {
 
@@ -19,12 +20,10 @@ class OverlayWindowManager(private val context: Context) {
     fun showOverlay(
         analysisResult: OfferAnalysisResult,
         grossFare: Double,
-        onDismiss: () -> Unit,
-        onAccept: () -> Unit
+        isDemo: Boolean = false,
+        onDismiss: () -> Unit
     ) {
-        if (overlayView != null) {
-            hideOverlay()
-        }
+        hideOverlay()
 
         val type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
@@ -37,39 +36,40 @@ class OverlayWindowManager(private val context: Context) {
             WindowManager.LayoutParams.WRAP_CONTENT,
             type,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                    WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
-                    WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
+                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+                WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
             PixelFormat.TRANSLUCENT
         ).apply {
             gravity = Gravity.TOP
             x = 0
-            y = 100
+            y = 72
         }
 
         val view = ComposeView(context).apply {
-            setViewTreeLifecycleOwner(null) // Contexto de serviço puro
+            setViewTreeLifecycleOwner(null)
             setViewTreeSavedStateRegistryOwner(null)
             setContent {
-                OfferOverlayUi(
-                    analysisResult = analysisResult,
-                    grossFare = grossFare,
-                    onDismiss = {
-                        hideOverlay()
-                        onDismiss()
-                    },
-                    onAcceptSimulated = {
-                        hideOverlay()
-                        onAccept()
-                    }
-                )
+                CopilotoMotoristaTheme {
+                    OfferOverlayUi(
+                        analysisResult = analysisResult,
+                        grossFare = grossFare,
+                        isDemo = isDemo,
+                        onDismiss = {
+                            hideOverlay()
+                            onDismiss()
+                        }
+                    )
+                }
             }
         }
 
-        overlayView = view
         try {
             windowManager.addView(view, params)
-        } catch (e: Exception) {
-            e.printStackTrace()
+            overlayView = view
+        } catch (_: SecurityException) {
+            overlayView = null
+        } catch (_: WindowManager.BadTokenException) {
+            overlayView = null
         }
     }
 
@@ -77,10 +77,11 @@ class OverlayWindowManager(private val context: Context) {
         overlayView?.let { view ->
             try {
                 windowManager.removeView(view)
-            } catch (e: Exception) {
-                e.printStackTrace()
+            } catch (_: IllegalArgumentException) {
+                // A view já pode ter sido removida pelo sistema.
+            } finally {
+                overlayView = null
             }
-            overlayView = null
         }
     }
 }
