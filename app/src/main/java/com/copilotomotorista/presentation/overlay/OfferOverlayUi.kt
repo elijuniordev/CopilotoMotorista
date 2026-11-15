@@ -150,8 +150,8 @@ fun OfferOverlayUi(
         ) {
             Text("COMPOSIÇÃO DOS CUSTOS", color = CockpitOnSurfaceVariant, fontSize = 9.sp, fontWeight = FontWeight.Bold)
             CostLine("Energia / combustível", analysisResult.energyCost)
-            CostLine("Manutenção", analysisResult.maintenanceCost)
-            CostLine("Depreciação", analysisResult.depreciationCost)
+            CostLine("Manutenção", analysisResult.maintenanceCostCents / 100.0)
+            CostLine("Depreciação", analysisResult.depreciationCostCents / 100.0)
             CostLine("Outros custos", analysisResult.otherCostsCents / 100.0)
         }
 
