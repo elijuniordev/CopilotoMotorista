@@ -19,9 +19,15 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -39,11 +45,22 @@ fun DashboardScreen(
     onTestOverlay: () -> Unit
 ) {
     val snapshot by dashboardDataSource.snapshot.collectAsState(initial = DashboardSnapshot())
-    val metrics = remember(snapshot) {
+    val lifecycleOwner = LocalLifecycleOwner.current
+    var dashboardNowEpochMillis by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                dashboardNowEpochMillis = System.currentTimeMillis()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+    val metrics = remember(snapshot, dashboardNowEpochMillis) {
         CalculateDashboardDailyMetricsUseCase().execute(
             trips = snapshot.trips,
             expenses = snapshot.expenses,
-            nowEpochMillis = System.currentTimeMillis()
+            nowEpochMillis = dashboardNowEpochMillis
         )
     }
     val recentTrips = remember(snapshot.trips) {

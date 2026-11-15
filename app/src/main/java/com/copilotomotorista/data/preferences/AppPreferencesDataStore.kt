@@ -8,6 +8,7 @@ import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.copilotomotorista.domain.model.FinancialTargets
+import com.copilotomotorista.presentation.dashboard.DashboardPreferences
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
@@ -15,14 +16,14 @@ private val Context.appPreferencesDataStore: DataStore<Preferences> by preferenc
     name = "app_preferences"
 )
 
-class AppPreferencesDataStore(context: Context) {
+class AppPreferencesDataStore(context: Context) : DashboardPreferences {
     private val dataStore = context.applicationContext.appPreferencesDataStore
 
-    val selectedVehicleId: Flow<String?> = dataStore.data.map { preferences ->
+    override val selectedVehicleId: Flow<String?> = dataStore.data.map { preferences ->
         preferences[SELECTED_VEHICLE_ID]
     }
 
-    val financialTargets: Flow<FinancialTargets> = dataStore.data.map { preferences ->
+    override val financialTargets: Flow<FinancialTargets> = dataStore.data.map { preferences ->
         FinancialTargets(
             excellentNetCentsPerKm = preferences[EXCELLENT_NET_CENTS_PER_KM]
                 ?: DEFAULT_TARGETS.excellentNetCentsPerKm,
