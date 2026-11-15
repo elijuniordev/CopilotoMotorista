@@ -10,6 +10,8 @@ import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import androidx.core.content.ContextCompat
 import com.copilotomotorista.data.AppContainer
+import com.copilotomotorista.domain.model.OfferInput
+import com.copilotomotorista.domain.model.TripRecord
 import com.copilotomotorista.domain.usecase.EvaluateOfferUseCase
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -18,6 +20,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.util.UUID
 
 /**
  * Captura texto das telas Uber/99 e só apresenta análise quando oferta,
@@ -38,6 +41,8 @@ class AccessibilityReaderService : AccessibilityService() {
     private var serviceDestroyed = false
     private var lastOfferFingerprint: String? = null
     private var lastOfferShownAt = 0L
+    private var currentOfferRecordId: String? = null
+    private var currentPlatform: String = "unknown"
 
     override fun onCreate() {
         super.onCreate()
@@ -60,13 +65,19 @@ class AccessibilityReaderService : AccessibilityService() {
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         event ?: return
+        val packageName = event.packageName?.toString()
         val accepted = eventGate.shouldAccept(
-            packageName = event.packageName?.toString(),
+            packageName = packageName,
             eventType = event.eventType,
             nowMillis = SystemClock.uptimeMillis()
         )
         if (!accepted) return
 
+        currentPlatform = when (packageName) {
+            SupportedRideApps.UBER_DRIVER -> "uber"
+            SupportedRideApps.NINETY_NINE_DRIVER -> "99"
+            else -> "unknown"
+        }
         val capturedAt = SystemClock.uptimeMillis()
         val snapshot = nodeTextReader.read(rootInActiveWindow, capturedAt)
         if (snapshot.hasUsableText) {
@@ -83,6 +94,7 @@ class AccessibilityReaderService : AccessibilityService() {
                 if (parsed.status != OfferTextParseStatus.COMPLETE || parsed.offer == null) {
                     if (parsed.status == OfferTextParseStatus.NOT_OFFER) {
                         lastOfferFingerprint = null
+                        currentOfferRecordId = null
                         overlayWindowManager.hideOverlay()
                     }
                     return
@@ -101,6 +113,9 @@ class AccessibilityReaderService : AccessibilityService() {
 
                 lastOfferFingerprint = fingerprint
                 lastOfferShownAt = now
+                val recordId = UUID.randomUUID().toString()
+                currentOfferRecordId = recordId
+                val platform = currentPlatform
                 serviceScope.launch {
                     val selected = withContext(Dispatchers.IO) {
                         val vehicleId = appContainer.preferences.selectedVehicleId.first()
@@ -121,9 +136,56 @@ class AccessibilityReaderService : AccessibilityService() {
                         analysisResult = analysis,
                         grossFare = offer.receivedFareCents / 100.0,
                         isDemo = false,
-                        onDismiss = {}
+                        onDismiss = {},
+                        onAccepted = {
+                            saveConfirmedTrip(recordId, platform, offer, vehicle.id, TRIP_STATUS_ACCEPTED)
+                        },
+                        onCompleted = {
+                            saveConfirmedTrip(recordId, platform, offer, vehicle.id, TRIP_STATUS_COMPLETED)
+                        }
                     )
                 }
+            }
+        }
+    }
+
+    private fun saveConfirmedTrip(
+        recordId: String,
+        platform: String,
+        offer: OfferInput,
+        vehicleId: String,
+        status: String
+    ) {
+        if (serviceDestroyed) return
+        serviceScope.launch {
+            val now = System.currentTimeMillis()
+            val record = TripRecord(
+                id = recordId,
+                platform = platform,
+                status = status,
+                receivedFareCents = offer.receivedFareCents,
+                pickupDistanceKm = offer.pickupDistanceKm,
+                tripDistanceKm = offer.tripDistanceKm,
+                pickupTimeMinutes = offer.pickupTimeMinutes,
+                tripTimeMinutes = offer.tripTimeMinutes,
+                origin = null,
+                destination = null,
+                passengerRating = null,
+                paymentMethod = null,
+                startedAtEpochMillis = null,
+                completedAtEpochMillis = if (status == TRIP_STATUS_COMPLETED) now else null,
+                vehicleId = vehicleId,
+                evidenceUri = null,
+                notes = "Registro confirmado manualmente pelo motorista.",
+                createdAtEpochMillis = now
+            )
+            val saved = runCatching {
+                withContext(Dispatchers.IO) {
+                    appContainer.tripRecordRepository.saveTrip(record)
+                }
+            }.isSuccess
+            if (saved && currentOfferRecordId == recordId) {
+                overlayWindowManager.hideOverlay()
             }
         }
     }
@@ -197,5 +259,7 @@ class AccessibilityReaderService : AccessibilityService() {
     private companion object {
         const val SCREENSHOT_DEBOUNCE_MILLIS = 1_500L
         const val OFFER_REPEAT_SUPPRESSION_MILLIS = 15_000L
+        const val TRIP_STATUS_ACCEPTED = "accepted"
+        const val TRIP_STATUS_COMPLETED = "completed"
     }
 }

@@ -21,7 +21,9 @@ class OverlayWindowManager(private val context: Context) {
         analysisResult: OfferAnalysisResult,
         grossFare: Double,
         isDemo: Boolean = false,
-        onDismiss: () -> Unit
+        onDismiss: () -> Unit,
+        onAccepted: () -> Unit = {},
+        onCompleted: () -> Unit = {}
     ) {
         hideOverlay()
 
@@ -57,6 +59,14 @@ class OverlayWindowManager(private val context: Context) {
                         onDismiss = {
                             hideOverlay()
                             onDismiss()
+                        },
+                        onAccepted = {
+                            onAccepted()
+                            hideOverlay()
+                        },
+                        onCompleted = {
+                            onCompleted()
+                            hideOverlay()
                         }
                     )
                 }

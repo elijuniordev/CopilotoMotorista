@@ -11,6 +11,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -39,6 +40,8 @@ fun OfferOverlayUi(
     grossFare: Double,
     isDemo: Boolean,
     onDismiss: () -> Unit,
+    onAccepted: () -> Unit = {},
+    onCompleted: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val accentColor = when (analysisResult.viability) {
@@ -101,51 +104,24 @@ fun OfferOverlayUi(
         HorizontalDivider(color = CockpitOutlineVariant)
 
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            MetricItem(
-                label = "RESULTADO OPERACIONAL",
-                value = money(analysisResult.netProfit),
-                valueColor = if (analysisResult.netProfit >= 0) CockpitPrimary else CockpitError,
-                modifier = Modifier.weight(1f)
-            )
-            MetricItem(
-                label = "CUSTO ESTIMADO",
-                value = money(analysisResult.operatingCost),
-                modifier = Modifier.weight(1f)
-            )
+            MetricItem("RESULTADO OPERACIONAL", money(analysisResult.netProfit),
+                if (analysisResult.netProfit >= 0) CockpitPrimary else CockpitError, Modifier.weight(1f))
+            MetricItem("CUSTO ESTIMADO", money(analysisResult.operatingCost), modifier = Modifier.weight(1f))
         }
 
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            MetricItem(
-                label = "RESULTADO POR KM",
-                value = money(analysisResult.earningsPerKm),
-                modifier = Modifier.weight(1f)
-            )
-            MetricItem(
-                label = "RESULTADO POR HORA",
-                value = money(analysisResult.earningsPerHour),
-                modifier = Modifier.weight(1f)
-            )
+            MetricItem("RESULTADO POR KM", money(analysisResult.earningsPerKm), modifier = Modifier.weight(1f))
+            MetricItem("RESULTADO POR HORA", money(analysisResult.earningsPerHour), modifier = Modifier.weight(1f))
         }
 
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            MetricItem(
-                label = "DISTÂNCIA TOTAL",
-                value = String.format(Locale("pt", "BR"), "%.1f km", analysisResult.totalDistanceKm),
-                modifier = Modifier.weight(1f)
-            )
-            MetricItem(
-                label = "TEMPO ESTIMADO",
-                value = "${analysisResult.totalTimeMinutes} min",
-                modifier = Modifier.weight(1f)
-            )
+            MetricItem("DISTÂNCIA TOTAL", String.format(Locale("pt", "BR"), "%.1f km", analysisResult.totalDistanceKm), modifier = Modifier.weight(1f))
+            MetricItem("TEMPO ESTIMADO", "${analysisResult.totalTimeMinutes} min", modifier = Modifier.weight(1f))
         }
 
         Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(14.dp))
-                .background(CockpitSurfaceContainer)
-                .padding(12.dp),
+            modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp))
+                .background(CockpitSurfaceContainer).padding(12.dp),
             verticalArrangement = Arrangement.spacedBy(7.dp)
         ) {
             Text("COMPOSIÇÃO DOS CUSTOS", color = CockpitOnSurfaceVariant, fontSize = 9.sp, fontWeight = FontWeight.Bold)
@@ -156,28 +132,38 @@ fun OfferOverlayUi(
         }
 
         Text(
-            text = if (analysisResult.meetsHourlyTarget) {
-                "A estimativa atinge sua meta mínima por hora."
-            } else {
-                "A estimativa não atinge sua meta mínima por hora."
-            },
-            color = CockpitOnSurfaceVariant,
-            fontSize = 11.sp
+            text = if (analysisResult.meetsHourlyTarget) "A estimativa atinge sua meta mínima por hora."
+            else "A estimativa não atinge sua meta mínima por hora.",
+            color = CockpitOnSurfaceVariant, fontSize = 11.sp
         )
         Text(
             text = "Estimativa baseada nos custos configurados do veículo. Não garante o resultado real da corrida.",
-            color = CockpitOnSurfaceVariant,
-            fontSize = 9.sp
+            color = CockpitOnSurfaceVariant, fontSize = 9.sp
         )
+
+        if (!isDemo) {
+            Button(
+                onClick = onAccepted,
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = CockpitPrimary, contentColor = CockpitSurface)
+            ) {
+                Text("CONFIRMAR CORRIDA ACEITA", fontWeight = FontWeight.Bold)
+            }
+            OutlinedButton(
+                onClick = onCompleted,
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp)
+            ) {
+                Text("REGISTRAR COMO CONCLUÍDA", fontWeight = FontWeight.Bold)
+            }
+        }
 
         Button(
             onClick = onDismiss,
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(14.dp),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = accentColor,
-                contentColor = CockpitSurface
-            )
+            colors = ButtonDefaults.buttonColors(containerColor = CockpitSurfaceContainer, contentColor = CockpitOnSurface)
         ) {
             Text("FECHAR ANÁLISE", fontWeight = FontWeight.Bold)
         }
@@ -188,8 +174,8 @@ fun OfferOverlayUi(
 private fun MetricItem(
     label: String,
     value: String,
-    modifier: Modifier = Modifier,
-    valueColor: Color = CockpitOnSurface
+    valueColor: Color = CockpitOnSurface,
+    modifier: Modifier = Modifier
 ) {
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Text(label, color = CockpitOnSurfaceVariant, fontSize = 9.sp, fontWeight = FontWeight.Bold)
