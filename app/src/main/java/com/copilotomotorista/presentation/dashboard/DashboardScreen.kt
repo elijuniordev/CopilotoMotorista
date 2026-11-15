@@ -19,249 +19,119 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import java.text.NumberFormat
+import java.util.Locale
 
 @Composable
 fun DashboardScreen(
+    dashboardDataSource: DashboardDataSource,
     onOpenSetup: () -> Unit,
     onTestOverlay: () -> Unit
 ) {
+    val snapshot by dashboardDataSource.snapshot.collectAsState(initial = DashboardSnapshot())
+    val metrics = remember(snapshot) {
+        CalculateDashboardDailyMetricsUseCase().execute(
+            trips = snapshot.trips,
+            expenses = snapshot.expenses,
+            nowEpochMillis = System.currentTimeMillis()
+        )
+    }
+    val currency = remember { NumberFormat.getCurrencyInstance(Locale("pt", "BR")) }
+    val hasRecords = metrics.completedTrips > 0 || metrics.recordedExpensesCents > 0L
+    val balanceText = currency.format(metrics.registeredBalanceCents / 100.0)
+
     Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = 20.dp, vertical = 24.dp),
+        modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 24.dp),
         verticalArrangement = Arrangement.spacedBy(20.dp)
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(
-                    text = "COCKPIT FINANCEIRO",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.primary
-                )
-                Text(
-                    text = "Visão geral",
-                    style = MaterialTheme.typography.headlineLarge,
-                    color = MaterialTheme.colorScheme.onBackground
-                )
+                Text("COCKPIT FINANCEIRO", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                Text("Visão geral", style = MaterialTheme.typography.headlineLarge, color = MaterialTheme.colorScheme.onBackground)
             }
-            OutlinedButton(
-                onClick = onOpenSetup,
-                shape = RoundedCornerShape(12.dp)
-            ) {
-                Text("Configurações")
-            }
+            OutlinedButton(onClick = onOpenSetup, shape = RoundedCornerShape(12.dp)) { Text("Configurações") }
         }
-
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(22.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceContainer
-            )
-        ) {
-            Column(
-                modifier = Modifier.padding(20.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "RESULTADO DO TURNO",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Text(
-                        text = "SEM REGISTROS",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.secondary
-                    )
+        Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(22.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
+            Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    Text("RESULTADO DO DIA", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(if (hasRecords) "VALORES REGISTRADOS" else "SEM REGISTROS", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.secondary)
                 }
+                Text(if (hasRecords) balanceText else "—", style = MaterialTheme.typography.displayLarge, color = MaterialTheme.colorScheme.onSurface)
                 Text(
-                    text = "—",
-                    style = MaterialTheme.typography.displayLarge,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                Text(
-                    text = "Seu resultado aparecerá aqui após o registro das corridas e despesas.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    if (hasRecords) "Saldo de corridas concluídas menos despesas lançadas hoje. Não inclui custos estimados ainda não registrados."
+                    else "Seu resultado aparecerá aqui após o registro de corridas concluídas e despesas.",
+                    style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Spacer(modifier = Modifier.height(4.dp))
-                Button(
-                    onClick = onTestOverlay,
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(14.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.primary,
-                        contentColor = MaterialTheme.colorScheme.onPrimary
-                    )
-                ) {
+                Button(onClick = onTestOverlay, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp), colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary, contentColor = MaterialTheme.colorScheme.onPrimary)) {
                     Text("TESTAR CARD FLUTUANTE", fontWeight = FontWeight.Bold)
                 }
             }
         }
-
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            SectionHeading(
-                title = "Indicadores do turno",
-                subtitle = "Acompanhe os números conforme seus registros forem adicionados."
-            )
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                MetricCard(
-                    title = "Faturamento",
-                    value = "—",
-                    supporting = "Aguardando dados",
-                    modifier = Modifier.weight(1f)
-                )
-                MetricCard(
-                    title = "Despesas",
-                    value = "—",
-                    supporting = "Aguardando dados",
-                    modifier = Modifier.weight(1f)
-                )
+            SectionHeading("Indicadores do dia", "Atualizados conforme os registros forem salvos.")
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                MetricCard("Faturamento", currency.format(metrics.receivedFareCents / 100.0), "${metrics.completedTrips} corridas concluídas", Modifier.weight(1f))
+                MetricCard("Despesas", currency.format(metrics.recordedExpensesCents / 100.0), "Despesas lançadas hoje", Modifier.weight(1f))
             }
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                MetricCard(
-                    title = "Resultado / km",
-                    value = "—",
-                    supporting = "Aguardando dados",
-                    modifier = Modifier.weight(1f)
-                )
-                MetricCard(
-                    title = "Resultado / hora",
-                    value = "—",
-                    supporting = "Aguardando dados",
-                    modifier = Modifier.weight(1f)
-                )
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                MetricCard("Resultado / km", metrics.balanceCentsPerKm?.let { currency.format(it / 100.0) } ?: "—", if (metrics.balanceCentsPerKm == null) "Sem distância registrada" else "Saldo por km", Modifier.weight(1f))
+                MetricCard("Resultado / hora", metrics.balanceCentsPerHour?.let { currency.format(it / 100.0) } ?: "—", if (metrics.balanceCentsPerHour == null) "Sem tempo registrado" else "Saldo por hora", Modifier.weight(1f))
+            }
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                MetricCard("Distância total", String.format(Locale("pt", "BR"), "%.1f km", metrics.totalDistanceKm), "Busca + viagem", Modifier.weight(1f))
+                MetricCard("Tempo registrado", formatDuration(metrics.totalDurationMinutes), "Busca + viagem", Modifier.weight(1f))
             }
         }
-
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(18.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceContainerLow
-            )
-        ) {
-            Column(
-                modifier = Modifier.padding(18.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                SectionHeading(
-                    title = "Atividade recente",
-                    subtitle = "Suas corridas registradas serão listadas aqui."
-                )
+        Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(18.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)) {
+            Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                SectionHeading("Atividade recente", "Suas corridas registradas serão listadas aqui.")
+                Text("Nenhuma atividade por enquanto.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+        Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(18.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)) {
+            Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                SectionHeading("Metas financeiras", "As metas configuradas serão apresentadas nesta área.")
                 Text(
-                    text = "Nenhuma atividade por enquanto.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    "Meta excelente: ${currency.format(snapshot.financialTargets.excellentNetCentsPerKm / 100.0)}/km · Meta mínima por hora: ${currency.format(snapshot.financialTargets.minimumNetCentsPerHour / 100.0)}",
+                    style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+                OutlinedButton(onClick = onOpenSetup, shape = RoundedCornerShape(12.dp)) { Text("Revisar configuração do aplicativo") }
             }
         }
-
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(18.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceContainerLow
-            )
-        ) {
-            Column(
-                modifier = Modifier.padding(18.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                SectionHeading(
-                    title = "Metas financeiras",
-                    subtitle = "As metas poderão ser acompanhadas quando forem configuradas."
-                )
-                Text(
-                    text = "Configure seus custos e objetivos para comparar o desempenho do turno.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                OutlinedButton(
-                    onClick = onOpenSetup,
-                    shape = RoundedCornerShape(12.dp)
-                ) {
-                    Text("Revisar configuração do aplicativo")
-                }
-            }
-        }
-
         Spacer(modifier = Modifier.height(8.dp))
     }
 }
 
+private fun formatDuration(totalMinutes: Int): String {
+    val hours = totalMinutes / 60
+    val minutes = totalMinutes % 60
+    return if (hours > 0) "${hours}h ${minutes}min" else "${minutes} min"
+}
+
 @Composable
-private fun SectionHeading(
-    title: String,
-    subtitle: String
-) {
+private fun SectionHeading(title: String, subtitle: String) {
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text(
-            text = title,
-            style = MaterialTheme.typography.titleLarge,
-            color = MaterialTheme.colorScheme.onSurface
-        )
-        Text(
-            text = subtitle,
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
+        Text(title, style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurface)
+        Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
 @Composable
-private fun MetricCard(
-    title: String,
-    value: String,
-    supporting: String,
-    modifier: Modifier = Modifier
-) {
-    Card(
-        modifier = modifier,
-        shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
-        )
-    ) {
-        Column(
-            modifier = Modifier.padding(14.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Text(
-                text = value,
-                style = MaterialTheme.typography.headlineMedium,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-            Text(
-                text = supporting,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+private fun MetricCard(title: String, value: String, supporting: String, modifier: Modifier = Modifier) {
+    Card(modifier = modifier, shape = RoundedCornerShape(18.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)) {
+        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(title, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(value, style = MaterialTheme.typography.headlineMedium, color = MaterialTheme.colorScheme.onSurface)
+            Text(supporting, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }
