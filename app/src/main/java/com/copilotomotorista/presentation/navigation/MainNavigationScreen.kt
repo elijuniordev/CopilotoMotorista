@@ -35,7 +35,7 @@ import com.copilotomotorista.presentation.dashboard.DashboardScreen
 
 private enum class MainTab(val label: String, val symbol: String) {
     DASHBOARD("Painel", "⌂"), HISTORY("Histórico", "↻"),
-    SCHEDULE("Agenda", "▦"), REPORTS("Relatórios", "▤"), VEHICLES("Veículos", "⚙")
+    SCHEDULE("Agenda", "▦"), EXPENSES("Despesas", "−"), REPORTS("Relatórios", "▤"), VEHICLES("Veículos", "⚙")
 }
 
 @Composable
@@ -46,7 +46,8 @@ fun MainNavigationScreen(
     vehicleRepository: com.copilotomotorista.data.repository.VehicleRepository,
     preferences: com.copilotomotorista.data.preferences.AppPreferencesDataStore,
     privateTripRepository: com.copilotomotorista.data.repository.PrivateTripRepository,
-    clientRepository: com.copilotomotorista.data.repository.ClientRepository
+    clientRepository: com.copilotomotorista.data.repository.ClientRepository,
+    expenseRepository: com.copilotomotorista.data.repository.ExpenseRepository
 ) {
     var selectedIndex by remember { mutableIntStateOf(0) }
     val selected = MainTab.entries[selectedIndex]
@@ -56,7 +57,8 @@ fun MainNavigationScreen(
                 MainTab.DASHBOARD -> DashboardScreen(dashboardDataSource, { selectedIndex = MainTab.VEHICLES.ordinal }, onTestOverlay)
                 MainTab.HISTORY -> HistoryScreen(tripRecordRepository)
                 MainTab.SCHEDULE -> PrivateScheduleScreen(privateTripRepository, clientRepository)
-                MainTab.REPORTS -> FinancialReportScreen()
+                MainTab.EXPENSES -> ExpenseManagementScreen(expenseRepository, vehicleRepository)
+                MainTab.REPORTS -> FinancialReportsScreen(dashboardDataSource)
                 MainTab.VEHICLES -> VehicleConfigurationScreen(vehicleRepository, preferences)
             }
         }
@@ -184,45 +186,6 @@ private fun HistoryScreen(
 }
 
 @Composable
-private fun PrivateScheduleScreen() {
-    Column(Modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
-        ScreenHeader("CORRIDAS PARTICULARES", "Agenda", "Organize seus compromissos e acompanhe os atendimentos particulares.")
-        Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(18.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
-            Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
-                Eyebrow("AGENDA DE COMPROMISSOS")
-                Text("Sua rotina em um só lugar", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurface)
-                Text("Agendamentos, dados dos clientes, trajetos e pagamentos aparecerão aqui quando o cadastro estiver disponível.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-        }
-        EmptyState("▦", "Sua agenda está vazia", "Ainda não há compromissos cadastrados. O cadastro e a edição de corridas particulares serão habilitados em uma etapa funcional posterior.")
-    }
-}
-
-@Composable
-private fun FinancialReportScreen() {
-    Column(Modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        ScreenHeader("DESEMPENHO E RESULTADOS", "Relatórios", "Visualize seus resultados e entenda de onde vêm seus ganhos.")
-        Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
-            Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
-                Eyebrow("RESULTADO FINANCEIRO")
-                Text("—", color = MaterialTheme.colorScheme.onSurface, fontSize = 34.sp, fontWeight = FontWeight.Bold)
-                Text("Sem dados suficientes para consolidar o período.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-        }
-        Eyebrow("INDICADORES DO PERÍODO")
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            ReportMetric("Faturamento", Modifier.weight(1f))
-            ReportMetric("Custos", Modifier.weight(1f))
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            ReportMetric("Lucro líquido", Modifier.weight(1f))
-            ReportMetric("Eficiência", Modifier.weight(1f))
-        }
-        EmptyState("▤", "Relatório aguardando dados", "Gráficos por horário, origem dos ganhos e exportação serão apresentados quando houver registros reais para análise.")
-    }
-}
-
-@Composable
 private fun ScreenHeader(eyebrow: String, title: String, description: String) {
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Eyebrow(eyebrow)
@@ -245,17 +208,6 @@ private fun EmptyState(symbol: String, title: String, description: String) {
             }
             Text(title, color = MaterialTheme.colorScheme.onSurface, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             Text(description, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
-        }
-    }
-}
-
-@Composable
-private fun ReportMetric(label: String, modifier: Modifier = Modifier) {
-    Card(modifier, shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)) {
-        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(label, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp)
-            Text("—", color = MaterialTheme.colorScheme.onSurface, fontSize = 23.sp, fontWeight = FontWeight.Bold)
-            Text("Aguardando registros", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 9.sp)
         }
     }
 }

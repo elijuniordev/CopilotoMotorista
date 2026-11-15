@@ -90,6 +90,7 @@ class MainActivity : ComponentActivity() {
                             tripRecordRepository = appContainer.tripRecordRepository,
                             privateTripRepository = appContainer.privateTripRepository,
                             clientRepository = appContainer.clientRepository,
+                            expenseRepository = appContainer.expenseRepository,
                             vehicleRepository = appContainer.vehicleRepository,
                             preferences = appContainer.preferences
                         )
