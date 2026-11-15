@@ -106,6 +106,7 @@ class DashboardDataSourceTest {
     ) : TripRecordRepository {
         override fun observeTrips(): Flow<List<TripRecord>> = records
         override suspend fun getTrip(id: String): TripRecord? = records.value.firstOrNull { it.id == id }
+        override suspend fun findRecentMatchingOffer(platform: String, fareCents: Long, pickupDistanceKm: Double, tripDistanceKm: Double, pickupTimeMinutes: Int, tripTimeMinutes: Int, sinceEpochMillis: Long): TripRecord? = null
         override suspend fun saveTrip(trip: TripRecord) { records.value = records.value.filterNot { it.id == trip.id } + trip }
         override suspend fun deleteTrip(id: String) { records.value = records.value.filterNot { it.id == id } }
     }
