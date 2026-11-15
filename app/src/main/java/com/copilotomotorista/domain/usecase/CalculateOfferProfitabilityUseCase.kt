@@ -1,31 +1,25 @@
 package com.copilotomotorista.domain.usecase
 
+import com.copilotomotorista.domain.model.OfferInput
+import com.copilotomotorista.domain.model.Vehicle
+import com.copilotomotorista.domain.model.VehicleEnergy
+import com.copilotomotorista.domain.model.VehicleOperatingCosts
+
+/** Compatibilidade temporária. Novos fluxos devem usar EvaluateOfferUseCase. */
 class CalculateOfferProfitabilityUseCase {
-
-    // Custo estimado por km para o BYD Dolphin (eficiência energética elétrica)
-    private val costPerKm: Double = 0.15
-
+    @Deprecated("Use EvaluateOfferUseCase com veículo e OfferInput configurados.")
     fun execute(grossFare: Double, totalDistanceKm: Double): OfferAnalysisResult {
-        val totalEnergyCost = totalDistanceKm * costPerKm
-        val netProfit = grossFare - totalEnergyCost
-        val earningsPerKm = if (totalDistanceKm > 0) netProfit / totalDistanceKm else 0.0
-
-        val viability = when {
-            earningsPerKm >= 3.0 -> OfferViability.EXCELLENT
-            earningsPerKm >= 2.0 -> OfferViability.MODERATE
-            earningsPerKm >= 1.2 -> OfferViability.WARNING
-            else -> OfferViability.LOSS
-        }
-
-        val isViable = earningsPerKm >= 1.5
-
-        return OfferAnalysisResult(
-            netProfit = netProfit,
-            earningsPerKm = earningsPerKm,
-            totalDistanceKm = totalDistanceKm,
-            energyCost = totalEnergyCost,
-            viability = viability,
-            isViable = isViable
+        require(grossFare >= 0.0 && grossFare.isFinite()) { "Valor recebido inválido." }
+        require(totalDistanceKm > 0.0 && totalDistanceKm.isFinite()) { "Distância inválida." }
+        val vehicle = Vehicle(
+            id = "legacy-estimate",
+            name = "Estimativa temporária",
+            energy = VehicleEnergy.Electric(15.0, 100L),
+            operatingCosts = VehicleOperatingCosts(0L, 0L)
+        )
+        return EvaluateOfferUseCase().execute(
+            OfferInput((grossFare * 100.0).toLong(), 0.0, totalDistanceKm, 0, 60),
+            vehicle
         )
     }
 }
