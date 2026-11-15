@@ -7,10 +7,10 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -42,6 +42,9 @@ fun OfferOverlayUi(
     onDismiss: () -> Unit,
     onAccepted: () -> Unit = {},
     onCompleted: () -> Unit = {},
+    platform: String = "Aplicativo",
+    rideCategory: String = "Categoria não identificada",
+    paymentMethod: String = "Pagamento não identificado",
     modifier: Modifier = Modifier
 ) {
     val accentColor = when (analysisResult.viability) {
@@ -51,145 +54,127 @@ fun OfferOverlayUi(
     }
     val statusText = when (analysisResult.viability) {
         OfferViability.EXCELLENT -> "EXCELENTE"
-        OfferViability.MODERATE -> "BOA RENTABILIDADE"
+        OfferViability.MODERATE -> "BOA"
         OfferViability.WARNING -> "ATENÇÃO"
-        OfferViability.LOSS -> "RESULTADO NEGATIVO"
+        OfferViability.LOSS -> "PREJUÍZO"
     }
 
     Column(
         modifier = modifier
+            .widthIn(max = 360.dp)
             .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 8.dp)
-            .clip(RoundedCornerShape(24.dp))
+            .padding(horizontal = 10.dp, vertical = 6.dp)
+            .clip(RoundedCornerShape(18.dp))
             .background(CockpitSurface)
-            .border(1.dp, CockpitOutlineVariant, RoundedCornerShape(24.dp))
-            .padding(18.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
+            .border(1.dp, CockpitOutlineVariant, RoundedCornerShape(18.dp))
+            .padding(12.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(
-                    text = if (isDemo) "ANÁLISE DE DEMONSTRAÇÃO" else "ANÁLISE DA OFERTA",
-                    color = CockpitOnSurfaceVariant,
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 1.sp
-                )
-                Text(
-                    text = money(grossFare),
+                    text = platform.uppercase(Locale("pt", "BR")),
                     color = CockpitOnSurface,
-                    fontSize = 29.sp,
+                    fontSize = 13.sp,
                     fontWeight = FontWeight.Bold
                 )
-                Text("VALOR RECEBIDO", color = CockpitOnSurfaceVariant, fontSize = 9.sp)
+                Text(
+                    text = "$rideCategory  •  $paymentMethod",
+                    color = CockpitOnSurfaceVariant,
+                    fontSize = 9.sp,
+                    maxLines = 1
+                )
             }
-            Surface(
-                color = accentColor.copy(alpha = 0.13f),
-                shape = RoundedCornerShape(10.dp)
-            ) {
+            Surface(color = accentColor.copy(alpha = 0.14f), shape = RoundedCornerShape(8.dp)) {
                 Text(
                     text = statusText,
                     color = accentColor,
-                    fontSize = 10.sp,
+                    fontSize = 9.sp,
                     fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp)
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp)
                 )
             }
         }
 
-        HorizontalDivider(color = CockpitOutlineVariant)
-
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            MetricItem("RESULTADO OPERACIONAL", money(analysisResult.netProfit),
-                if (analysisResult.netProfit >= 0) CockpitPrimary else CockpitError, Modifier.weight(1f))
-            MetricItem("CUSTO ESTIMADO", money(analysisResult.operatingCost), modifier = Modifier.weight(1f))
-        }
-
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            MetricItem("RESULTADO POR KM", money(analysisResult.earningsPerKm), modifier = Modifier.weight(1f))
-            MetricItem("RESULTADO POR HORA", money(analysisResult.earningsPerHour), modifier = Modifier.weight(1f))
-        }
-
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            MetricItem("DISTÂNCIA TOTAL", String.format(Locale("pt", "BR"), "%.1f km", analysisResult.totalDistanceKm), modifier = Modifier.weight(1f))
-            MetricItem("TEMPO ESTIMADO", "${analysisResult.totalTimeMinutes} min", modifier = Modifier.weight(1f))
-        }
-
-        Column(
-            modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp))
-                .background(CockpitSurfaceContainer).padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(7.dp)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("COMPOSIÇÃO DOS CUSTOS", color = CockpitOnSurfaceVariant, fontSize = 9.sp, fontWeight = FontWeight.Bold)
-            CostLine("Energia / combustível", analysisResult.energyCost)
-            CostLine("Manutenção", analysisResult.maintenanceCostCents / 100.0)
-            CostLine("Depreciação", analysisResult.depreciationCostCents / 100.0)
-            CostLine("Outros custos", analysisResult.otherCostsCents / 100.0)
+            Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
+                Text("VOCÊ RECEBE", color = CockpitOnSurfaceVariant, fontSize = 8.sp, fontWeight = FontWeight.Bold)
+                Text(money(grossFare), color = CockpitOnSurface, fontSize = 25.sp, fontWeight = FontWeight.Bold)
+            }
+            Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(1.dp)) {
+                Text("RESULTADO ESTIMADO", color = CockpitOnSurfaceVariant, fontSize = 8.sp, fontWeight = FontWeight.Bold)
+                Text(
+                    money(analysisResult.netProfit),
+                    color = if (analysisResult.netProfit >= 0) CockpitPrimary else CockpitError,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
         }
 
-        Text(
-            text = if (analysisResult.meetsHourlyTarget) "A estimativa atinge sua meta mínima por hora."
-            else "A estimativa não atinge sua meta mínima por hora.",
-            color = CockpitOnSurfaceVariant, fontSize = 11.sp
-        )
-        Text(
-            text = "Estimativa baseada nos custos configurados do veículo. Não garante o resultado real da corrida.",
-            color = CockpitOnSurfaceVariant, fontSize = 9.sp
-        )
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Metric("POR HORA", money(analysisResult.earningsPerHour), Modifier.weight(1f))
+            Metric("POR KM", money(analysisResult.earningsPerKm), Modifier.weight(1f))
+            Metric("DISTÂNCIA", String.format(Locale("pt", "BR"), "%.1f km", analysisResult.totalDistanceKm), Modifier.weight(1f))
+            Metric("TEMPO", formatDuration(analysisResult.totalTimeMinutes), Modifier.weight(1f))
+        }
 
-        if (!isDemo) {
-            Button(
-                onClick = onAccepted,
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(14.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = CockpitPrimary, contentColor = CockpitSurface)
-            ) {
-                Text("CONFIRMAR CORRIDA ACEITA", fontWeight = FontWeight.Bold)
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (!isDemo) {
+                Button(
+                    onClick = onAccepted,
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(10.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = CockpitPrimary,
+                        contentColor = CockpitSurface
+                    )
+                ) {
+                    Text("ACEITAR", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                }
+                OutlinedButton(
+                    onClick = onCompleted,
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Text("CONCLUÍDA", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                }
             }
             OutlinedButton(
-                onClick = onCompleted,
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(14.dp)
+                onClick = onDismiss,
+                modifier = Modifier.weight(1f),
+                shape = RoundedCornerShape(10.dp)
             ) {
-                Text("REGISTRAR COMO CONCLUÍDA", fontWeight = FontWeight.Bold)
+                Text(if (isDemo) "FECHAR" else "IGNORAR", fontSize = 11.sp, fontWeight = FontWeight.Bold)
             }
         }
-
-        Button(
-            onClick = onDismiss,
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(14.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = CockpitSurfaceContainer, contentColor = CockpitOnSurface)
-        ) {
-            Text("FECHAR ANÁLISE", fontWeight = FontWeight.Bold)
-        }
     }
 }
 
 @Composable
-private fun MetricItem(
-    label: String,
-    value: String,
-    valueColor: Color = CockpitOnSurface,
-    modifier: Modifier = Modifier
-) {
-    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text(label, color = CockpitOnSurfaceVariant, fontSize = 9.sp, fontWeight = FontWeight.Bold)
-        Text(value, color = valueColor, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+private fun Metric(label: String, value: String, modifier: Modifier = Modifier) {
+    Column(
+        modifier = modifier
+            .clip(RoundedCornerShape(9.dp))
+            .background(CockpitSurfaceContainer)
+            .padding(horizontal = 7.dp, vertical = 7.dp),
+        verticalArrangement = Arrangement.spacedBy(3.dp)
+    ) {
+        Text(label, color = CockpitOnSurfaceVariant, fontSize = 7.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+        Text(value, color = CockpitOnSurface, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
     }
 }
 
-@Composable
-private fun CostLine(label: String, value: Double) {
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-        Text(label, color = CockpitOnSurfaceVariant, fontSize = 10.sp)
-        Text(money(value), color = CockpitOnSurface, fontSize = 10.sp, fontWeight = FontWeight.Medium)
-    }
-}
+private fun formatDuration(minutes: Int): String =
+    if (minutes >= 60) "${minutes / 60}h${(minutes % 60).toString().padStart(2, '0')}" else "${minutes} min"
 
 private fun money(value: Double): String =
     String.format(Locale("pt", "BR"), "R$ %.2f", value)

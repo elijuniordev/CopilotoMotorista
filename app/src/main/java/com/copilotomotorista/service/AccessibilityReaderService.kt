@@ -166,6 +166,9 @@ class AccessibilityReaderService : AccessibilityService() {
                 analysisResult = analysis,
                 grossFare = currentOffer.receivedFareCents / 100.0,
                 isDemo = false,
+                platform = if (platform == "uber") "Uber" else if (platform == "99") "99" else "Aplicativo",
+                rideCategory = detectRideCategory(snapshot.text, platform),
+                paymentMethod = detectPaymentMethod(snapshot.text),
                 onDismiss = {},
                 onAccepted = {
                     saveConfirmedTrip(recordId, platform, currentOffer, vehicle.id, vehicle.name, analysis.operatingCostCents, TRIP_STATUS_ACCEPTED)
@@ -174,6 +177,27 @@ class AccessibilityReaderService : AccessibilityService() {
                     saveConfirmedTrip(recordId, platform, currentOffer, vehicle.id, vehicle.name, analysis.operatingCostCents, TRIP_STATUS_COMPLETED)
                 }
             )
+        }
+    }
+
+    private fun detectRideCategory(text: String, platform: String): String {
+        val patterns = if (platform == "uber") {
+            listOf("UberX", "Uber Comfort", "Uber Black", "UberX Saver", "Uber Flash")
+        } else {
+            listOf("99Pop", "99Plus", "99Comfort", "99Moto", "99Entrega")
+        }
+        return patterns.firstOrNull { pattern ->
+            Regex(Regex.escape(pattern), RegexOption.IGNORE_CASE).containsMatchIn(text)
+        } ?: "Categoria não identificada"
+    }
+
+    private fun detectPaymentMethod(text: String): String {
+        val normalized = text.lowercase()
+        return when {
+            Regex("""\\b(pix)\\b""").containsMatchIn(normalized) -> "Pix"
+            Regex("""\\b(dinheiro|cash)\\b""").containsMatchIn(normalized) -> "Dinheiro"
+            Regex("""\\b(cart[aã]o|cr[eé]dito|d[eé]bito)\\b""").containsMatchIn(normalized) -> "Cartão"
+            else -> "Pagamento não identificado"
         }
     }
 
