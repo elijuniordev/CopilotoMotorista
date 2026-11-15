@@ -2,18 +2,19 @@ package com.copilotomotorista.service
 
 import android.content.Context
 import android.graphics.PixelFormat
-import android.util.Log
+import android.os.Build
 import android.view.Gravity
-import android.view.View
 import android.view.WindowManager
 import androidx.compose.ui.platform.ComposeView
+import androidx.lifecycle.setViewTreeLifecycleOwner
+import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import com.copilotomotorista.domain.usecase.OfferAnalysisResult
 import com.copilotomotorista.presentation.overlay.OfferOverlayUi
 
 class OverlayWindowManager(private val context: Context) {
 
     private val windowManager = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
-    private var overlayView: View? = null
+    private var overlayView: ComposeView? = null
 
     fun showOverlay(
         analysisResult: OfferAnalysisResult,
@@ -21,22 +22,33 @@ class OverlayWindowManager(private val context: Context) {
         onDismiss: () -> Unit,
         onAccept: () -> Unit
     ) {
-        if (overlayView != null) return
+        if (overlayView != null) {
+            hideOverlay()
+        }
 
-        val layoutParams = WindowManager.LayoutParams().apply {
-            type = WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
-            format = PixelFormat.TRANSLUCENT
-            flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+        val type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+        } else {
+            WindowManager.LayoutParams.TYPE_PHONE
+        }
+
+        val params = WindowManager.LayoutParams(
+            WindowManager.LayoutParams.MATCH_PARENT,
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            type,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
                     WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
-                    WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH
-
-            width = WindowManager.LayoutParams.MATCH_PARENT
-            height = WindowManager.LayoutParams.WRAP_CONTENT
+                    WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
+            PixelFormat.TRANSLUCENT
+        ).apply {
             gravity = Gravity.TOP
+            x = 0
             y = 100
         }
 
-        val composeView = ComposeView(context).apply {
+        val view = ComposeView(context).apply {
+            setViewTreeLifecycleOwner(null) // Contexto de serviço puro
+            setViewTreeSavedStateRegistryOwner(null)
             setContent {
                 OfferOverlayUi(
                     analysisResult = analysisResult,
@@ -53,12 +65,11 @@ class OverlayWindowManager(private val context: Context) {
             }
         }
 
-        overlayView = composeView
-
+        overlayView = view
         try {
-            windowManager.addView(composeView, layoutParams)
+            windowManager.addView(view, params)
         } catch (e: Exception) {
-            Log.e("OverlayManager", "Erro ao exibir overlay: ${e.localizedMessage}")
+            e.printStackTrace()
         }
     }
 
@@ -67,7 +78,7 @@ class OverlayWindowManager(private val context: Context) {
             try {
                 windowManager.removeView(view)
             } catch (e: Exception) {
-                Log.e("OverlayManager", "Erro ao remover overlay: ${e.localizedMessage}")
+                e.printStackTrace()
             }
             overlayView = null
         }

@@ -22,7 +22,7 @@ class AccessibilityReaderService : AccessibilityService() {
         try {
             scanNodeForOffers(rootNode)
         } catch (e: Exception) {
-            Log.e("CopilotoService", "Erro ao processar nós de acessibilidade", e)
+            Log.e("CopilotoService", "Erro na leitura de acessibilidade", e)
         } finally {
             rootNode.recycle()
         }
@@ -31,9 +31,14 @@ class AccessibilityReaderService : AccessibilityService() {
     private fun scanNodeForOffers(node: AccessibilityNodeInfo) {
         val text = node.text?.toString() ?: ""
 
-        // Heurística moderna de deteção de corrida (Preço + Distância)
         if (text.contains("R$") && text.contains("km")) {
-            triggerSimulatedOffer(grossFare = 32.00, distanceKm = 8.5)
+            val analysis = profitabilityUseCase.execute(32.0, 8.5)
+            overlayWindowManager.showOverlay(
+                analysisResult = analysis,
+                grossFare = 32.0,
+                onDismiss = {},
+                onAccept = {}
+            )
         }
 
         for (i in 0 until node.childCount) {
@@ -43,21 +48,6 @@ class AccessibilityReaderService : AccessibilityService() {
                 child.recycle()
             }
         }
-    }
-
-    private fun triggerSimulatedOffer(grossFare: Double, distanceKm: Double) {
-        val analysis = profitabilityUseCase.execute(grossFare, distanceKm)
-
-        overlayWindowManager.showOverlay(
-            analysisResult = analysis,
-            grossFare = grossFare,
-            onDismiss = {
-                Log.d("CopilotoService", "Oferta rejeitada pelo motorista")
-            },
-            onAccept = {
-                Log.d("CopilotoService", "Oferta registada com sucesso")
-            }
-        )
     }
 
     override fun onInterrupt() {

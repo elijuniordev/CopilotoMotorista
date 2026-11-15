@@ -18,6 +18,7 @@ import androidx.compose.ui.unit.sp
 import androidx.core.net.toUri
 import com.copilotomotorista.domain.usecase.CalculateOfferProfitabilityUseCase
 import com.copilotomotorista.service.OverlayWindowManager
+import com.copilotomotorista.ui.theme.CopilotoMotoristaTheme
 
 class MainActivity : ComponentActivity() {
 
@@ -30,15 +31,17 @@ class MainActivity : ComponentActivity() {
         profitabilityUseCase = CalculateOfferProfitabilityUseCase()
 
         setContent {
-            Surface(
-                modifier = Modifier.fillMaxSize(),
-                color = Color(0xFF000000) // Fundo Preto OLED Absoluto
-            ) {
-                DriverDashboardScreen(
-                    onTestOverlay = { triggerMockOffer() },
-                    onRequestOverlayPermission = { requestOverlayPermission() },
-                    onRequestAccessibility = { openAccessibilitySettings() }
-                )
+            CopilotoMotoristaTheme {
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color = MaterialTheme.colorScheme.background
+                ) {
+                    DriverDashboardScreen(
+                        onTestOverlay = { triggerMockOffer() },
+                        onRequestOverlayPermission = { requestOverlayPermission() },
+                        onRequestAccessibility = { openAccessibilitySettings() }
+                    )
+                }
             }
         }
     }

@@ -25,12 +25,11 @@ fun OfferOverlayUi(
     onAcceptSimulated: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    // Tratamento exaustivo do enum para definição de cor (Cognição Zero em < 0.5s)
     val accentColor = when (analysisResult.viability) {
-        OfferViability.EXCELLENT -> Color(0xFF00C853) // Verde Esmeralda Absoluto
-        OfferViability.MODERATE -> Color(0xFF64DD17)  // Verde Limão
-        OfferViability.WARNING -> Color(0xFFFFEA00)   // Âmbar de Alerta
-        OfferViability.LOSS -> Color(0xFFFF5252)      // Vermelho Prejuízo
+        OfferViability.EXCELLENT -> Color(0xFF00C853)
+        OfferViability.MODERATE -> Color(0xFF64DD17)
+        OfferViability.WARNING -> Color(0xFFFFEA00)
+        OfferViability.LOSS -> Color(0xFFFF5252)
     }
 
     val badgeText = when (analysisResult.viability) {
@@ -40,14 +39,12 @@ fun OfferOverlayUi(
         OfferViability.LOSS -> "PREJUÍZO - REJEITAR ❌"
     }
 
-    val containerBg = Color(0xFF121619) // Preto OLED / Cinza Chumbo Antirreflexo
-
     Box(
         modifier = modifier
             .fillMaxWidth()
             .padding(12.dp)
             .clip(RoundedCornerShape(20.dp))
-            .background(containerBg)
+            .background(Color(0xFF121619))
             .border(2.dp, accentColor, RoundedCornerShape(20.dp))
             .padding(16.dp)
     ) {
@@ -55,7 +52,6 @@ fun OfferOverlayUi(
             modifier = Modifier.fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // Cabeçalho: Valor Bruto e Badge de Viabilidade Instantânea
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -93,28 +89,15 @@ fun OfferOverlayUi(
 
             HorizontalDivider(color = Color(0xFF263238), thickness = 1.dp)
 
-            // Métricas Financeiras Focadas no BYD Dolphin (Lucro Líquido, R$/km, Distância)
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                MetricItem(
-                    label = "LUCRO LÍQUIDO",
-                    value = "R$ %.2f".format(analysisResult.netProfit)
-                )
-                MetricItem(
-                    label = "RETORNO POR KM",
-                    value = "R$ %.2f /km".format(analysisResult.earningsPerKm)
-                )
-                MetricItem(
-                    label = "DISTÂNCIA TOTAL",
-                    value = "%.1f km".format(analysisResult.totalDistanceKm)
-                )
+                MetricItem(label = "LUCRO LÍQUIDO", value = "R$ %.2f".format(analysisResult.netProfit))
+                MetricItem(label = "RETORNO/KM", value = "R$ %.2f/km".format(analysisResult.earningsPerKm))
+                MetricItem(label = "DISTÂNCIA", value = "%.1f km".format(analysisResult.totalDistanceKm))
             }
 
-            Spacer(modifier = Modifier.height(4.dp))
-
-            // Botões de Ação Ergonômicos para o Motorista (Toque Rápido)
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -122,33 +105,19 @@ fun OfferOverlayUi(
                 Button(
                     onClick = onDismiss,
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF263238)),
-                    shape = RoundedCornerShape(12.dp),
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(48.dp)
+                    modifier = Modifier.weight(1f).height(48.dp),
+                    shape = RoundedCornerShape(12.dp)
                 ) {
-                    Text(
-                        text = "DISPENSAR",
-                        color = Color.White,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 13.sp
-                    )
+                    Text("DISPENSAR", color = Color.White, fontWeight = FontWeight.Bold)
                 }
 
                 Button(
                     onClick = onAcceptSimulated,
                     colors = ButtonDefaults.buttonColors(containerColor = accentColor),
-                    shape = RoundedCornerShape(12.dp),
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(48.dp)
+                    modifier = Modifier.weight(1f).height(48.dp),
+                    shape = RoundedCornerShape(12.dp)
                 ) {
-                    Text(
-                        text = "REGISTAR",
-                        color = Color.Black,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 13.sp
-                    )
+                    Text("REGISTAR", color = Color.Black, fontWeight = FontWeight.Bold)
                 }
             }
         }
@@ -158,17 +127,7 @@ fun OfferOverlayUi(
 @Composable
 private fun MetricItem(label: String, value: String) {
     Column {
-        Text(
-            text = label,
-            color = Color(0xFF78909C),
-            fontSize = 9.sp,
-            fontWeight = FontWeight.Bold
-        )
-        Text(
-            text = value,
-            color = Color.White,
-            fontSize = 13.sp,
-            fontWeight = FontWeight.SemiBold
-        )
+        Text(text = label, color = Color(0xFF78909C), fontSize = 9.sp, fontWeight = FontWeight.Bold)
+        Text(text = value, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
     }
 }
