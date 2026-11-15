@@ -1,10 +1,10 @@
 package com.copilotomotorista.service
 
-accessibilityService.AccessibilityService
-view.accessibility.AccessibilityNodeInfo
-content.Context
-util.Log
-domain.usecase.CalculateOfferProfitabilityUseCase
+import android.accessibilityservice.AccessibilityService
+import android.util.Log
+import android.view.accessibility.AccessibilityEvent
+import android.view.accessibility.AccessibilityNodeInfo
+import com.copilotomotorista.domain.usecase.CalculateOfferProfitabilityUseCase
 
 class AccessibilityReaderService : AccessibilityService() {
 
@@ -17,7 +17,7 @@ class AccessibilityReaderService : AccessibilityService() {
         profitabilityUseCase = CalculateOfferProfitabilityUseCase()
     }
 
-    override fun onAccessibilityEvent(event: android.view.accessibility.AccessibilityEvent?) {
+    override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         val rootNode = rootInActiveWindow ?: return
 
         // Varre os nós de texto em busca de ofertas da Uber ou 99
@@ -27,15 +27,15 @@ class AccessibilityReaderService : AccessibilityService() {
     private fun scanNodeForOffers(node: AccessibilityNodeInfo) {
         val text = node.text?.toString() ?: ""
 
-        // Exemplo de heurística de deteção de preço de corrida (ex: "R$ 24,50")
+        // Detecção heurística de preço e distância na tela de oferta
         if (text.contains("R$") && text.contains("km")) {
-            // Lógica de extração de valores do texto capturado
-            // Para testes imediatos, podemos simular uma oferta válida capturada:
+            // Simulação controlada de oferta capturada para validação de bancada
             triggerSimulatedOffer(grossFare = 25.0, distanceKm = 7.5)
         }
 
         for (i in 0 until node.childCount) {
-            node.getChild(i)?.let { child ->
+            val child = node.getChild(i)
+            if (child != null) {
                 scanNodeForOffers(child)
                 child.recycle()
             }
@@ -45,7 +45,7 @@ class AccessibilityReaderService : AccessibilityService() {
     private fun triggerSimulatedOffer(grossFare: Double, distanceKm: Double) {
         val analysis = profitabilityUseCase.execute(grossFare, distanceKm)
 
-        // Exibe o overlay na tela por cima do app de transporte
+        // Exibe o overlay OLED de Cognição Zero por cima do app de transporte
         overlayWindowManager.showOverlay(
             analysisResult = analysis,
             grossFare = grossFare,

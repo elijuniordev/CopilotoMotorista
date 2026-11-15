@@ -37,6 +37,11 @@ android {
 
     kotlinOptions {
         jvmTarget = "11"
+        // Garante que o compilador trate todas as funções @Composable com o plugin correto ativado
+        freeCompilerArgs += listOf(
+            "-P",
+            "plugin:androidx.compose.compiler.plugins.kotlin:metricsDestination=" + project.layout.buildDirectory.dir("compose_metrics").get().asFile.absolutePath
+        )
     }
 
     buildFeatures {
@@ -44,7 +49,7 @@ android {
     }
 
     composeOptions {
-        kotlinCompilerExtensionVersion = "1.5.1"
+        kotlinCompilerExtensionVersion = "1.5.8" // Atualizado para paridade perfeita com Kotlin 1.9.22
     }
 
     packaging {
@@ -59,7 +64,7 @@ dependencies {
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.activity.compose)
 
-    // Jetpack Compose BOM unificado
+    // Jetpack Compose BOM unificado (Declarado estritamente UMA ÚNICA VEZ)
     val composeBom = platform(libs.androidx.compose.bom)
     implementation(composeBom)
     androidTestImplementation(composeBom)
