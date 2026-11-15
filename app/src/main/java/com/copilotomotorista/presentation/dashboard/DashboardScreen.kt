@@ -27,6 +27,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import java.text.NumberFormat
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 @Composable
@@ -43,9 +46,12 @@ fun DashboardScreen(
             nowEpochMillis = System.currentTimeMillis()
         )
     }
+    val recentTrips = remember(snapshot.trips) {
+        GetRecentDashboardTripsUseCase().execute(snapshot.trips)
+    }
     val currency = remember { NumberFormat.getCurrencyInstance(Locale("pt", "BR")) }
-    val hasRecords = metrics.completedTrips > 0 || metrics.recordedExpensesCents > 0L
     val balanceText = currency.format(metrics.registeredBalanceCents / 100.0)
+    val hasRecords = metrics.completedTrips > 0 || metrics.recordedExpensesCents > 0L
 
     Column(
         modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 24.dp),
@@ -92,9 +98,20 @@ fun DashboardScreen(
             }
         }
         Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(18.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)) {
-            Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                SectionHeading("Atividade recente", "Suas corridas registradas serão listadas aqui.")
-                Text("Nenhuma atividade por enquanto.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                SectionHeading("Atividade recente", "Últimas corridas registradas.")
+                if (recentTrips.isEmpty()) {
+                    Text("Nenhuma atividade por enquanto.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                } else {
+                    recentTrips.forEach { trip ->
+                        RecentTripRow(
+                            platform = formatPlatform(trip.platform),
+                            status = formatTripStatus(trip.status),
+                            fare = currency.format(trip.receivedFareCents / 100.0),
+                            timestamp = formatTripTimestamp(trip.createdAtEpochMillis)
+                        )
+                    }
+                }
             }
         }
         Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(18.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)) {
@@ -110,6 +127,37 @@ fun DashboardScreen(
         Spacer(modifier = Modifier.height(8.dp))
     }
 }
+
+@Composable
+private fun RecentTripRow(platform: String, status: String, fare: String, timestamp: String) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+            Text(platform, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.SemiBold)
+            Text("$status · $timestamp", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        Text(fare, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+    }
+}
+
+private fun formatPlatform(platform: String): String = when (platform.lowercase(Locale.ROOT)) {
+    "uber" -> "Uber"
+    "99" -> "99"
+    else -> platform.replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.getDefault()) else it.toString() }
+}
+
+private fun formatTripStatus(status: String): String = when (status.lowercase(Locale.ROOT)) {
+    "accepted" -> "Aceita"
+    "completed" -> "Concluída"
+    else -> status.replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.getDefault()) else it.toString() }
+}
+
+private fun formatTripTimestamp(timestamp: Long): String =
+    Instant.ofEpochMilli(timestamp).atZone(ZoneId.systemDefault())
+        .format(DateTimeFormatter.ofPattern("dd/MM · HH:mm", Locale("pt", "BR")))
 
 private fun formatDuration(totalMinutes: Int): String {
     val hours = totalMinutes / 60
