@@ -25,6 +25,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.copilotomotorista.presentation.dashboard.DashboardDataSource
 import com.copilotomotorista.presentation.dashboard.DashboardScreen
 
 private enum class MainTab(val label: String, val symbol: String) {
@@ -33,13 +34,17 @@ private enum class MainTab(val label: String, val symbol: String) {
 }
 
 @Composable
-fun MainNavigationScreen(onOpenSetup: () -> Unit, onTestOverlay: () -> Unit) {
+fun MainNavigationScreen(
+    dashboardDataSource: DashboardDataSource,
+    onOpenSetup: () -> Unit,
+    onTestOverlay: () -> Unit
+) {
     var selectedIndex by remember { mutableIntStateOf(0) }
     val selected = MainTab.entries[selectedIndex]
     Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         Box(Modifier.weight(1f)) {
             when (selected) {
-                MainTab.DASHBOARD -> DashboardScreen(onOpenSetup, onTestOverlay)
+                MainTab.DASHBOARD -> DashboardScreen(dashboardDataSource, onOpenSetup, onTestOverlay)
                 MainTab.HISTORY -> HistoryScreen()
                 MainTab.SCHEDULE -> PrivateScheduleScreen()
                 MainTab.REPORTS -> FinancialReportScreen()
