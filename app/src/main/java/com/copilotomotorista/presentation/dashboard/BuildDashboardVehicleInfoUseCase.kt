@@ -14,23 +14,32 @@ data class DashboardVehicleInfo(
 
 class BuildDashboardVehicleInfoUseCase {
     fun execute(vehicle: Vehicle): DashboardVehicleInfo {
-        val currency = NumberFormat.getCurrencyInstance(Locale("pt", "BR"))
         val (label, details) = when (val energy = vehicle.energy) {
             is VehicleEnergy.Electric -> "Elétrico" to
-                "${formatDecimal(energy.consumptionKwhPer100Km)} kWh/100 km · ${currency.format(energy.pricePerKwhCents / 100.0)}/kWh"
+                "${formatDecimal(energy.consumptionKwhPer100Km)} kWh/100 km · ${formatCurrency(energy.pricePerKwhCents)}/kWh"
             is VehicleEnergy.LiquidFuel -> {
                 val fuel = when (energy.fuelType) {
                     FuelType.GASOLINE -> "Gasolina"
                     FuelType.ETHANOL -> "Etanol"
                 }
-                fuel to "${formatDecimal(energy.consumptionKmPerLiter)} km/l · ${currency.format(energy.pricePerLiterCents / 100.0)}/l"
+                fuel to "${formatDecimal(energy.consumptionKmPerLiter)} km/l · ${formatCurrency(energy.pricePerLiterCents)}/l"
             }
             is VehicleEnergy.Cng -> "GNV" to
-                "${formatDecimal(energy.consumptionKmPerCubicMeter)} km/m³ · ${currency.format(energy.pricePerCubicMeterCents / 100.0)}/m³"
+                "${formatDecimal(energy.consumptionKmPerCubicMeter)} km/m³ · ${formatCurrency(energy.pricePerCubicMeterCents)}/m³"
         }
         return DashboardVehicleInfo(vehicle.name, label, details)
     }
 
+    private fun formatCurrency(cents: Long): String {
+        val formatted = NumberFormat.getCurrencyInstance(BRAZIL).format(cents / 100.0)
+        // Currency formatters may emit non-breaking spaces, which render inconsistently.
+        return formatted.replace('\u00A0', ' ').replace('\u202F', ' ')
+    }
+
     private fun formatDecimal(value: Double): String =
-        String.format(Locale("pt", "BR"), "%.1f", value)
+        String.format(BRAZIL, "%.1f", value)
+
+    private companion object {
+        val BRAZIL: Locale = Locale.forLanguageTag("pt-BR")
+    }
 }
