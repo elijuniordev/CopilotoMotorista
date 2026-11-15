@@ -34,8 +34,8 @@ fun FinancialReportsScreen(dataSource: DashboardDataSource) {
         }
         Spacer(Modifier.height(12.dp))
         SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
-            SegmentedButton(selected = period == FinancialReportPeriod.WEEK, onClick = { period = FinancialReportPeriod.WEEK }, shape = SegmentedButtonDefaults.itemShape(0)) { Text("Esta semana") }
-            SegmentedButton(selected = period == FinancialReportPeriod.MONTH, onClick = { period = FinancialReportPeriod.MONTH }, shape = SegmentedButtonDefaults.itemShape(1)) { Text("Este mês") }
+            SegmentedButton(selected = period == FinancialReportPeriod.WEEK, onClick = { period = FinancialReportPeriod.WEEK }, shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2)) { Text("Esta semana") }
+            SegmentedButton(selected = period == FinancialReportPeriod.MONTH, onClick = { period = FinancialReportPeriod.MONTH }, shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2)) { Text("Este mês") }
         }
         Text("${report.startDate.format(dateFormat)} a ${report.endDate.format(dateFormat)}", Modifier.padding(top = 8.dp, bottom = 12.dp), color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.labelMedium)
         LazyColumn(verticalArrangement = Arrangement.spacedBy(11.dp)) {
