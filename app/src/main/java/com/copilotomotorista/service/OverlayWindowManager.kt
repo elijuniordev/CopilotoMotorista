@@ -6,16 +6,63 @@ import android.os.Build
 import android.view.Gravity
 import android.view.WindowManager
 import androidx.compose.ui.platform.ComposeView
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.LifecycleRegistry
+import androidx.lifecycle.ViewModelStore
+import androidx.lifecycle.ViewModelStoreOwner
 import androidx.lifecycle.setViewTreeLifecycleOwner
+import androidx.lifecycle.setViewTreeViewModelStoreOwner
+import androidx.savedstate.SavedStateRegistry
+import androidx.savedstate.SavedStateRegistryController
+import androidx.savedstate.SavedStateRegistryOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import com.copilotomotorista.domain.usecase.OfferAnalysisResult
 import com.copilotomotorista.presentation.overlay.OfferOverlayUi
 import com.copilotomotorista.ui.theme.CopilotoMotoristaTheme
 
+/**
+ * Supplies the lifecycle owners required by ComposeView when it is hosted in
+ * a WindowManager overlay rather than inside an Activity.
+ */
+private class OverlayViewTreeOwner :
+    LifecycleOwner,
+    SavedStateRegistryOwner,
+    ViewModelStoreOwner {
+
+    private val lifecycleRegistry = LifecycleRegistry(this)
+    private val savedStateController = SavedStateRegistryController.create(this)
+    override val lifecycle: Lifecycle
+        get() = lifecycleRegistry
+    override val savedStateRegistry: SavedStateRegistry
+        get() = savedStateController.savedStateRegistry
+    override val viewModelStore = ViewModelStore()
+
+    init {
+        savedStateController.performAttach()
+        savedStateController.performRestore(null)
+        lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_CREATE)
+    }
+
+    fun moveToResumed() {
+        lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_START)
+        lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_RESUME)
+    }
+
+    fun destroy() {
+        if (lifecycleRegistry.currentState == Lifecycle.State.DESTROYED) return
+        lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_PAUSE)
+        lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_STOP)
+        lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_DESTROY)
+        viewModelStore.clear()
+    }
+}
+
 class OverlayWindowManager(private val context: Context) {
 
     private val windowManager = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
     private var overlayView: ComposeView? = null
+    private var overlayOwner: OverlayViewTreeOwner? = null
 
     fun showOverlay(
         analysisResult: OfferAnalysisResult,
@@ -47,9 +94,11 @@ class OverlayWindowManager(private val context: Context) {
             y = 72
         }
 
+        val owner = OverlayViewTreeOwner()
         val view = ComposeView(context).apply {
-            setViewTreeLifecycleOwner(null)
-            setViewTreeSavedStateRegistryOwner(null)
+            setViewTreeLifecycleOwner(owner)
+            setViewTreeSavedStateRegistryOwner(owner)
+            setViewTreeViewModelStoreOwner(owner)
             setContent {
                 CopilotoMotoristaTheme {
                     OfferOverlayUi(
@@ -75,23 +124,43 @@ class OverlayWindowManager(private val context: Context) {
 
         try {
             windowManager.addView(view, params)
+            owner.moveToResumed()
             overlayView = view
+            overlayOwner = owner
         } catch (_: SecurityException) {
+            view.disposeComposition()
+            owner.destroy()
             overlayView = null
+            overlayOwner = null
         } catch (_: WindowManager.BadTokenException) {
+            view.disposeComposition()
+            owner.destroy()
             overlayView = null
+            overlayOwner = null
+        } catch (exception: RuntimeException) {
+            view.disposeComposition()
+            owner.destroy()
+            overlayView = null
+            overlayOwner = null
+            throw exception
         }
     }
 
     fun hideOverlay() {
-        overlayView?.let { view ->
-            try {
-                windowManager.removeView(view)
-            } catch (_: IllegalArgumentException) {
-                // A view já pode ter sido removida pelo sistema.
-            } finally {
-                overlayView = null
+        val view = overlayView
+        overlayView = null
+        try {
+            view?.let {
+                it.disposeComposition()
+                if (it.isAttachedToWindow) {
+                    windowManager.removeView(it)
+                }
             }
+        } catch (_: IllegalArgumentException) {
+            // A view may already have been removed by the system.
+        } finally {
+            overlayOwner?.destroy()
+            overlayOwner = null
         }
     }
 }
