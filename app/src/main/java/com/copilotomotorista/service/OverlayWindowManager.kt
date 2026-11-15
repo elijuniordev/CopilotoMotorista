@@ -68,6 +68,9 @@ class OverlayWindowManager(private val context: Context) {
         analysisResult: OfferAnalysisResult,
         grossFare: Double,
         isDemo: Boolean = false,
+        platform: String = "Aplicativo",
+        rideCategory: String = "Categoria não identificada",
+        paymentMethod: String = "Pagamento não identificado",
         onDismiss: () -> Unit,
         onAccepted: () -> Unit = {},
         onCompleted: () -> Unit = {}
@@ -105,6 +108,9 @@ class OverlayWindowManager(private val context: Context) {
                         analysisResult = analysisResult,
                         grossFare = grossFare,
                         isDemo = isDemo,
+                        platform = platform,
+                        rideCategory = rideCategory,
+                        paymentMethod = paymentMethod,
                         onDismiss = {
                             hideOverlay()
                             onDismiss()
