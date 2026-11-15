@@ -6,12 +6,12 @@ plugins {
 
 android {
     namespace = "com.copilotomotorista"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.copilotomotorista"
         minSdk = 26
-        targetSdk = 35
+        targetSdk = 36
         versionCode = 1
         versionName = "1.0"
 
@@ -23,8 +23,7 @@ android {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(
-                getDefaultProguardFile("proguard-android-optimize.txt"),
-                "proguard-rules.pro"
+                getDefaultProguardFile("proguard-android-optimize.txt")
             )
         }
     }
@@ -40,6 +39,10 @@ android {
 
     buildFeatures {
         compose = true
+    }
+
+    testOptions {
+        unitTests.isReturnDefaultValues = false
     }
 }
 
