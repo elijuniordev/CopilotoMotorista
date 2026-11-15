@@ -6,7 +6,8 @@ Aplicativo Android em Kotlin e Jetpack Compose para apoiar motoristas de aplicat
 
 ## Requisitos de desenvolvimento
 
-- Android Studio compatível com Android Gradle Plugin 9.3.x
+- Android Studio compatível com Android Gradle Plugin 8.13.2
+- Gradle 8.13 (via Gradle Wrapper)
 - JDK 17
 - Android SDK Platform 36
 - Gradle Wrapper incluído no repositório
