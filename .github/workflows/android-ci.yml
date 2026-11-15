@@ -16,8 +16,12 @@ concurrency:
 
 jobs:
   build-and-test:
-    name: Build, unit and instrumentation tests
+    name: Build, unit and instrumentation tests (API ${{ matrix.api-level }})
     runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        api-level: [26, 30, 35, 36]
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
@@ -45,7 +49,7 @@ jobs:
       - name: Run database persistence tests on emulator
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: 35
+          api-level: ${{ matrix.api-level }}
           arch: x86_64
           profile: pixel_2
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -no-snapshot

@@ -42,7 +42,7 @@ class AccessibilityReaderService : AccessibilityService() {
     private var lastOfferFingerprint: String? = null
     private var lastOfferShownAt = 0L
     private var currentOfferRecordId: String? = null
-    private var currentPlatform: String = "unknown"
+    private var captureGeneration: Long = 0L
 
     override fun onCreate() {
         super.onCreate()
@@ -73,79 +73,93 @@ class AccessibilityReaderService : AccessibilityService() {
         )
         if (!accepted) return
 
-        currentPlatform = when (packageName) {
+        val platform = when (packageName) {
             SupportedRideApps.UBER_DRIVER -> "uber"
             SupportedRideApps.NINETY_NINE_DRIVER -> "99"
             else -> "unknown"
         }
+        val generation = ++captureGeneration
         val capturedAt = SystemClock.uptimeMillis()
         val snapshot = nodeTextReader.read(rootInActiveWindow, capturedAt)
         if (snapshot.hasUsableText) {
-            processSnapshot(snapshot)
+            processSnapshot(snapshot, platform, generation)
         } else {
-            requestLocalOcr(capturedAt)
+            requestLocalOcr(capturedAt, platform, generation)
         }
     }
 
-    private fun processSnapshot(snapshot: ScreenTextSnapshot) {
-        if (serviceDestroyed) return
-        when (val parsed = offerTextParser.parse(snapshot.text)) {
-            is OfferTextParseResult -> {
-                if (parsed.status != OfferTextParseStatus.COMPLETE || parsed.offer == null) {
-                    if (parsed.status == OfferTextParseStatus.NOT_OFFER) {
-                        lastOfferFingerprint = null
-                        currentOfferRecordId = null
-                        overlayWindowManager.hideOverlay()
-                    }
-                    return
+    private fun processSnapshot(
+        snapshot: ScreenTextSnapshot,
+        platform: String,
+        generation: Long
+    ) {
+        if (serviceDestroyed || generation != captureGeneration) return
+        val parsed = offerTextParser.parse(snapshot.text)
+        if (parsed.status != OfferTextParseStatus.COMPLETE || parsed.offer == null) {
+            overlayWindowManager.hideOverlay()
+            when (parsed.status) {
+                OfferTextParseStatus.NOT_OFFER -> {
+                    lastOfferFingerprint = null
+                    currentOfferRecordId = null
                 }
-                val fingerprint = listOf(
-                    parsed.offer.receivedFareCents,
-                    parsed.offer.pickupDistanceKm,
-                    parsed.offer.tripDistanceKm,
-                    parsed.offer.pickupTimeMinutes,
-                    parsed.offer.tripTimeMinutes
-                ).joinToString("|")
-                val now = SystemClock.uptimeMillis()
-                if (fingerprint == lastOfferFingerprint &&
-                    now - lastOfferShownAt < OFFER_REPEAT_SUPPRESSION_MILLIS
-                ) return
-
-                lastOfferFingerprint = fingerprint
-                lastOfferShownAt = now
-                val recordId = UUID.randomUUID().toString()
-                currentOfferRecordId = recordId
-                val platform = currentPlatform
-                serviceScope.launch {
-                    val selected = withContext(Dispatchers.IO) {
-                        val vehicleId = appContainer.preferences.selectedVehicleId.first()
-                        val vehicle = vehicleId?.let { appContainer.vehicleRepository.getVehicle(it) }
-                        val targets = appContainer.preferences.financialTargets.first()
-                        vehicle?.let { Triple(it, targets, parsed.offer) }
+                OfferTextParseStatus.INCOMPLETE -> {
+                    if (shouldRequestOcrFallback(snapshot.source, parsed.status)) {
+                        requestLocalOcr(snapshot.capturedAtMillis, platform, generation)
                     }
-                    if (serviceDestroyed) return@launch
-                    if (selected == null) {
-                        overlayWindowManager.hideOverlay()
-                        return@launch
-                    }
-                    val (vehicle, targets, offer) = selected
-                    val analysis = runCatching {
-                        evaluateOfferUseCase.execute(offer, vehicle, targets)
-                    }.getOrNull() ?: return@launch
-                    overlayWindowManager.showOverlay(
-                        analysisResult = analysis,
-                        grossFare = offer.receivedFareCents / 100.0,
-                        isDemo = false,
-                        onDismiss = {},
-                        onAccepted = {
-                            saveConfirmedTrip(recordId, platform, offer, vehicle.id, TRIP_STATUS_ACCEPTED)
-                        },
-                        onCompleted = {
-                            saveConfirmedTrip(recordId, platform, offer, vehicle.id, TRIP_STATUS_COMPLETED)
-                        }
-                    )
                 }
+                OfferTextParseStatus.AMBIGUOUS,
+                OfferTextParseStatus.COMPLETE -> Unit
             }
+            return
+        }
+
+        val offer = parsed.offer
+        val fingerprint = listOf(
+            platform,
+            offer.receivedFareCents,
+            offer.pickupDistanceKm,
+            offer.tripDistanceKm,
+            offer.pickupTimeMinutes,
+            offer.tripTimeMinutes
+        ).joinToString("|")
+        val now = SystemClock.uptimeMillis()
+        if (fingerprint == lastOfferFingerprint &&
+            now - lastOfferShownAt < OFFER_REPEAT_SUPPRESSION_MILLIS
+        ) return
+
+        lastOfferFingerprint = fingerprint
+        lastOfferShownAt = now
+        val recordId = UUID.randomUUID().toString()
+        currentOfferRecordId = recordId
+        serviceScope.launch {
+            val selected = withContext(Dispatchers.IO) {
+                val vehicleId = appContainer.preferences.selectedVehicleId.first()
+                val vehicle = vehicleId?.let { appContainer.vehicleRepository.getVehicle(it) }
+                val targets = appContainer.preferences.financialTargets.first()
+                vehicle?.let { Triple(it, targets, offer) }
+            }
+            if (serviceDestroyed || generation != captureGeneration) return@launch
+            if (selected == null) {
+                overlayWindowManager.hideOverlay()
+                return@launch
+            }
+            val (vehicle, targets, currentOffer) = selected
+            val analysis = runCatching {
+                evaluateOfferUseCase.execute(currentOffer, vehicle, targets)
+            }.getOrNull() ?: return@launch
+            if (serviceDestroyed || generation != captureGeneration) return@launch
+            overlayWindowManager.showOverlay(
+                analysisResult = analysis,
+                grossFare = currentOffer.receivedFareCents / 100.0,
+                isDemo = false,
+                onDismiss = {},
+                onAccepted = {
+                    saveConfirmedTrip(recordId, platform, currentOffer, vehicle.id, TRIP_STATUS_ACCEPTED)
+                },
+                onCompleted = {
+                    saveConfirmedTrip(recordId, platform, currentOffer, vehicle.id, TRIP_STATUS_COMPLETED)
+                }
+            )
         }
     }
 
@@ -190,9 +204,13 @@ class AccessibilityReaderService : AccessibilityService() {
         }
     }
 
-    private fun requestLocalOcr(requestedAtMillis: Long) {
+    private fun requestLocalOcr(
+        requestedAtMillis: Long,
+        platform: String,
+        generation: Long
+    ) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return
-        if (screenshotInProgress || serviceDestroyed) return
+        if (screenshotInProgress || serviceDestroyed || generation != captureGeneration) return
         if (requestedAtMillis - lastScreenshotRequestAt < SCREENSHOT_DEBOUNCE_MILLIS) return
 
         screenshotInProgress = true
@@ -218,13 +236,20 @@ class AccessibilityReaderService : AccessibilityService() {
                         if (softwareBitmap == null) return
 
                         ocrRecognizer?.recognize(softwareBitmap) { recognizedText ->
-                            if (!serviceDestroyed && recognizedText.isNotBlank()) {
+                            val resultAge = SystemClock.uptimeMillis() - requestedAtMillis
+                            if (!serviceDestroyed &&
+                                generation == captureGeneration &&
+                                resultAge in 0..OCR_MAX_RESULT_AGE_MILLIS &&
+                                recognizedText.isNotBlank()
+                            ) {
                                 processSnapshot(
                                     ScreenTextSnapshot(
                                         text = ScreenTextSnapshot.normalize(recognizedText),
                                         source = ScreenTextSource.OCR,
                                         capturedAtMillis = SystemClock.uptimeMillis()
-                                    )
+                                    ),
+                                    platform,
+                                    generation
                                 )
                             }
                         } ?: softwareBitmap.recycle()
@@ -243,11 +268,13 @@ class AccessibilityReaderService : AccessibilityService() {
     }
 
     override fun onInterrupt() {
+        captureGeneration++
         if (::overlayWindowManager.isInitialized) overlayWindowManager.hideOverlay()
     }
 
     override fun onDestroy() {
         serviceDestroyed = true
+        captureGeneration++
         screenshotInProgress = false
         serviceScope.cancel()
         ocrRecognizer?.close()
@@ -258,6 +285,7 @@ class AccessibilityReaderService : AccessibilityService() {
 
     private companion object {
         const val SCREENSHOT_DEBOUNCE_MILLIS = 1_500L
+        const val OCR_MAX_RESULT_AGE_MILLIS = 5_000L
         const val OFFER_REPEAT_SUPPRESSION_MILLIS = 15_000L
         const val TRIP_STATUS_ACCEPTED = "accepted"
         const val TRIP_STATUS_COMPLETED = "completed"
