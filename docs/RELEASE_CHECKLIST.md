@@ -20,7 +20,7 @@
 - [x] Testes unitários no CI.
 - [x] Build Debug e Release com minificação.
 - [x] Teste instrumentado de persistência Room e chaves estrangeiras no emulador API 35 (histórico do CI).
-- [ ] Matriz instrumentada API 26, 30, 35 e 36 após a ampliação do workflow.
+- [x] Testes instrumentados Room em emuladores API 26 e 35; testes unitários e builds Debug/Release em API 26, 30, 35 e 36.
 - [ ] Testes físicos conforme docs/DEVICE_VALIDATION.md.
 
 ## Restrições de release

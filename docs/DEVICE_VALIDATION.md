@@ -4,7 +4,7 @@
 
 Este documento define a validação de campo necessária antes de liberar o aplicativo para motoristas. Os testes de CI e emulador não comprovam compatibilidade com as interfaces reais do Uber Driver e 99 Motorista.
 
-**Status inicial:** matriz automatizada em emuladores configurada; testes físicos pendentes. Não registrar um item como aprovado sem evidência (modelo do aparelho, versão Android, versão do app de transporte, data, resultado e observações).
+**Status em 15/11/2026:** testes unitários e builds Debug/Release aprovados no CI para API 26, 30, 35 e 36; testes instrumentados Room aprovados em emuladores API 26 e 35. APKs Debug/Release passam a ser publicados como artefato temporário do CI. Testes físicos continuam pendentes. Não registrar um item como aprovado sem evidência (modelo do aparelho, versão Android, versão do app de transporte, data, resultado e observações).
 
 ## Matriz de dispositivos
 
@@ -15,7 +15,7 @@ Este documento define a validação de campo necessária antes de liberar o apli
 | Android API 35 (Android 15) | Compatibilidade recente | Pendente em aparelho físico |
 | Android API 36 (Android 16) | Versão-alvo atual do projeto | Pendente em aparelho físico |
 
-O CI executa testes automatizados em emuladores para essas APIs. O teste de campo precisa usar pelo menos um aparelho físico por versão que se pretenda declarar como suportada.
+O CI compila e executa testes unitários nas quatro APIs. Os testes instrumentados Room rodam em emuladores API 26 e 35. O workflow publica APKs Debug e Release do build API 35 por 14 dias; baixar o artefato na execução aprovada do GitHub Actions. O teste de campo precisa usar pelo menos um aparelho físico por versão que se pretenda declarar como suportada.
 
 ## Preparação
 
