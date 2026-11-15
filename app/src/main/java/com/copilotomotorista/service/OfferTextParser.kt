@@ -23,7 +23,9 @@ class OfferTextParser {
 
         if (lines.isEmpty()) return OfferTextParseResult(OfferTextParseStatus.NOT_OFFER)
 
-        val fareCandidates = lines.flatMap { FARE_REGEX.findAll(it).mapNotNull { match -> parseCents(match.groupValues[1]) }.toList() }.distinct()
+        val fareCandidates = lines.flatMap {
+            FARE_REGEX.findAll(it).mapNotNull { match -> parseCents(match.groupValues[1]) }.toList()
+        }.distinct()
         val pickupLines = lines.filter { PICKUP_KEYWORDS.containsMatchIn(it) }
         val tripLines = lines.filter { TRIP_KEYWORDS.containsMatchIn(it) }
 
@@ -94,10 +96,10 @@ class OfferTextParser {
 
     private companion object {
         val WHITESPACE = Regex("\\s+")
-        val FARE_REGEX = Regex("""R\\$\\s*([0-9.]+(?:,[0-9]{1,2})?|[0-9]+(?:\\.[0-9]{1,2})?)""", RegexOption.IGNORE_CASE)
-        val DISTANCE_REGEX = Regex("""([0-9]+(?:[,.][0-9]+)?)\\s*km\\b""", RegexOption.IGNORE_CASE)
-        val TIME_REGEX = Regex("""([0-9]+)\\s*(?:min(?:uto)?s?)\\b""", RegexOption.IGNORE_CASE)
-        val PICKUP_KEYWORDS = Regex("""\\b(busca|buscar|embarque|coleta|pickup|passageiro)\\b""", RegexOption.IGNORE_CASE)
-        val TRIP_KEYWORDS = Regex("""\\b(viagem|trajeto|destino)\\b""", RegexOption.IGNORE_CASE)
+        val FARE_REGEX = Regex("""R\$\s*([0-9.]+(?:,[0-9]{1,2})?|[0-9]+(?:\.[0-9]{1,2})?)""", RegexOption.IGNORE_CASE)
+        val DISTANCE_REGEX = Regex("""([0-9]+(?:[,.][0-9]+)?)\s*km\b""", RegexOption.IGNORE_CASE)
+        val TIME_REGEX = Regex("""([0-9]+)\s*(?:min(?:uto)?s?)\b""", RegexOption.IGNORE_CASE)
+        val PICKUP_KEYWORDS = Regex("""\b(busca|buscar|embarque|coleta|pickup|passageiro)\b""", RegexOption.IGNORE_CASE)
+        val TRIP_KEYWORDS = Regex("""\b(viagem|trajeto|destino)\b""", RegexOption.IGNORE_CASE)
     }
 }
