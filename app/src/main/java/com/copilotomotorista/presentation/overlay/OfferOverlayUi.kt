@@ -215,7 +215,7 @@ fun OfferOverlayUi(
 private fun PaymentIndicator(method: String) {
     val normalized = method.lowercase(Locale.ROOT)
     val symbol = when {
-        normalized.contains("dinheiro") -> "$"
+        normalized.contains("dinheiro") -> "\\$"
         normalized.contains("pix") -> "✣"
         normalized.contains("cart") -> "▰"
         else -> "¤"
