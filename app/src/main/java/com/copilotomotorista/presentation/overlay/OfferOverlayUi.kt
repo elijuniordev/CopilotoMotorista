@@ -137,24 +137,9 @@ fun OfferOverlayUi(
                     )
                 }
 
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.Bottom,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
-                        Text("VOCÊ RECEBE", color = MutedText, fontSize = 8.sp, fontWeight = FontWeight.Bold)
-                        Text(money(grossFare), color = MainText, fontSize = 23.sp, fontWeight = FontWeight.Bold)
-                    }
-                    Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(1.dp)) {
-                        Text("LUCRO ESTIMADO", color = MutedText, fontSize = 8.sp, fontWeight = FontWeight.Bold)
-                        Text(
-                            money(analysisResult.netProfit),
-                            color = if (analysisResult.netProfit >= 0) GoodColor else BadColor,
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
+                Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
+                    Text("VOCÊ RECEBE", color = MutedText, fontSize = 8.sp, fontWeight = FontWeight.Bold)
+                    Text(money(grossFare), color = MainText, fontSize = 23.sp, fontWeight = FontWeight.Bold)
                 }
 
                 Row(
