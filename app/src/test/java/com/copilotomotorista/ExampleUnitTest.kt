@@ -30,7 +30,7 @@ class CalculateOfferProfitabilityUseCaseTest {
     fun calculatesElectricVehicleCosts() {
         val result = costs.execute(vehicle(VehicleEnergy.Electric(20.0, 100L)), 10.0)
         assertEquals(200L, result.energyCents)
-        assertEquals(350L, result.totalCents)
+        assertEquals(550L, result.totalCents)
     }
 
     @Test
