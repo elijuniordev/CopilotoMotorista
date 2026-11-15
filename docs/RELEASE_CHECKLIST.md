@@ -1,4 +1,4 @@
-# Checklist de publicação — Copiloto Motorista
+# Checklist de publicação — Copiloto Pro
 
 ## Bloqueadores antes de uma versão pública
 
@@ -12,7 +12,9 @@
 - [ ] Definir política de retenção, exclusão e exportação dos dados locais.
 - [ ] Publicar política de privacidade acessível ao usuário e revisar declarações de dados/permissões da Play Store.
 - [ ] Revisar as políticas do Google Play para AccessibilityService e overlays, incluindo divulgação destacada e consentimento.
-- [ ] Criar ícone/identidade final, screenshots, descrição, classificação etária e ficha da loja.
+- [x] Criar identidade vetorial Copiloto Pro, ícone adaptativo Android e splash screen (Bloco 12).
+- [x] Refinar navegação inferior, cabeçalho e espaçamento das áreas seguras (Bloco 12).
+- [ ] Produzir screenshots finais, descrição, classificação etária e ficha da loja.
 - [ ] Configurar assinatura de release com chave protegida fora do repositório e gerar AAB assinado.
 - [ ] Validar instalação/atualização do artefato assinado e estratégia de versionamento.
 - [ ] Fazer revisão final de segurança, dependências, licenças e dados pessoais.

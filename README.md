@@ -1,6 +1,10 @@
-# Copiloto Motorista
+# Copiloto Pro
 
 Aplicativo Android em Kotlin e Jetpack Compose para apoiar motoristas de aplicativos na avaliação financeira de ofertas, acompanhamento de corridas e organização do trabalho.
+
+## Identidade visual
+
+A marca do aplicativo é Copiloto Pro. O símbolo vetorial e o ícone adaptativo usam uma assinatura geométrica de rota em ciano e verde sobre azul-marinho. A navegação principal utiliza ícones vetoriais Material, rótulos persistentes e áreas seguras do sistema.
 
 ## Estado do projeto
 

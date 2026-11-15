@@ -2,7 +2,6 @@ package com.copilotomotorista.presentation.navigation
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -10,34 +9,61 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.CalendarMonth
+import androidx.compose.material.icons.outlined.Dashboard
+import androidx.compose.material.icons.outlined.DirectionsCar
+import androidx.compose.material.icons.outlined.History
+import androidx.compose.material.icons.outlined.QueryStats
+import androidx.compose.material.icons.outlined.ReceiptLong
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.rememberCoroutineScope
-import kotlinx.coroutines.launch
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.launch
+import com.copilotomotorista.R
 import com.copilotomotorista.presentation.dashboard.DashboardDataSource
 import com.copilotomotorista.presentation.dashboard.DashboardScreen
 
-private enum class MainTab(val label: String, val symbol: String) {
-    DASHBOARD("Painel", "⌂"), HISTORY("Histórico", "↻"),
-    SCHEDULE("Agenda", "▦"), EXPENSES("Despesas", "−"), REPORTS("Relatórios", "▤"), VEHICLES("Veículos", "⚙")
+private enum class MainTab(val label: String, val icon: ImageVector) {
+    DASHBOARD("Painel", Icons.Outlined.Dashboard),
+    HISTORY("Corridas", Icons.Outlined.History),
+    SCHEDULE("Agenda", Icons.Outlined.CalendarMonth),
+    EXPENSES("Gastos", Icons.Outlined.ReceiptLong),
+    REPORTS("Relatórios", Icons.Outlined.QueryStats),
+    VEHICLES("Veículos", Icons.Outlined.DirectionsCar)
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainNavigationScreen(
     dashboardDataSource: DashboardDataSource,
@@ -49,10 +75,55 @@ fun MainNavigationScreen(
     clientRepository: com.copilotomotorista.data.repository.ClientRepository,
     expenseRepository: com.copilotomotorista.data.repository.ExpenseRepository
 ) {
-    var selectedIndex by remember { mutableIntStateOf(0) }
+    var selectedIndex by rememberSaveable { mutableIntStateOf(0) }
     val selected = MainTab.entries[selectedIndex]
-    Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-        Box(Modifier.weight(1f)) {
+    Scaffold(
+        containerColor = MaterialTheme.colorScheme.background,
+        topBar = {
+            TopAppBar(
+                title = {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+                        Icon(
+                            painter = painterResource(R.drawable.copiloto_pro_mark),
+                            contentDescription = "Copiloto Pro",
+                            modifier = Modifier.size(34.dp),
+                            tint = Color.Unspecified
+                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("Copiloto", color = MaterialTheme.colorScheme.onSurface, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                            Text(" PRO", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.ExtraBold)
+                        }
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background)
+            )
+        },
+        bottomBar = {
+            NavigationBar(containerColor = MaterialTheme.colorScheme.surfaceContainer, tonalElevation = 0.dp) {
+                MainTab.entries.forEachIndexed { index, tab ->
+                    val isSelected = selectedIndex == index
+                    NavigationBarItem(
+                        selected = isSelected,
+                        onClick = { selectedIndex = index },
+                        icon = { Icon(tab.icon, contentDescription = tab.label, modifier = Modifier.size(21.dp)) },
+                        label = {
+                            Text(tab.label, maxLines = 1, softWrap = false, fontSize = 10.sp,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium)
+                        },
+                        alwaysShowLabel = true,
+                        colors = NavigationBarItemDefaults.colors(
+                            selectedIconColor = MaterialTheme.colorScheme.primary,
+                            selectedTextColor = MaterialTheme.colorScheme.primary,
+                            indicatorColor = MaterialTheme.colorScheme.primaryContainer,
+                            unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    )
+                }
+            }
+        }
+    ) { innerPadding ->
+        Box(Modifier.fillMaxSize().padding(innerPadding).background(MaterialTheme.colorScheme.background)) {
             when (selected) {
                 MainTab.DASHBOARD -> DashboardScreen(dashboardDataSource, { selectedIndex = MainTab.VEHICLES.ordinal }, onTestOverlay)
                 MainTab.HISTORY -> HistoryScreen(tripRecordRepository)
@@ -60,22 +131,6 @@ fun MainNavigationScreen(
                 MainTab.EXPENSES -> ExpenseManagementScreen(expenseRepository, vehicleRepository)
                 MainTab.REPORTS -> FinancialReportsScreen(dashboardDataSource)
                 MainTab.VEHICLES -> VehicleConfigurationScreen(vehicleRepository, preferences)
-            }
-        }
-        Surface(color = MaterialTheme.colorScheme.surfaceContainer, tonalElevation = 4.dp) {
-            Row(
-                Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 6.dp),
-                horizontalArrangement = Arrangement.SpaceAround,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                MainTab.entries.forEachIndexed { index, tab ->
-                    TextButton(onClick = { selectedIndex = index }, modifier = Modifier.weight(1f)) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text(tab.symbol, color = if (selected == tab) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 19.sp, fontWeight = FontWeight.Bold)
-                            Text(tab.label, color = if (selected == tab) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 10.sp, fontWeight = if (selected == tab) FontWeight.Bold else FontWeight.Medium)
-                        }
-                    }
-                }
             }
         }
     }
