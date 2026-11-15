@@ -86,7 +86,12 @@ class OfferTextParser {
     }
 
     private fun parseCents(value: String): Long? = runCatching {
-        BigDecimal(value.replace(".", "").replace(',', '.'))
+        val normalized = when {
+            value.contains(',') -> value.replace(".", "").replace(',', '.')
+            value.contains('.') && value.substringAfterLast('.').length in 1..2 -> value
+            else -> value.replace(".", "")
+        }
+        BigDecimal(normalized)
             .movePointRight(2)
             .setScale(0, RoundingMode.HALF_UP)
             .longValueExact()

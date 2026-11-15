@@ -38,6 +38,24 @@ class OfferTextParserTest {
     }
 
     @Test
+    fun parsesDotDecimalCurrencyWithoutTreatingDotAsThousandsSeparator() {
+        val result = parser.parse("Valor: R$ 32.50\\nViagem: 8.5 km em 22 min")
+        assertEquals(OfferTextParseStatus.COMPLETE, result.status)
+        assertEquals(3250L, result.offer?.receivedFareCents)
+        assertEquals(8.5, result.offer?.tripDistanceKm ?: 0.0, 0.001)
+    }
+
+    @Test
+    fun rejectsZeroTripDistanceAndTimeInsteadOfCreatingAnOffer() {
+        val zeroDistance = parser.parse("R$ 20,00\\nViagem: 0 km em 20 min")
+        val zeroTime = parser.parse("R$ 20,00\\nViagem: 8 km em 0 min")
+        assertEquals(OfferTextParseStatus.INCOMPLETE, zeroDistance.status)
+        assertNull(zeroDistance.offer)
+        assertEquals(OfferTextParseStatus.INCOMPLETE, zeroTime.status)
+        assertNull(zeroTime.offer)
+    }
+
+    @Test
     fun acceptsTripWithoutExplicitPickupAsZeroPickup() {
         val result = parser.parse("R$ 18,90\nViagem: 6,2 km em 18 min")
         assertEquals(OfferTextParseStatus.COMPLETE, result.status)

@@ -36,6 +36,16 @@ class DatabasePersistenceTest {
                 ExpenseEntity("expense-1", "fuel", "Abastecimento", 10000L, 40L,
                     "vehicle-1", 1000.0, 20.0, "liters", 500L, null, 50L)
             )
+            // Repetir a gravação com o mesmo ID deve atualizar o estado, não criar outro registro.
+            database.tripRecordDao().upsert(
+                TripRecordEntity("trip-confirmation-1", "uber", "accepted", 3200L, 0.0, 7.0, 0, 18,
+                    null, null, null, null, null, null, "vehicle-1", null, null, 51L)
+            )
+            database.tripRecordDao().upsert(
+                TripRecordEntity("trip-confirmation-1", "uber", "completed", 3200L, 0.0, 7.0, 0, 18,
+                    null, null, null, null, null, 100L, "vehicle-1", null, "Confirmada pelo motorista", 51L)
+            )
+            assertEquals("completed", database.tripRecordDao().findById("trip-confirmation-1")?.status)
             database.privateTripDao().upsert(
                 PrivateTripEntity("private-1", "client-1", "Particular", "A", "B", 60L,
                     15000L, 10.0, 30, "scheduled", "pending", "pix", null, 70L)
