@@ -4,30 +4,42 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 
-private val CopilotoDarkColorScheme = darkColorScheme(
-    primary = EmeraldGreen,
-    onPrimary = BlackOled,
-    primaryContainer = SurfaceVariantDark,
-    onPrimaryContainer = TextPrimary,
-    secondary = LimeGreen,
-    onSecondary = BlackOled,
-    background = BlackOled,
-    onBackground = TextPrimary,
-    surface = SurfaceDark,
-    onSurface = TextPrimary,
-    surfaceVariant = SurfaceVariantDark,
-    onSurfaceVariant = TextSecondary,
-    error = RedError,
-    onError = BlackOled
+private val CockpitDarkColorScheme = darkColorScheme(
+    primary = CockpitPrimary,
+    onPrimary = CockpitOnPrimary,
+    primaryContainer = CockpitPrimaryContainer,
+    onPrimaryContainer = CockpitOnPrimaryContainer,
+    inversePrimary = CockpitInversePrimary,
+    secondary = CockpitSecondary,
+    onSecondary = CockpitOnSecondary,
+    secondaryContainer = CockpitSecondaryContainer,
+    onSecondaryContainer = CockpitOnSecondaryContainer,
+    tertiary = CockpitTertiary,
+    onTertiary = CockpitOnTertiary,
+    tertiaryContainer = CockpitTertiaryContainer,
+    onTertiaryContainer = CockpitOnTertiaryContainer,
+    background = CockpitSurface,
+    onBackground = CockpitOnSurface,
+    surface = CockpitSurfaceContainer,
+    onSurface = CockpitOnSurface,
+    surfaceVariant = CockpitSurfaceVariant,
+    onSurfaceVariant = CockpitOnSurfaceVariant,
+    inverseSurface = CockpitInverseSurface,
+    inverseOnSurface = CockpitInverseOnSurface,
+    error = CockpitError,
+    onError = CockpitOnError,
+    errorContainer = CockpitErrorContainer,
+    onErrorContainer = CockpitOnErrorContainer,
+    outline = CockpitOutline,
+    outlineVariant = CockpitOutlineVariant,
+    scrim = CockpitSurfaceContainerLowest,
+    surfaceTint = CockpitPrimary
 )
 
 @Composable
-fun CopilotoMotoristaTheme(
-    content: @Composable () -> Unit
-) {
-    // Força o esquema escuro focado em telas OLED e visibilidade veicular noturna
+fun CopilotoMotoristaTheme(content: @Composable () -> Unit) {
     MaterialTheme(
-        colorScheme = CopilotoDarkColorScheme,
+        colorScheme = CockpitDarkColorScheme,
         typography = Typography,
         content = content
     )
