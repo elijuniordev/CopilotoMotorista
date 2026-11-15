@@ -1,6 +1,8 @@
 package com.copilotomotorista.presentation.navigation
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -22,7 +24,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.getValue
 import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -97,7 +98,7 @@ private fun HistoryScreen(
             listOf("Todas", "Aceitas", "Concluídas", "Canceladas").forEach { label ->
                 val selected = filter == label
                 Surface(
-                    onClick = { filter = label },
+                    modifier = Modifier.clickable { filter = label },
                     color = if (selected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerHigh,
                     shape = RoundedCornerShape(50)
                 ) {

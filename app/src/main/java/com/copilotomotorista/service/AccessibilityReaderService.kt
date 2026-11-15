@@ -176,6 +176,7 @@ class AccessibilityReaderService : AccessibilityService() {
         serviceScope.launch {
             val now = System.currentTimeMillis()
             val existing = withContext(Dispatchers.IO) { appContainer.tripRecordRepository.getTrip(recordId) }
+            if (existing?.status == TRIP_STATUS_COMPLETED && status == TRIP_STATUS_ACCEPTED) return@launch
             val record = TripRecord(
                 id = recordId,
                 platform = platform,

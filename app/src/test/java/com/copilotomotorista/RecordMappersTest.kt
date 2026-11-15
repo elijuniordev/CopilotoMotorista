@@ -22,6 +22,14 @@ class RecordMappersTest {
     }
 
     @Test
+    fun tripRecordMappingPreservesHistoricalVehicleCostSnapshot() {
+        val value = TripRecord("trip-snapshot", "99", "completed", 5000L, 1.0, 9.0, 4, 20,
+            null, null, null, null, null, 5000L, "vehicle-2", null, null, 1000L,
+            operatingCostCentsSnapshot = 1275L, vehicleNameSnapshot = "Carro flex")
+        assertEquals(value, value.toEntity().toDomain())
+    }
+
+    @Test
     fun expenseMappingRoundTripPreservesAllFields() {
         val value = ExpenseRecord("expense-1", "fuel", "Abastecimento", 18000L, 1000L,
             "vehicle-1", 45200.5, 30.0, "liters", 600L, "full tank", 2000L)
