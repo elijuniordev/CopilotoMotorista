@@ -49,9 +49,13 @@ fun DashboardScreen(
     val recentTrips = remember(snapshot.trips) {
         GetRecentDashboardTripsUseCase().execute(snapshot.trips)
     }
+    val vehicleInfo = remember(snapshot.selectedVehicle) {
+        snapshot.selectedVehicle?.let { BuildDashboardVehicleInfoUseCase().execute(it) }
+    }
     val currency = remember { NumberFormat.getCurrencyInstance(Locale("pt", "BR")) }
     val balanceText = currency.format(metrics.registeredBalanceCents / 100.0)
     val hasRecords = metrics.completedTrips > 0 || metrics.recordedExpensesCents > 0L
+    val targets = snapshot.financialTargets
 
     Column(
         modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 24.dp),
@@ -115,16 +119,37 @@ fun DashboardScreen(
             }
         }
         Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(18.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)) {
-            Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                SectionHeading("Metas financeiras", "As metas configuradas serão apresentadas nesta área.")
-                Text(
-                    "Meta excelente: ${currency.format(snapshot.financialTargets.excellentNetCentsPerKm / 100.0)}/km · Meta mínima por hora: ${currency.format(snapshot.financialTargets.minimumNetCentsPerHour / 100.0)}",
-                    style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+            Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                SectionHeading("Veículo em uso", "Veículo selecionado para as análises financeiras.")
+                if (vehicleInfo == null) {
+                    Text("Nenhum veículo selecionado.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    OutlinedButton(onClick = onOpenSetup, shape = RoundedCornerShape(12.dp)) { Text("Configurar veículo") }
+                } else {
+                    Text(vehicleInfo.name, style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold)
+                    Text(vehicleInfo.energyLabel, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
+                    Text(vehicleInfo.consumptionDescription, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+        }
+        Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(18.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)) {
+            Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                SectionHeading("Metas financeiras", "Parâmetros usados para avaliar a rentabilidade das ofertas.")
+                TargetLine("Excelente", currency.format(targets.excellentNetCentsPerKm / 100.0) + "/km")
+                TargetLine("Boa", currency.format(targets.goodNetCentsPerKm / 100.0) + "/km")
+                TargetLine("Atenção", currency.format(targets.warningNetCentsPerKm / 100.0) + "/km")
+                TargetLine("Mínimo por hora", currency.format(targets.minimumNetCentsPerHour / 100.0) + "/h")
                 OutlinedButton(onClick = onOpenSetup, shape = RoundedCornerShape(12.dp)) { Text("Revisar configuração do aplicativo") }
             }
         }
         Spacer(modifier = Modifier.height(8.dp))
+    }
+}
+
+@Composable
+private fun TargetLine(label: String, value: String) {
+    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+        Text(label, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(value, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.SemiBold)
     }
 }
 
