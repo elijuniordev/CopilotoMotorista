@@ -51,26 +51,55 @@ class OfferTextParser {
             }
         }
 
-        // A Uber apresenta primeiro o resumo total; removemos esse segmento
-        // quando os dois seguintes somam o tempo e a distância exibidos.
-        if (segments.size >= 3) {
-            val total = segments.first()
-            val pickup = segments[1]
-            val trip = segments[2]
-            val sumsMatch = kotlin.math.abs(total.minutes - pickup.minutes - trip.minutes) <= 1 &&
-                kotlin.math.abs(total.distanceKm - pickup.distanceKm - trip.distanceKm) <= 0.2
-            if (sumsMatch) segments = segments.drop(1)
+        // Na tela de oferta da Uber, a linha "30 min: 15,9 km - Est. de ..."
+        // representa o total desde a busca até o destino. As linhas seguintes
+        // mostram busca e viagem separadamente. O texto OCR pode repetir o total
+        // nas linhas "Embarque"; por isso priorizamos o par que soma o resumo.
+        val totalSummary = lines.firstNotNullOfOrNull { line ->
+            TOTAL_SUMMARY_REGEX.find(line)?.let { match ->
+                ParsedSegment(
+                    match.groupValues[1].toInt(),
+                    match.groupValues[2].replace(',', '.').toDouble(),
+                    "km"
+                )
+            }
+        }
+        val segmentPair = totalSummary?.let { total ->
+            segments.asSequence()
+                .filterNot { segment ->
+                    segment.minutes == total.minutes &&
+                        kotlin.math.abs(segment.distanceKm - total.distanceKm) <= 0.05
+                }
+                .toList()
+                .let { candidates ->
+                    candidates.indices.asSequence().flatMap { first ->
+                        (first + 1 until candidates.size).asSequence().map { second ->
+                            candidates[first] to candidates[second]
+                        }
+                    }.firstOrNull { (pickup, trip) ->
+                        kotlin.math.abs(total.minutes - pickup.minutes - trip.minutes) <= 1 &&
+                            kotlin.math.abs(total.distanceKm - pickup.distanceKm - trip.distanceKm) <= 0.2
+                    }
+                }
         }
 
-        if (pickupDistance.value == null && pickupTime.value == null && segments.size >= 2) {
-            val pickup = segments.first()
+        if (segmentPair != null) {
+            val (pickup, trip) = segmentPair
             pickupDistance = NumberCandidate(pickup.distanceKm, false)
             pickupTime = NumberCandidate(pickup.minutes.toDouble(), false)
-        }
-        if (tripDistance.value == null && tripTime.value == null && segments.size >= 2) {
-            val trip = segments.last()
             tripDistance = NumberCandidate(trip.distanceKm, false)
             tripTime = NumberCandidate(trip.minutes.toDouble(), false)
+        } else {
+            if (pickupDistance.value == null && pickupTime.value == null && segments.size >= 2) {
+                val pickup = segments.first()
+                pickupDistance = NumberCandidate(pickup.distanceKm, false)
+                pickupTime = NumberCandidate(pickup.minutes.toDouble(), false)
+            }
+            if (tripDistance.value == null && tripTime.value == null && segments.size >= 2) {
+                val trip = segments.last()
+                tripDistance = NumberCandidate(trip.distanceKm, false)
+                tripTime = NumberCandidate(trip.minutes.toDouble(), false)
+            }
         }
         if (pickupDistance.value == null && pickupTime.value == null && segments.size == 1 && segments.single().unit == "m") {
             pickupDistance = NumberCandidate(segments.single().distanceKm, false)
@@ -154,7 +183,11 @@ class OfferTextParser {
         val DISTANCE_REGEX = Regex("""([0-9]+(?:[,.][0-9]+)?)\s*km\b""", RegexOption.IGNORE_CASE)
         val TIME_REGEX = Regex("""([0-9]+)\s*(?:min(?:uto)?s?)\b""", RegexOption.IGNORE_CASE)
         val UNLABELED_TIME_DISTANCE_REGEX = Regex(
-            """([0-9]+)\s*min(?:uto)?s?\s*(?:[•·]\s*|\(\s*)([0-9]+(?:[,.][0-9]+)?)\s*(m|km)\s*\)?""",
+            """([0-9]+)\s*min(?:uto)?s?\s*(?:[:•·:*e-]\s*|\(\s*)([0-9]+(?:[,.][0-9]+)?)\s*(m|km)\s*\)?""",
+            RegexOption.IGNORE_CASE
+        )
+        val TOTAL_SUMMARY_REGEX = Regex(
+            """([0-9]+)\s*min(?:uto)?s?\s*[:•·]\s*([0-9]+(?:[,.][0-9]+)?)\s*km\s*-\s*Est\.?\s*de\s*R\$""",
             RegexOption.IGNORE_CASE
         )
         val PICKUP_KEYWORDS = Regex("""\b(busca|buscar|embarque|coleta|pickup|passageiro)\b""", RegexOption.IGNORE_CASE)
