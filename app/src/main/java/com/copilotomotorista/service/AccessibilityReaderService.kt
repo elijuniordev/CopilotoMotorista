@@ -49,7 +49,7 @@ class AccessibilityReaderService : AccessibilityService() {
     private var currentOfferRecordId: String? = null
     private var captureGeneration: Long = 0L
     private val evidenceCaptureRequested = mutableSetOf<String>()
-    private val pendingEvidenceCaptureRecordIds = LinkedHashSet<String>()
+    private val pendingEvidenceCaptureQueue = PendingEvidenceCaptureQueue()
     private val pendingEvidenceByRecordId = mutableMapOf<String, String>()
 
     override fun onCreate() {
@@ -374,7 +374,7 @@ class AccessibilityReaderService : AccessibilityService() {
         if (screenshotInProgress) {
             // OCR and evidence share Android's screenshot API. Never lose an evidence
             // request just because the OCR screenshot currently owns the capture slot.
-            pendingEvidenceCaptureRecordIds.add(recordId)
+            pendingEvidenceCaptureQueue.enqueue(recordId)
             return
         }
 
@@ -436,8 +436,7 @@ class AccessibilityReaderService : AccessibilityService() {
 
     private fun captureNextPendingEvidence() {
         if (screenshotInProgress || serviceDestroyed) return
-        val nextRecordId = pendingEvidenceCaptureRecordIds.firstOrNull() ?: return
-        pendingEvidenceCaptureRecordIds.remove(nextRecordId)
+        val nextRecordId = pendingEvidenceCaptureQueue.pollNext() ?: return
         captureOfferEvidence(nextRecordId)
     }
 
@@ -523,6 +522,7 @@ class AccessibilityReaderService : AccessibilityService() {
         serviceDestroyed = true
         captureGeneration++
         screenshotInProgress = false
+        pendingEvidenceCaptureQueue.clear()
         serviceScope.cancel()
         ocrRecognizer?.close()
         ocrRecognizer = null
