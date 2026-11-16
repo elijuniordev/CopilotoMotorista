@@ -69,14 +69,19 @@ class AccessibilityReaderService : AccessibilityService() {
             flags = flags or AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS
         }
         shiftSessionStore.setMonitoringConnected(true)
-        floatingControlWindowManager.show()
+        floatingControlWindowManager.hide()
         serviceScope.launch {
             while (!serviceDestroyed) {
                 shiftSessionStore.heartbeat()
-                if (!shiftSessionStore.snapshot().canProcessOffers) {
+                val shift = shiftSessionStore.snapshot()
+                if (shift.active) {
+                    floatingControlWindowManager.show()
+                } else {
+                    floatingControlWindowManager.hide()
+                }
+                if (!shift.canProcessOffers) {
                     overlayWindowManager.hideOverlay()
                 }
-                floatingControlWindowManager.show()
                 delay(500L)
             }
         }
@@ -84,8 +89,13 @@ class AccessibilityReaderService : AccessibilityService() {
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         event ?: return
-        floatingControlWindowManager.show()
-        if (!shiftSessionStore.snapshot().canProcessOffers) {
+        val shift = shiftSessionStore.snapshot()
+        if (shift.active) {
+            floatingControlWindowManager.show()
+        } else {
+            floatingControlWindowManager.hide()
+        }
+        if (!shift.canProcessOffers) {
             overlayWindowManager.hideOverlay()
             return
         }
