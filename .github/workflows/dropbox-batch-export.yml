@@ -18,7 +18,7 @@ concurrency:
 
 jobs:
   export:
-    name: Download folder and create ZIP
+    name: Download, ZIP and encrypt
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
@@ -30,6 +30,9 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: Install encryption dependency
+        run: python -m pip install --disable-pip-version-check cryptography
+
       - name: Export Dropbox folder as ZIP
         env:
           DROPBOX_APP_KEY: ${{ secrets.DROPBOX_APP_KEY }}
@@ -39,10 +42,17 @@ jobs:
           EXPORT_ZIP_PATH: copiloto-pro-exemplos-corridas.zip
         run: python scripts/dropbox_export.py
 
-      - name: Publish ZIP as a private workflow artifact
+      - name: Encrypt ZIP before artifact upload
+        env:
+          EXPORT_ZIP_PATH: copiloto-pro-exemplos-corridas.zip
+          EXPORT_ENCRYPTED_PATH: copiloto-pro-exemplos-corridas.zip.enc
+          EXPORT_ENCRYPTION_KEY: ${{ secrets.EXPORT_ENCRYPTION_KEY }}
+        run: python scripts/dropbox_encrypt_export.py
+
+      - name: Publish encrypted artifact
         uses: actions/upload-artifact@v4
         with:
-          name: copiloto-pro-exemplos-corridas
-          path: copiloto-pro-exemplos-corridas.zip
+          name: copiloto-pro-exemplos-corridas-encrypted
+          path: copiloto-pro-exemplos-corridas.zip.enc
           if-no-files-found: error
-          retention-days: 3
+          retention-days: 1
