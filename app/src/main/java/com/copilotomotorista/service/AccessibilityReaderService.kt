@@ -197,7 +197,8 @@ class AccessibilityReaderService : AccessibilityService() {
                 },
                 onCompleted = {
                     saveConfirmedTrip(recordId, platform, currentOffer, vehicle.id, vehicle.name, analysis.operatingCostCents, TRIP_STATUS_COMPLETED)
-                }
+                },
+                showCompleteAction = recentRecord?.status == "in_progress"
             )
         }
     }
