@@ -42,6 +42,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
@@ -55,6 +56,7 @@ import androidx.savedstate.SavedStateRegistry
 import androidx.savedstate.SavedStateRegistryController
 import androidx.savedstate.SavedStateRegistryOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
+import com.copilotomotorista.R
 import com.copilotomotorista.ui.theme.CopilotoMotoristaTheme
 import kotlinx.coroutines.delay
 
@@ -225,7 +227,7 @@ private fun FloatingControlContent(store: ShiftSessionStore, onDrag: (Float, Flo
                 .clickable { expanded = !expanded }
         ) {
             Box(contentAlignment = Alignment.Center) {
-                Text("CP", color = Color(0xFF0B1220), fontWeight = FontWeight.ExtraBold)
+                Icon(painter = painterResource(R.drawable.copiloto_pro_mark), contentDescription = "Copiloto Pro", tint = Color.Unspecified, modifier = Modifier.size(25.dp))
             }
         }
     }
