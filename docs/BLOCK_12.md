@@ -1,27 +1,28 @@
 # Bloco 12 — Identidade visual e acabamento do Copiloto Pro
 
-## Direção de marca
+## Direção de marca aprovada
 - Nome comercial: Copiloto Pro.
-- Símbolo vetorial minimalista de rota/avanço integrado a um traço em forma de C.
-- Assinatura: ciano #38CFF4 e verde #31D18A sobre azul-marinho #0B1326.
-- A paleta funcional do Cockpit Financeiro foi preservada para manter a semântica existente de resultado, alerta e despesa.
-- Arquivos-fonte: `assets/brand/copiloto-pro-mark.svg` e `assets/brand/copiloto-pro-wordmark.svg`.
+- Símbolo minimalista de navegação: rota azul com ponto de origem e marcador de destino verde.
+- Paleta da marca: azul-marinho #0B1220, azul #3B82F6 e verde #22C55E.
+- Cores funcionais para estados: amarelo #FACC15 e vermelho #EF4444.
+- Assinatura vetorial: `assets/brand/copiloto-pro-mark.svg` e `assets/brand/copiloto-pro-wordmark.svg`.
+- Tipografia de marca definida: Sora. A fonte local ainda precisa ser incorporada ao app; o SVG usa Sora com fallback sans-serif.
 
 ## Aplicação Android
-- Nome do aplicativo atualizado para Copiloto Pro.
-- Ícone adaptativo com foreground, background e camada monocromática.
+- Nome do aplicativo: Copiloto Pro.
+- Ícone adaptativo com foreground, background e camada monocromática alinhados ao símbolo aprovado.
 - Splash screen nativa Android 12+ com fundo azul-marinho e símbolo da marca.
 - Navegação principal Material 3 com ícones vetoriais, rótulos persistentes e estados selecionados.
 - Cabeçalho global com símbolo e wordmark Copiloto Pro.
-- Tela inicial de permissões respeita as áreas seguras do sistema.
-- Os seis destinos funcionais existentes foram preservados.
+- Os seis destinos funcionais existentes são preservados.
 
 ## Escopo visual
-- Manter o tema escuro e os tokens funcionais existentes.
+- Preservar o tema escuro e os tokens funcionais do Cockpit Financeiro.
+- Refinar espaçamento estrutural e navegação inferior sem remover funcionalidades.
 - Não alterar regras de negócio, Room, captura, OCR, overlay ou cálculos financeiros.
-- Refinar espaçamento estrutural superior e navegação inferior sem remover funcionalidades.
 
 ## Validação
 - Build Debug/Release e testes unitários na matriz Android CI.
 - Instrumentação Room em API 26 e API 35.
 - Inspeção visual final em aparelho físico continua pendente e será feita com o APK gerado pelo CI.
+- A identidade visual não será considerada encerrada até a conferência do ícone e das telas no aparelho.
