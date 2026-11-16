@@ -42,7 +42,12 @@ fun Vehicle.toEntity(): VehicleEntity {
         energyPriceCents = energyPriceCents,
         maintenanceCentsPerKm = operatingCosts.maintenanceCentsPerKm,
         depreciationCentsPerKm = operatingCosts.depreciationCentsPerKm,
-        otherCostsCentsPerKm = operatingCosts.otherCostsCentsPerKm
+        otherCostsCentsPerKm = operatingCosts.otherCostsCentsPerKm,
+        brand = brand,
+        model = model,
+        year = year,
+        version = version,
+        motorization = motorization
     )
 }
 
@@ -74,6 +79,12 @@ fun VehicleEntity.toDomain(): Vehicle {
             maintenanceCentsPerKm = maintenanceCentsPerKm,
             depreciationCentsPerKm = depreciationCentsPerKm,
             otherCostsCentsPerKm = otherCostsCentsPerKm
+        ),
+        brand = brand,
+        model = model,
+        year = year,
+        version = version,
+        motorization = motorization
         )
     )
 }
