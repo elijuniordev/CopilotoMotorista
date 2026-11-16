@@ -148,7 +148,7 @@ class OfferTextParser {
         val WHITESPACE = Regex("\\s+")
         val FARE_REGEX = Regex("""R\$\s*([0-9.]+(?:,[0-9]{1,2})?|[0-9]+(?:\.[0-9]{1,2})?)""", RegexOption.IGNORE_CASE)
         val NON_FARE_AMOUNT_REGEX = Regex(
-            """R\$\s*[0-9.,]+\s*/\s*km|tarifa\s+base|din[aâ]mica""",
+            """R\$\s*[0-9.,]+\s*/\s*km|tarifa\s+base|din[aâ]mica|inclu[ií]do""",
             RegexOption.IGNORE_CASE
         )
         val DISTANCE_REGEX = Regex("""([0-9]+(?:[,.][0-9]+)?)\s*km\b""", RegexOption.IGNORE_CASE)
