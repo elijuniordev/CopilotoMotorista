@@ -45,6 +45,7 @@ fun OfferOverlayUi(
     onDismiss: () -> Unit,
     onAccepted: () -> Unit = {},
     onCompleted: () -> Unit = {},
+    showCompleteAction: Boolean = false,
     platform: String = "Aplicativo",
     rideCategory: String = "Categoria não identificada",
     paymentMethod: String = "Pagamento não identificado",
@@ -166,16 +167,15 @@ fun OfferOverlayUi(
                     if (!isDemo) {
                         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                             Button(
-                                onClick = onAccepted,
+                                onClick = if (showCompleteAction) onCompleted else onAccepted,
                                 contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp, vertical = 0.dp),
-                                modifier = Modifier,
                                 shape = RoundedCornerShape(8.dp),
                                 colors = ButtonDefaults.buttonColors(
-                                    containerColor = GoodColor,
-                                    contentColor = Color(0xFF07130B)
+                                    containerColor = if (showCompleteAction) GoodColor else Color(0xFF3B82F6),
+                                    contentColor = if (showCompleteAction) Color(0xFF07130B) else Color.White
                                 )
                             ) {
-                                Text("ACEITAR", fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                                Text(if (showCompleteAction) "CONCLUÍDA" else "ACEITAR", fontSize = 9.sp, fontWeight = FontWeight.Bold)
                             }
 
                         }
