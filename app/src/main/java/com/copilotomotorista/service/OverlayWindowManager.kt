@@ -73,7 +73,8 @@ class OverlayWindowManager(private val context: Context) {
         paymentMethod: String = "Pagamento não identificado",
         onDismiss: () -> Unit,
         onAccepted: () -> Unit = {},
-        onCompleted: () -> Unit = {}
+        onCompleted: () -> Unit = {},
+        showCompleteAction: Boolean = false
     ) {
         hideOverlay()
 
@@ -122,7 +123,8 @@ class OverlayWindowManager(private val context: Context) {
                         onCompleted = {
                             onCompleted()
                             hideOverlay()
-                        }
+                        },
+                        showCompleteAction = showCompleteAction
                     )
                 }
             }
