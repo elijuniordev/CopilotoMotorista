@@ -39,10 +39,9 @@ class OfferTextParser {
         var tripDistance = extractUniqueNumber(tripLines, DISTANCE_REGEX)
         var tripTime = extractUniqueNumber(tripLines, TIME_REGEX)
 
-        // Layout observado na oferta Uber: "2 min (242 m)" e "19 min (5,8 km)".
-        // Quando os rótulos não existem, a primeira linha em metros é a busca
-        // e a linha em quilômetros é o trajeto com passageiro.
-        val unlabeledSegments = lines.mapNotNull { line ->
+        // Ofertas exclusivas 99: "2 min (242 m)" e "19 min (5,8 km)".
+        // Uber: resumo total "20 min • 5.7 km", depois busca e trajeto separados.
+        var segments = lines.mapNotNull { line ->
             UNLABELED_TIME_DISTANCE_REGEX.find(line)?.let { match ->
                 val minutes = match.groupValues[1].toIntOrNull() ?: return@let null
                 val distance = match.groupValues[2].replace(',', '.').toDoubleOrNull()
@@ -51,19 +50,31 @@ class OfferTextParser {
                 ParsedSegment(minutes, if (unit == "m") distance / 1000.0 else distance, unit)
             }
         }
-        if (pickupDistance.value == null && pickupTime.value == null) {
-            val pickup = unlabeledSegments.firstOrNull { it.unit == "m" }
-            if (pickup != null) {
-                pickupDistance = NumberCandidate(pickup.distanceKm, false)
-                pickupTime = NumberCandidate(pickup.minutes.toDouble(), false)
-            }
+
+        // A Uber apresenta primeiro o resumo total; removemos esse segmento
+        // quando os dois seguintes somam o tempo e a distância exibidos.
+        if (segments.size >= 3) {
+            val total = segments.first()
+            val pickup = segments[1]
+            val trip = segments[2]
+            val sumsMatch = kotlin.math.abs(total.minutes - pickup.minutes - trip.minutes) <= 1 &&
+                kotlin.math.abs(total.distanceKm - pickup.distanceKm - trip.distanceKm) <= 0.2
+            if (sumsMatch) segments = segments.drop(1)
         }
-        if (tripDistance.value == null && tripTime.value == null) {
-            val trip = unlabeledSegments.firstOrNull { it.unit == "km" }
-            if (trip != null) {
-                tripDistance = NumberCandidate(trip.distanceKm, false)
-                tripTime = NumberCandidate(trip.minutes.toDouble(), false)
-            }
+
+        if (pickupDistance.value == null && pickupTime.value == null && segments.size >= 2) {
+            val pickup = segments.first()
+            pickupDistance = NumberCandidate(pickup.distanceKm, false)
+            pickupTime = NumberCandidate(pickup.minutes.toDouble(), false)
+        }
+        if (tripDistance.value == null && tripTime.value == null && segments.size >= 2) {
+            val trip = segments.last()
+            tripDistance = NumberCandidate(trip.distanceKm, false)
+            tripTime = NumberCandidate(trip.minutes.toDouble(), false)
+        }
+        if (pickupDistance.value == null && pickupTime.value == null && segments.size == 1 && segments.single().unit == "m") {
+            pickupDistance = NumberCandidate(segments.single().distanceKm, false)
+            pickupTime = NumberCandidate(segments.single().minutes.toDouble(), false)
         }
 
         val ambiguous = linkedSetOf<String>()
@@ -74,7 +85,7 @@ class OfferTextParser {
         if (tripTime.ambiguous) ambiguous += "tempo da viagem"
 
         val hasOfferClues = fareCandidates.isNotEmpty() || pickupLines.isNotEmpty() ||
-            tripLines.isNotEmpty() || unlabeledSegments.isNotEmpty()
+            tripLines.isNotEmpty() || segments.isNotEmpty()
         if (!hasOfferClues) return OfferTextParseResult(OfferTextParseStatus.NOT_OFFER)
         if (ambiguous.isNotEmpty()) {
             return OfferTextParseResult(OfferTextParseStatus.AMBIGUOUS, ambiguousFields = ambiguous)
@@ -143,7 +154,7 @@ class OfferTextParser {
         val DISTANCE_REGEX = Regex("""([0-9]+(?:[,.][0-9]+)?)\s*km\b""", RegexOption.IGNORE_CASE)
         val TIME_REGEX = Regex("""([0-9]+)\s*(?:min(?:uto)?s?)\b""", RegexOption.IGNORE_CASE)
         val UNLABELED_TIME_DISTANCE_REGEX = Regex(
-            """([0-9]+)\s*min(?:uto)?s?\s*\(\s*([0-9]+(?:[,.][0-9]+)?)\s*(m|km)\s*\)""",
+            """([0-9]+)\s*min(?:uto)?s?\s*(?:[•·]\s*|\(\s*)([0-9]+(?:[,.][0-9]+)?)\s*(m|km)\s*\)?""",
             RegexOption.IGNORE_CASE
         )
         val PICKUP_KEYWORDS = Regex("""\b(busca|buscar|embarque|coleta|pickup|passageiro)\b""", RegexOption.IGNORE_CASE)
