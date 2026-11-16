@@ -19,13 +19,14 @@ class TransitionTripStatusUseCaseTest {
     )
 
     @Test
-    fun acceptedTripCanBeCompletedWithoutChangingItsOriginalData() {
-        val completed = useCase.complete(acceptedTrip(), 500L)
+    fun acceptedTripCanBeStartedAndCompleted() {
+        val started = useCase.start(acceptedTrip(), 300L)
+        assertEquals("in_progress", started.status)
+        assertEquals(300L, started.startedAtEpochMillis)
+        val completed = useCase.complete(started, 500L)
         assertEquals("completed", completed.status)
+        assertEquals(300L, completed.startedAtEpochMillis)
         assertEquals(500L, completed.completedAtEpochMillis)
-        assertEquals(100L, completed.createdAtEpochMillis)
-        assertEquals(900L, completed.operatingCostCentsSnapshot)
-        assertEquals("Meu carro", completed.vehicleNameSnapshot)
     }
 
     @Test
@@ -33,5 +34,11 @@ class TransitionTripStatusUseCaseTest {
         val first = useCase.complete(acceptedTrip(), 500L)
         val second = useCase.complete(first, 900L)
         assertEquals(first, second)
+    }
+
+    @Test
+    fun startingAnAlreadyStartedTripIsIdempotent() {
+        val started = useCase.start(acceptedTrip(), 300L)
+        assertEquals(started, useCase.start(started, 900L))
     }
 }

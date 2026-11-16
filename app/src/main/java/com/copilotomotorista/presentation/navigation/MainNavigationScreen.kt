@@ -48,6 +48,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.platform.LocalContext
+import com.copilotomotorista.service.ShiftSessionStore
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -144,12 +146,15 @@ private fun HistoryScreen(
 ) {
     val trips by repository.observeTrips().collectAsState(initial = emptyList())
     val scope = androidx.compose.runtime.rememberCoroutineScope()
+    val context = LocalContext.current
+    val shiftStore = remember(context) { ShiftSessionStore(context) }
     var filter by remember { androidx.compose.runtime.mutableStateOf("Todas") }
     var selectedTrip by remember { androidx.compose.runtime.mutableStateOf<com.copilotomotorista.domain.model.TripRecord?>(null) }
     val filtered = remember(trips, filter) {
         trips.filter { trip ->
             when (filter) {
                 "Aceitas" -> trip.status == "accepted"
+                "Em andamento" -> trip.status == "in_progress"
                 "Concluídas" -> trip.status == "completed"
                 "Canceladas" -> trip.status == "cancelled"
                 else -> true
@@ -159,7 +164,7 @@ private fun HistoryScreen(
     Column(Modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         ScreenHeader("CONTROLE DE CORRIDAS", "Histórico", "Acompanhe os registros confirmados e finalize corridas aceitas.")
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            listOf("Todas", "Aceitas", "Concluídas", "Canceladas").forEach { label ->
+            listOf("Todas", "Aceitas", "Em andamento", "Concluídas", "Canceladas").forEach { label ->
                 val selected = filter == label
                 Surface(
                     modifier = Modifier.clickable { filter = label },
@@ -189,8 +194,15 @@ private fun HistoryScreen(
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                                 Text(if (trip.platform == "99") "99" else "Uber",
                                     color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold)
-                                Text(if (trip.status == "completed") "Concluída" else trip.status.replaceFirstChar { it.uppercase() },
-                                    color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
+                                Text(
+                                    when (trip.status) {
+                                        "completed" -> "Concluída"
+                                        "in_progress" -> "Em andamento"
+                                        "accepted" -> "Aceita"
+                                        else -> trip.status.replaceFirstChar { it.uppercase() }
+                                    },
+                                    color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold
+                                )
                             }
                             Text("Recebido: " + java.text.NumberFormat.getCurrencyInstance(java.util.Locale.forLanguageTag("pt-BR")).format(trip.receivedFareCents / 100.0),
                                 color = MaterialTheme.colorScheme.onSurface, style = MaterialTheme.typography.titleLarge)
@@ -203,12 +215,26 @@ private fun HistoryScreen(
                                     java.text.NumberFormat.getCurrencyInstance(java.util.Locale.forLanguageTag("pt-BR")).format(it / 100.0),
                                     color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
                             }
-                            if (trip.status == "accepted") {
-                                androidx.compose.material3.OutlinedButton(
+                            when (trip.status) {
+                                "accepted" -> androidx.compose.material3.OutlinedButton(
                                     onClick = {
                                         scope.launch {
                                             val useCase = com.copilotomotorista.domain.usecase.TransitionTripStatusUseCase()
-                                            repository.saveTrip(useCase.complete(trip, System.currentTimeMillis()))
+                                            repository.saveTrip(useCase.start(trip, System.currentTimeMillis()))
+                                        }
+                                    },
+                                    modifier = Modifier.fillMaxWidth()
+                                ) { Text("Iniciar corrida") }
+                                "in_progress" -> androidx.compose.material3.OutlinedButton(
+                                    onClick = {
+                                        scope.launch {
+                                            val useCase = com.copilotomotorista.domain.usecase.TransitionTripStatusUseCase()
+                                            val completed = useCase.complete(trip, System.currentTimeMillis())
+                                            repository.saveTrip(completed)
+                                            val shift = shiftStore.snapshot()
+                                            if (trip.startedAtEpochMillis != null &&
+                                                trip.startedAtEpochMillis >= shift.startedAtEpochMillis
+                                            ) shiftStore.recordCompletedTrip(trip.id, trip.receivedFareCents)
                                         }
                                     },
                                     modifier = Modifier.fillMaxWidth()
@@ -231,10 +257,14 @@ private fun HistoryScreen(
                     selectedTrip = null
                 }
             },
-            onComplete = if (trip.status == "accepted") ({
+            onComplete = if (trip.status == "in_progress") ({
                 scope.launch {
                     val completed = com.copilotomotorista.domain.usecase.TransitionTripStatusUseCase().complete(trip, System.currentTimeMillis())
                     repository.saveTrip(completed)
+                    val shift = shiftStore.snapshot()
+                    if (trip.startedAtEpochMillis != null &&
+                        trip.startedAtEpochMillis >= shift.startedAtEpochMillis
+                    ) shiftStore.recordCompletedTrip(trip.receivedFareCents)
                     selectedTrip = null
                 }
             }) else null

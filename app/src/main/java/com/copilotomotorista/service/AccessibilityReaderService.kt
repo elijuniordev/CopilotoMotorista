@@ -250,7 +250,8 @@ class AccessibilityReaderService : AccessibilityService() {
                 destination = null,
                 passengerRating = null,
                 paymentMethod = null,
-                startedAtEpochMillis = existing?.startedAtEpochMillis ?: now,
+                startedAtEpochMillis = existing?.startedAtEpochMillis
+                    ?: if (status == TRIP_STATUS_COMPLETED) now else null,
                 completedAtEpochMillis = if (status == TRIP_STATUS_COMPLETED) now else existing?.completedAtEpochMillis,
                 vehicleId = vehicleId,
                 evidenceUri = null,
@@ -267,10 +268,10 @@ class AccessibilityReaderService : AccessibilityService() {
             val shiftStartedAt = shiftSessionStore.snapshot().startedAtEpochMillis
             val tripStartedAt = existing?.startedAtEpochMillis ?: now
             if (saved && status == TRIP_STATUS_COMPLETED &&
-                existing?.status != TRIP_STATUS_COMPLETED &&
+                existing?.status == TRIP_STATUS_IN_PROGRESS &&
                 shiftStartedAt > 0L && tripStartedAt >= shiftStartedAt
             ) {
-                shiftSessionStore.recordCompletedTrip(offer.receivedFareCents)
+                shiftSessionStore.recordCompletedTrip(recordId, offer.receivedFareCents)
             }
             if (saved && currentOfferRecordId == recordId) {
                 overlayWindowManager.hideOverlay()
@@ -365,6 +366,7 @@ class AccessibilityReaderService : AccessibilityService() {
         const val OFFER_REPEAT_SUPPRESSION_MILLIS = 15_000L
         const val DUPLICATE_OFFER_WINDOW_MILLIS = 120_000L
         const val TRIP_STATUS_ACCEPTED = "accepted"
+        const val TRIP_STATUS_IN_PROGRESS = "in_progress"
         const val TRIP_STATUS_COMPLETED = "completed"
     }
 }

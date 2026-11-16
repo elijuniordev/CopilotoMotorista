@@ -177,17 +177,7 @@ fun OfferOverlayUi(
                             ) {
                                 Text("ACEITAR", fontSize = 9.sp, fontWeight = FontWeight.Bold)
                             }
-                            Button(
-                                onClick = onCompleted,
-                                contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 9.dp, vertical = 0.dp),
-                                shape = RoundedCornerShape(8.dp),
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = CardSurface,
-                                    contentColor = MainText
-                                )
-                            ) {
-                                Text("CONCLUÍDA", fontSize = 9.sp, fontWeight = FontWeight.Bold)
-                            }
+
                         }
                     }
                 }

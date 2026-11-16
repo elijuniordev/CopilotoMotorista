@@ -54,6 +54,7 @@ class ShiftSessionStore(context: Context) {
             .putLong(KEY_ENDED_AT, 0L)
             .putInt(KEY_COMPLETED_TRIPS, 0)
             .putLong(KEY_RECEIVED_FARE, 0L)
+            .putStringSet(KEY_COUNTED_TRIPS, emptySet())
             .apply()
     }
 
@@ -109,10 +110,14 @@ class ShiftSessionStore(context: Context) {
     }
 
     @Synchronized
-    fun recordCompletedTrip(fareCents: Long) {
+    fun recordCompletedTrip(tripId: String, fareCents: Long) {
         val current = snapshot()
-        if (!current.active || current.paused || fareCents < 0L) return
+        if (!current.active || current.paused || tripId.isBlank() || fareCents < 0L) return
+        val counted = preferences.getStringSet(KEY_COUNTED_TRIPS, emptySet()).orEmpty()
+        if (tripId in counted) return
+        val updatedIds = counted.toMutableSet().apply { add(tripId) }
         preferences.edit()
+            .putStringSet(KEY_COUNTED_TRIPS, updatedIds)
             .putInt(KEY_COMPLETED_TRIPS, current.completedTrips + 1)
             .putLong(KEY_RECEIVED_FARE, current.receivedFareCents + fareCents)
             .apply()
@@ -127,6 +132,7 @@ class ShiftSessionStore(context: Context) {
         const val KEY_ENDED_AT = "ended_at"
         const val KEY_COMPLETED_TRIPS = "completed_trips"
         const val KEY_RECEIVED_FARE = "received_fare_cents"
+        const val KEY_COUNTED_TRIPS = "counted_trip_ids"
         const val KEY_MONITORING_CONNECTED = "monitoring_connected"
         const val KEY_MONITORING_HEARTBEAT = "monitoring_heartbeat"
         const val MONITORING_HEARTBEAT_TIMEOUT_MILLIS = 5_000L

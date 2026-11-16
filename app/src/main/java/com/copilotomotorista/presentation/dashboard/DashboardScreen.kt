@@ -300,6 +300,7 @@ private fun formatPlatform(platform: String): String = when (platform.lowercase(
 
 private fun formatTripStatus(status: String): String = when (status.lowercase(Locale.ROOT)) {
     "accepted" -> "Aceita"
+    "in_progress" -> "Em andamento"
     "completed" -> "Concluída"
     else -> status.replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.getDefault()) else it.toString() }
 }
