@@ -192,7 +192,7 @@ private fun parseMoney(value: String): Long {
 }
 private fun money(cents: Long): String = BigDecimal.valueOf(cents, 2).setScale(2).toPlainString().replace(".", ",")
 private fun decimal(value: Double): String = String.format(Locale("pt", "BR"), "%.2f", value)
-private fun vehicleSummary(vehicle: Vehicle): String = listOf(vehicle.brand, vehicle.model, vehicle.year.takeIf { it > 0 }?.toString(), vehicle.version, vehicle.motorization).filter { it.isNotBlank() }.joinToString(" · ").let { details -> (if (details.isBlank()) "" else "$details · ") + when (val source = vehicle.energy) {
+private fun vehicleSummary(vehicle: Vehicle): String = listOf(vehicle.brand, vehicle.model, vehicle.year.takeIf { it > 0 }?.toString(), vehicle.version, vehicle.motorization).filterNotNull().filter { it.isNotBlank() }.joinToString(" · ").let { details -> (if (details.isBlank()) "" else "$details · ") + when (val source = vehicle.energy) {
     is VehicleEnergy.Electric -> "Elétrico · ${decimal(source.consumptionKwhPer100Km)} kWh/100 km"
     is VehicleEnergy.LiquidFuel -> "${if (source.fuelType == FuelType.GASOLINE) "Gasolina" else "Etanol"} · ${decimal(source.consumptionKmPerLiter)} km/l"
     is VehicleEnergy.Cng -> "GNV · ${decimal(source.consumptionKmPerCubicMeter)} km/m³"
