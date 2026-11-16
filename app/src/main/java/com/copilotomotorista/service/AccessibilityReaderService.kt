@@ -222,7 +222,8 @@ class AccessibilityReaderService : AccessibilityService() {
                     notes = "Oferta capturada automaticamente.",
                     createdAtEpochMillis = nowEpochMillis,
                     operatingCostCentsSnapshot = costSnapshot?.second,
-                    vehicleNameSnapshot = costSnapshot?.third
+                    vehicleNameSnapshot = costSnapshot?.third,
+                    rawOfferText = snapshot.text
                 )
                 runCatching {
                     withContext(Dispatchers.IO) { appContainer.tripRecordRepository.saveTrip(captured) }
@@ -332,7 +333,8 @@ class AccessibilityReaderService : AccessibilityService() {
                 notes = "Registro confirmado manualmente pelo motorista.",
                 createdAtEpochMillis = existing?.createdAtEpochMillis ?: now,
                 operatingCostCentsSnapshot = costSnapshot.operatingCostCents,
-                vehicleNameSnapshot = costSnapshot.vehicleName
+                vehicleNameSnapshot = costSnapshot.vehicleName,
+                rawOfferText = existing?.rawOfferText
             )
             val saved = runCatching {
                 withContext(Dispatchers.IO) {
