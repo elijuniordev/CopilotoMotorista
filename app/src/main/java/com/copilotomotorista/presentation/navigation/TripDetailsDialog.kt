@@ -2,6 +2,8 @@ package com.copilotomotorista.presentation.navigation
 
 import android.content.Context
 import android.content.Intent
+import androidx.core.content.FileProvider
+import java.io.File
 import android.graphics.BitmapFactory
 import android.net.Uri
 import androidx.compose.foundation.Image
@@ -71,6 +73,7 @@ fun TripDetailsDialog(
                     Text("Registro visual da oferta", style = androidx.compose.material3.MaterialTheme.typography.labelLarge)
                     Image(bitmap = it.asImageBitmap(), contentDescription = "Captura da oferta da corrida", modifier = Modifier.fillMaxWidth().heightIn(max = 180.dp))
                 }
+                TextButton(onClick = { shareOffer(context, trip) }) { Text("Compartilhar oferta") }
                 trip.origin?.takeIf { it.isNotBlank() }?.let { address ->
                     TextButton(onClick = { openNavigationChooser(context, address) }) { Text("Navegar até a origem") }
                 }
@@ -126,4 +129,53 @@ private fun openNavigationChooser(context: Context, address: String) {
     val intent = Intent(Intent.ACTION_VIEW, uri)
     val chooser = Intent.createChooser(intent, "Abrir endereço com")
     runCatching { context.startActivity(chooser) }
+}
+
+
+private fun shareOffer(context: Context, trip: TripRecord) {
+    val currency = java.text.NumberFormat.getCurrencyInstance(java.util.Locale.forLanguageTag("pt-BR"))
+    val date = java.text.SimpleDateFormat("dd/MM/yyyy 'às' HH:mm", java.util.Locale("pt", "BR"))
+        .format(java.util.Date(trip.createdAtEpochMillis))
+    val totalDistance = trip.pickupDistanceKm + trip.tripDistanceKm
+    val totalMinutes = trip.pickupTimeMinutes + trip.tripTimeMinutes
+    val details = buildString {
+        appendLine("Oferta \${trip.platform.uppercase(java.util.Locale.ROOT)}")
+        appendLine("Valor: \${currency.format(trip.receivedFareCents / 100.0)}")
+        appendLine("Distância: %.1f km".format(java.util.Locale("pt", "BR"), totalDistance))
+        appendLine("Tempo estimado: $totalMinutes min")
+        trip.origin?.takeIf { it.isNotBlank() }?.let { appendLine("Origem: $it") }
+        trip.destination?.takeIf { it.isNotBlank() }?.let { appendLine("Destino: $it") }
+        trip.paymentMethod?.takeIf { it.isNotBlank() }?.let { appendLine("Pagamento indicado: $it") }
+        appendLine("Capturada em: $date")
+        appendLine()
+        append("Oferta capturada pelo Copiloto Pro. Valor de oferta, não confirmação de recebimento.")
+    }
+    val imageFile = trip.evidenceUri?.let(::File)?.takeIf { it.isFile }
+    val intent = if (imageFile != null) {
+        runCatching {
+            val imageUri = FileProvider.getUriForFile(
+                context,
+                context.packageName + ".fileprovider",
+                imageFile
+            )
+            Intent(Intent.ACTION_SEND).apply {
+                type = "image/jpeg"
+                putExtra(Intent.EXTRA_TEXT, details)
+                putExtra(Intent.EXTRA_STREAM, imageUri)
+                clipData = android.content.ClipData.newUri(context.contentResolver, "Captura da oferta", imageUri)
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+        }.getOrElse {
+            Intent(Intent.ACTION_SEND).apply {
+                type = "text/plain"
+                putExtra(Intent.EXTRA_TEXT, details)
+            }
+        }
+    } else {
+        Intent(Intent.ACTION_SEND).apply {
+            type = "text/plain"
+            putExtra(Intent.EXTRA_TEXT, details)
+        }
+    }
+    runCatching { context.startActivity(Intent.createChooser(intent, "Compartilhar oferta")) }
 }
