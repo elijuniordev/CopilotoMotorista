@@ -56,7 +56,7 @@ fun PrivateScheduleScreen(repository: PrivateTripRepository, clientRepository: C
     }
     val clientNames = remember(clients) { clients.associateBy { it.id } }
 
-    Column(Modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+    Column(Modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 16.dp), verticalArrangement = Arrangement.spacedBy(11.dp)) {
         ScheduleScreenHeader("CORRIDAS PARTICULARES", "Agenda", "Organize seus compromissos, clientes, trajetos e pagamentos.")
         Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(18.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
             Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
