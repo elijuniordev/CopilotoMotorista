@@ -13,6 +13,7 @@ import com.copilotomotorista.data.AppContainer
 import com.copilotomotorista.domain.model.OfferInput
 import com.copilotomotorista.domain.model.TripRecord
 import com.copilotomotorista.domain.usecase.EvaluateOfferUseCase
+import com.copilotomotorista.domain.usecase.ResolveTripCostSnapshotUseCase
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -37,6 +38,7 @@ class AccessibilityReaderService : AccessibilityService() {
     private val nodeTextReader = AccessibilityNodeTextReader()
     private val offerTextParser = OfferTextParser()
     private val evaluateOfferUseCase = EvaluateOfferUseCase()
+    private val resolveTripCostSnapshotUseCase = ResolveTripCostSnapshotUseCase()
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private var ocrRecognizer: LocalOcrTextRecognizer? = null
     private var screenshotInProgress = false
@@ -272,6 +274,7 @@ class AccessibilityReaderService : AccessibilityService() {
             val now = System.currentTimeMillis()
             val existing = withContext(Dispatchers.IO) { appContainer.tripRecordRepository.getTrip(recordId) }
             if (existing?.status == TRIP_STATUS_COMPLETED && status == TRIP_STATUS_ACCEPTED) return@launch
+            val costSnapshot = resolveTripCostSnapshotUseCase.execute(existing, vehicleId, operatingCostCents, vehicleName)
             val record = TripRecord(
                 id = recordId,
                 platform = platform,
@@ -288,12 +291,12 @@ class AccessibilityReaderService : AccessibilityService() {
                 startedAtEpochMillis = existing?.startedAtEpochMillis
                     ?: if (status == TRIP_STATUS_COMPLETED) now else null,
                 completedAtEpochMillis = if (status == TRIP_STATUS_COMPLETED) now else existing?.completedAtEpochMillis,
-                vehicleId = vehicleId,
+                vehicleId = costSnapshot.vehicleId,
                 evidenceUri = existing?.evidenceUri ?: pendingEvidenceByRecordId[recordId],
                 notes = "Registro confirmado manualmente pelo motorista.",
                 createdAtEpochMillis = existing?.createdAtEpochMillis ?: now,
-                operatingCostCentsSnapshot = operatingCostCents,
-                vehicleNameSnapshot = vehicleName
+                operatingCostCentsSnapshot = costSnapshot.operatingCostCents,
+                vehicleNameSnapshot = costSnapshot.vehicleName
             )
             val saved = runCatching {
                 withContext(Dispatchers.IO) {
