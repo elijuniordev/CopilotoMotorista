@@ -30,6 +30,8 @@ class AccessibilityReaderService : AccessibilityService() {
 
     private lateinit var overlayWindowManager: OverlayWindowManager
     private lateinit var appContainer: AppContainer
+    private lateinit var shiftSessionStore: ShiftSessionStore
+    private lateinit var floatingControlWindowManager: FloatingControlWindowManager
     private val eventGate = AccessibilityEventGate()
     private val nodeTextReader = AccessibilityNodeTextReader()
     private val offerTextParser = OfferTextParser()
@@ -48,6 +50,8 @@ class AccessibilityReaderService : AccessibilityService() {
         super.onCreate()
         overlayWindowManager = OverlayWindowManager(this)
         appContainer = AppContainer(applicationContext)
+        shiftSessionStore = ShiftSessionStore(applicationContext)
+        floatingControlWindowManager = FloatingControlWindowManager(this, shiftSessionStore)
         ocrRecognizer = LocalOcrTextRecognizer()
     }
 
@@ -61,10 +65,16 @@ class AccessibilityReaderService : AccessibilityService() {
             notificationTimeout = 100L
             flags = flags or AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS
         }
+        shiftSessionStore.setMonitoringConnected(true)
+        floatingControlWindowManager.show()
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         event ?: return
+        if (!shiftSessionStore.snapshot().canProcessOffers) {
+            overlayWindowManager.hideOverlay()
+            return
+        }
         val packageName = event.packageName?.toString()
         val accepted = eventGate.shouldAccept(
             packageName = packageName,
@@ -228,8 +238,8 @@ class AccessibilityReaderService : AccessibilityService() {
                 destination = null,
                 passengerRating = null,
                 paymentMethod = null,
-                startedAtEpochMillis = null,
-                completedAtEpochMillis = if (status == TRIP_STATUS_COMPLETED) now else null,
+                startedAtEpochMillis = existing?.startedAtEpochMillis ?: now,
+                completedAtEpochMillis = if (status == TRIP_STATUS_COMPLETED) now else existing?.completedAtEpochMillis,
                 vehicleId = vehicleId,
                 evidenceUri = null,
                 notes = "Registro confirmado manualmente pelo motorista.",
@@ -242,6 +252,9 @@ class AccessibilityReaderService : AccessibilityService() {
                     appContainer.tripRecordRepository.saveTrip(record)
                 }
             }.isSuccess
+            if (saved && status == TRIP_STATUS_COMPLETED && existing?.status != TRIP_STATUS_COMPLETED) {
+                shiftSessionStore.recordCompletedTrip(offer.receivedFareCents)
+            }
             if (saved && currentOfferRecordId == recordId) {
                 overlayWindowManager.hideOverlay()
             }
@@ -324,6 +337,8 @@ class AccessibilityReaderService : AccessibilityService() {
         ocrRecognizer?.close()
         ocrRecognizer = null
         if (::overlayWindowManager.isInitialized) overlayWindowManager.hideOverlay()
+        if (::floatingControlWindowManager.isInitialized) floatingControlWindowManager.hide()
+        if (::shiftSessionStore.isInitialized) shiftSessionStore.setMonitoringConnected(false)
         super.onDestroy()
     }
 

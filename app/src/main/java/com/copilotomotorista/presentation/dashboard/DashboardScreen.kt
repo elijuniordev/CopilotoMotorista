@@ -19,6 +19,13 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.platform.LocalContext
+import android.content.Intent
+import android.provider.Settings
+import com.copilotomotorista.service.ShiftSessionStore
+import kotlinx.coroutines.delay
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -29,6 +36,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -85,6 +93,7 @@ fun DashboardScreen(
             }
             OutlinedButton(onClick = onOpenSetup, shape = RoundedCornerShape(12.dp)) { Text("Configurações") }
         }
+        ShiftControlCard()
         Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(22.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
             Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
@@ -160,6 +169,104 @@ fun DashboardScreen(
         }
         Spacer(modifier = Modifier.height(8.dp))
     }
+}
+
+
+@Composable
+private fun ShiftControlCard() {
+    val context = LocalContext.current
+    val store = remember { ShiftSessionStore(context) }
+    var shift by remember { mutableStateOf(store.snapshot()) }
+    var overlayAllowed by remember { mutableStateOf(Settings.canDrawOverlays(context)) }
+
+    LaunchedEffect(Unit) {
+        while (true) {
+            shift = store.snapshot()
+            overlayAllowed = Settings.canDrawOverlays(context)
+            delay(1_000L)
+        }
+    }
+
+    val monitoringReady = shift.monitoringConnected && overlayAllowed
+    val statusText = when {
+        !shift.monitoringConnected -> "Serviço de acessibilidade desconectado"
+        !overlayAllowed -> "Permissão de janela flutuante pendente"
+        shift.active && shift.paused -> "Turno pausado"
+        shift.active -> "Turno ativo · monitoramento ligado"
+        else -> "Monitoramento pronto"
+    }
+    val statusColor = when {
+        !monitoringReady -> MaterialTheme.colorScheme.error
+        shift.active && shift.paused -> MaterialTheme.colorScheme.tertiary
+        shift.active -> Color(0xFF22C55E)
+        else -> MaterialTheme.colorScheme.primary
+    }
+    val currency = remember { NumberFormat.getCurrencyInstance(Locale.forLanguageTag("pt-BR")) }
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)
+    ) {
+        Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(11.dp)) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Text("CONTROLE DE TURNO", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(if (shift.active) "EM SESSÃO" else "SEM TURNO", style = MaterialTheme.typography.labelSmall, color = statusColor, fontWeight = FontWeight.Bold)
+            }
+            Text(statusText, style = MaterialTheme.typography.titleMedium, color = statusColor, fontWeight = FontWeight.Bold)
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Column {
+                    Text("Tempo ativo", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(formatShiftElapsed(shift.elapsedMillis()), style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurface)
+                }
+                Column(horizontalAlignment = Alignment.End) {
+                    Text("Corridas concluídas", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(shift.completedTrips.toString(), style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurface)
+                }
+            }
+            Text("Recebido no turno: ${currency.format(shift.receivedFareCents / 100.0)}", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
+            when {
+                !shift.monitoringConnected -> OutlinedButton(
+                    onClick = { context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) },
+                    modifier = Modifier.fillMaxWidth()
+                ) { Text("Ativar serviço de acessibilidade") }
+                !overlayAllowed -> OutlinedButton(
+                    onClick = { context.startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) },
+                    modifier = Modifier.fillMaxWidth()
+                ) { Text("Conceder permissão da bolha") }
+                !shift.active -> Button(
+                    onClick = { store.start(); shift = store.snapshot() },
+                    modifier = Modifier.fillMaxWidth()
+                ) { Text("INICIAR TURNO", fontWeight = FontWeight.Bold) }
+                shift.paused -> Button(
+                    onClick = { store.resume(); shift = store.snapshot() },
+                    modifier = Modifier.fillMaxWidth()
+                ) { Text("RETOMAR TURNO", fontWeight = FontWeight.Bold) }
+                else -> OutlinedButton(
+                    onClick = { store.pause(); shift = store.snapshot() },
+                    modifier = Modifier.fillMaxWidth()
+                ) { Text("PAUSAR TURNO") }
+            }
+            if (shift.active) {
+                OutlinedButton(
+                    onClick = { store.end(); shift = store.snapshot() },
+                    modifier = Modifier.fillMaxWidth()
+                ) { Text("ENCERRAR TURNO") }
+            }
+            Text(
+                "A análise automática só funciona com turno iniciado, serviço conectado e permissão de sobreposição ativa. O registro de corridas ainda depende da confirmação no card.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+private fun formatShiftElapsed(milliseconds: Long): String {
+    val totalMinutes = milliseconds / 60_000L
+    val hours = totalMinutes / 60L
+    val minutes = totalMinutes % 60L
+    return if (hours > 0L) "${hours}h ${minutes}min" else "${minutes} min"
 }
 
 @Composable
