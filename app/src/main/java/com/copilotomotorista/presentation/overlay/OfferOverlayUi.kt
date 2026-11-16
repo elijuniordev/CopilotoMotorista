@@ -49,6 +49,9 @@ fun OfferOverlayUi(
     platform: String = "Aplicativo",
     rideCategory: String = "Categoria não identificada",
     paymentMethod: String = "Pagamento não identificado",
+    showRideCategory: Boolean = true,
+    showPaymentMethod: Boolean = true,
+    showDistanceAndTime: Boolean = true,
     modifier: Modifier = Modifier
 ) {
     val accent = when (analysisResult.viability) {
@@ -117,15 +120,17 @@ fun OfferOverlayUi(
                             fontWeight = FontWeight.Bold,
                             maxLines = 1
                         )
-                        Text(
-                            text = rideCategory,
-                            color = MutedText,
-                            fontSize = 10.sp,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
+                        if (showRideCategory) {
+                            Text(
+                                text = rideCategory,
+                                color = MutedText,
+                                fontSize = 10.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
                     }
-                    PaymentIndicator(paymentMethod)
+                    if (showPaymentMethod) PaymentIndicator(paymentMethod)
                     Text(
                         text = status,
                         color = accent,
@@ -157,13 +162,15 @@ fun OfferOverlayUi(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Text(
-                        text = String.format(Locale("pt", "BR"), "%.1f km  ·  %s",
-                            analysisResult.totalDistanceKm, formatDuration(analysisResult.totalTimeMinutes)),
-                        color = MutedText,
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Medium
-                    )
+                    if (showDistanceAndTime) {
+                        Text(
+                            text = String.format(Locale("pt", "BR"), "%.1f km  ·  %s",
+                                analysisResult.totalDistanceKm, formatDuration(analysisResult.totalTimeMinutes)),
+                            color = MutedText,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
                     if (!isDemo) {
                         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                             Button(
