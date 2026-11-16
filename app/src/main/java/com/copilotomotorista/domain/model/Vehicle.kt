@@ -4,7 +4,12 @@ data class Vehicle(
     val id: String,
     val name: String,
     val energy: VehicleEnergy,
-    val operatingCosts: VehicleOperatingCosts
+    val operatingCosts: VehicleOperatingCosts,
+    val brand: String = "",
+    val model: String = "",
+    val year: Int = 0,
+    val version: String = "",
+    val motorization: String = ""
 ) {
     init {
         require(id.isNotBlank()) { "Identificação do veículo é obrigatória." }
