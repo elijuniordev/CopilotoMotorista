@@ -223,7 +223,7 @@ private fun ShiftStatusStrip() {
                     context.startActivity(Intent(action).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
                 }) { Text("Ativar") }
             } else if (!shift.active) {
-                TextButton(onClick = { store.start(); shift = store.snapshot() }) { Text("Iniciar") }
+                TextButton(onClick = { store.start(); shift = store.snapshot() }) { Text("Iniciar turno") }
             } else if (shift.paused) {
                 TextButton(onClick = { store.resume(); shift = store.snapshot() }) { Text("Retomar") }
             } else {
