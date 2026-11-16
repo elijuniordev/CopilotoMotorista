@@ -136,4 +136,55 @@ class OfferTextParserTest {
         assertEquals(15, offer.tripTimeMinutes)
     }
 
+
+    @Test
+    fun parsesUberOcrLayoutWhereEmbarqueLineRepeatsTotalSummary() {
+        val result = parser.parse(
+            """
+            R$ 28,34
+            Embarque: R. Eduardo Carlos de França Turibio (30 min 15,9 km)
+            Destino: R. Duarte da Costa, Parque Imperial (25 min 14,8 km)
+            30 min: 15.9 km - Est. de R$1,78/km
+            +R$2,75 incluído
+            5 min - 1.1 km
+            R. Eduardo Carlos de França Turibio, Padroeira, Osasco
+            25 minutos * 14.8 km
+            R. Duarte da Costa, Barueri
+            """.trimIndent()
+        )
+
+        assertEquals(OfferTextParseStatus.COMPLETE, result.status)
+        val offer = result.offer
+        assertNotNull(offer)
+        assertEquals(2834L, offer!!.receivedFareCents)
+        assertEquals(1.1, offer.pickupDistanceKm, 0.001)
+        assertEquals(14.8, offer.tripDistanceKm, 0.001)
+        assertEquals(5, offer.pickupTimeMinutes)
+        assertEquals(25, offer.tripTimeMinutes)
+    }
+
+    @Test
+    fun parsesUberOcrSummaryWithColonAndAsteriskSeparators() {
+        val result = parser.parse(
+            """
+            R$ 13,05
+            20 min: 5.7 km - Est. de R$2,29/km
+            +R$2,25 incluído
+            5 min e 1.1 km
+            Alameda Shallon Adonai, São Pedro, Osasco
+            15 minutos * 4.6 km
+            R. Diogo Benites, Vila Osasco
+            """.trimIndent()
+        )
+
+        assertEquals(OfferTextParseStatus.COMPLETE, result.status)
+        val offer = result.offer
+        assertNotNull(offer)
+        assertEquals(1305L, offer!!.receivedFareCents)
+        assertEquals(1.1, offer.pickupDistanceKm, 0.001)
+        assertEquals(4.6, offer.tripDistanceKm, 0.001)
+        assertEquals(5, offer.pickupTimeMinutes)
+        assertEquals(15, offer.tripTimeMinutes)
+    }
+
 }
