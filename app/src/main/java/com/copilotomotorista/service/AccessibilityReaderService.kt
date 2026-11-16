@@ -17,6 +17,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -67,10 +68,20 @@ class AccessibilityReaderService : AccessibilityService() {
         }
         shiftSessionStore.setMonitoringConnected(true)
         floatingControlWindowManager.show()
+        serviceScope.launch {
+            while (!serviceDestroyed) {
+                if (!shiftSessionStore.snapshot().canProcessOffers) {
+                    overlayWindowManager.hideOverlay()
+                }
+                floatingControlWindowManager.show()
+                delay(500L)
+            }
+        }
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         event ?: return
+        floatingControlWindowManager.show()
         if (!shiftSessionStore.snapshot().canProcessOffers) {
             overlayWindowManager.hideOverlay()
             return
@@ -252,7 +263,12 @@ class AccessibilityReaderService : AccessibilityService() {
                     appContainer.tripRecordRepository.saveTrip(record)
                 }
             }.isSuccess
-            if (saved && status == TRIP_STATUS_COMPLETED && existing?.status != TRIP_STATUS_COMPLETED) {
+            val shiftStartedAt = shiftSessionStore.snapshot().startedAtEpochMillis
+            val tripStartedAt = existing?.startedAtEpochMillis ?: now
+            if (saved && status == TRIP_STATUS_COMPLETED &&
+                existing?.status != TRIP_STATUS_COMPLETED &&
+                shiftStartedAt > 0L && tripStartedAt >= shiftStartedAt
+            ) {
                 shiftSessionStore.recordCompletedTrip(offer.receivedFareCents)
             }
             if (saved && currentOfferRecordId == recordId) {
