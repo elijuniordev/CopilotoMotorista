@@ -10,4 +10,6 @@
     <color name="copiloto_brand_background">#0B1220</color>
     <color name="copiloto_brand_blue">#3B82F6</color>
     <color name="copiloto_brand_green">#22C55E</color>
+    <color name="copiloto_brand_yellow">#FACC15</color>
+    <color name="copiloto_brand_red">#EF4444</color>
 </resources>

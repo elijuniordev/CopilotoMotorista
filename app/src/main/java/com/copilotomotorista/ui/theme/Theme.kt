@@ -4,7 +4,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 
-private val CockpitDarkColorScheme = darkColorScheme(
+private val CopilotoDarkColorScheme = darkColorScheme(
     primary = CockpitPrimary,
     onPrimary = CockpitOnPrimary,
     primaryContainer = CockpitPrimaryContainer,
@@ -39,7 +39,7 @@ private val CockpitDarkColorScheme = darkColorScheme(
 @Composable
 fun CopilotoMotoristaTheme(content: @Composable () -> Unit) {
     MaterialTheme(
-        colorScheme = CockpitDarkColorScheme,
+        colorScheme = CopilotoDarkColorScheme,
         typography = Typography,
         content = content
     )
