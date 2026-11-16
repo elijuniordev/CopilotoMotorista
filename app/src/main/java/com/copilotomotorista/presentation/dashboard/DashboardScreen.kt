@@ -71,7 +71,8 @@ fun DashboardScreen(
         CalculateDashboardDailyMetricsUseCase().execute(
             trips = snapshot.trips,
             expenses = snapshot.expenses,
-            nowEpochMillis = dashboardNowEpochMillis
+            nowEpochMillis = dashboardNowEpochMillis,
+            settlements = snapshot.settlements
         )
     }
     val recentTrips = remember(snapshot.trips) {
