@@ -10,7 +10,7 @@ import com.copilotomotorista.domain.model.Client
 import com.copilotomotorista.domain.model.PrivateTrip
 
 fun TripRecord.toEntity() = TripRecordEntity(id, platform, status, receivedFareCents, pickupDistanceKm, tripDistanceKm, pickupTimeMinutes, tripTimeMinutes, origin, destination, passengerRating, paymentMethod, startedAtEpochMillis, completedAtEpochMillis, vehicleId, evidenceUri, notes, createdAtEpochMillis, operatingCostCentsSnapshot, vehicleNameSnapshot, rawOfferText)
-fun TripRecordEntity.toDomain() = TripRecord(id, platform, status, receivedFareCents, pickupDistanceKm, tripDistanceKm, pickupTimeMinutes, tripTimeMinutes, origin, destination, passengerRating, paymentMethod, startedAtEpochMillis, completedAtEpochMillis, vehicleId, evidenceUri, notes, createdAtEpochMillis, operatingCostCentsSnapshot, vehicleNameSnapshot)
+fun TripRecordEntity.toDomain() = TripRecord(id, platform, status, receivedFareCents, pickupDistanceKm, tripDistanceKm, pickupTimeMinutes, tripTimeMinutes, origin, destination, passengerRating, paymentMethod, startedAtEpochMillis, completedAtEpochMillis, vehicleId, evidenceUri, notes, createdAtEpochMillis, operatingCostCentsSnapshot, vehicleNameSnapshot, rawOfferText)
 
 fun ExpenseRecord.toEntity() = ExpenseEntity(id, category, description, amountCents, occurredAtEpochMillis, vehicleId, odometerKm, quantity, unit, unitPriceCents, notes, createdAtEpochMillis)
 fun ExpenseEntity.toDomain() = ExpenseRecord(id, category, description, amountCents, occurredAtEpochMillis, vehicleId, odometerKm, quantity, unit, unitPriceCents, notes, createdAtEpochMillis)
