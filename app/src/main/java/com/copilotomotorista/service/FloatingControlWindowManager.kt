@@ -200,8 +200,6 @@ private fun FloatingControlContent(store: ShiftSessionStore, onDrag: (Float, Flo
                     )
                     if (!snapshot.monitoringConnected) {
                         Text("Reative a Acessibilidade nas configurações do app.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
-                    } else if (!snapshot.active) {
-                        ControlAction(Icons.Outlined.PlayArrow, "Iniciar") { store.start(); snapshot = store.snapshot() }
                     } else if (snapshot.paused) {
                         ControlAction(Icons.Outlined.Refresh, "Retomar") { store.resume(); snapshot = store.snapshot() }
                     } else {
