@@ -31,11 +31,11 @@ class ResolveTripCostSnapshotUseCaseTest {
     }
 
     @Test
-    fun missingLegacySnapshotIsBackfilledWithoutChangingKnownFields() {
+    fun missingLegacySnapshotRemainsUnknownInsteadOfInventingHistoricalValues() {
         val result = useCase.execute(trip(cost = null, name = null), "vehicle-new", 2400L, "Carro atualizado")
         assertEquals("vehicle-original", result.vehicleId)
-        assertEquals(2400L, result.operatingCostCents)
-        assertEquals("Carro atualizado", result.vehicleName)
+        assertEquals(null, result.operatingCostCents)
+        assertEquals(null, result.vehicleName)
     }
 
     @Test
