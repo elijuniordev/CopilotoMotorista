@@ -18,6 +18,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MaterialTheme
@@ -53,6 +54,7 @@ import java.util.UUID
 private val settlementPlatforms = listOf("Uber", "99", "Particular", "Outra")
 private val settlementMethods = listOf("Saldo da plataforma", "Dinheiro", "Pix", "Cartão", "Outro")
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DailySettlementScreen(repository: DailySettlementRepository) {
     val entries by repository.observeSettlements().collectAsState(initial = emptyList())
