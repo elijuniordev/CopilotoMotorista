@@ -421,7 +421,7 @@ class AccessibilityReaderService : AccessibilityService() {
                             } finally {
                                 if (!evidenceSaved) evidenceCaptureRequested.remove(recordId)
                                 bitmap.recycle()
-                                captureNextPendingEvidence()
+                                drainPendingScreenshotWork()
                             }
                         }
                     }
@@ -429,23 +429,33 @@ class AccessibilityReaderService : AccessibilityService() {
                     override fun onFailure(errorCode: Int) {
                         screenshotInProgress = false
                         evidenceCaptureRequested.remove(recordId)
-                        captureNextPendingEvidence()
+                        drainPendingScreenshotWork()
                     }
                 }
             )
         } catch (_: SecurityException) {
             screenshotInProgress = false
             evidenceCaptureRequested.remove(recordId)
-            captureNextPendingEvidence()
+            drainPendingScreenshotWork()
         } catch (_: IllegalStateException) {
             screenshotInProgress = false
             evidenceCaptureRequested.remove(recordId)
-            captureNextPendingEvidence()
+            drainPendingScreenshotWork()
         }
     }
 
-    private fun captureNextPendingEvidence() {
+    private fun drainPendingScreenshotWork() {
         if (screenshotInProgress || serviceDestroyed) return
+
+        val ocrRequest = pendingOcrRequest
+        if (ocrRequest != null) {
+            pendingOcrRequest = null
+            if (SystemClock.uptimeMillis() - ocrRequest.requestedAtMillis <= OCR_MAX_RESULT_AGE_MILLIS) {
+                requestLocalOcr(ocrRequest.requestedAtMillis, ocrRequest.platform, ocrRequest.generation)
+                if (screenshotInProgress) return
+            }
+        }
+
         val nextRecordId = pendingEvidenceCaptureQueue.pollNext() ?: return
         captureOfferEvidence(nextRecordId)
     }
@@ -485,7 +495,7 @@ class AccessibilityReaderService : AccessibilityService() {
                         val softwareBitmap = hardwareBitmap?.copy(Bitmap.Config.ARGB_8888, false)
                         hardwareBitmap?.recycle()
                         if (softwareBitmap == null) {
-                            captureNextPendingEvidence()
+                            drainPendingScreenshotWork()
                             return
                         }
 
@@ -506,25 +516,25 @@ class AccessibilityReaderService : AccessibilityService() {
                                     generation
                                 )
                             }
-                            captureNextPendingEvidence()
+                            drainPendingScreenshotWork()
                         } ?: run {
                             softwareBitmap.recycle()
-                            captureNextPendingEvidence()
+                            drainPendingScreenshotWork()
                         }
                     }
 
                     override fun onFailure(errorCode: Int) {
                         screenshotInProgress = false
-                        captureNextPendingEvidence()
+                        drainPendingScreenshotWork()
                     }
                 }
             )
         } catch (_: SecurityException) {
             screenshotInProgress = false
-            captureNextPendingEvidence()
+            drainPendingScreenshotWork()
         } catch (_: IllegalStateException) {
             screenshotInProgress = false
-            captureNextPendingEvidence()
+            drainPendingScreenshotWork()
         }
     }
 
