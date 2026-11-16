@@ -60,13 +60,13 @@ fun TripDetailsDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Detalhes da corrida") },
+        title = { Text("Detalhes da oferta") },
         text = {
             Column(
                 modifier = Modifier.fillMaxWidth().heightIn(max = 480.dp).verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Text("Plataforma: ${trip.platform.uppercase(Locale.ROOT)} · Status: ${trip.status}")
+                Text("Plataforma: ${trip.platform.uppercase(Locale.ROOT)}")
                 evidence?.let {
                     Text("Registro visual da oferta", style = androidx.compose.material3.MaterialTheme.typography.labelLarge)
                     Image(bitmap = it.asImageBitmap(), contentDescription = "Captura da oferta da corrida", modifier = Modifier.fillMaxWidth().heightIn(max = 180.dp))
@@ -77,7 +77,7 @@ fun TripDetailsDialog(
                 trip.destination?.takeIf { it.isNotBlank() }?.let { address ->
                     TextButton(onClick = { openNavigationChooser(context, address) }) { Text("Navegar até o destino") }
                 }
-                OutlinedTextField(fare, { fare = it }, label = { Text("Valor recebido (R$)") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(fare, { fare = it }, label = { Text("Valor da oferta (R$)") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), modifier = Modifier.fillMaxWidth())
                 OutlinedTextField(pickupDistance, { pickupDistance = it }, label = { Text("Distância de busca (km)") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), modifier = Modifier.fillMaxWidth())
                 OutlinedTextField(tripDistance, { tripDistance = it }, label = { Text("Distância da viagem (km)") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), modifier = Modifier.fillMaxWidth())
                 OutlinedTextField(pickupMinutes, { pickupMinutes = it }, label = { Text("Tempo de busca (min)") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.fillMaxWidth())
