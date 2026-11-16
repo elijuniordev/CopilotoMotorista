@@ -18,9 +18,11 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.platform.LocalContext
 import android.content.Intent
 import android.provider.Settings
@@ -83,8 +85,8 @@ fun DashboardScreen(
     val targets = snapshot.financialTargets
 
     Column(
-        modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 24.dp),
-        verticalArrangement = Arrangement.spacedBy(20.dp)
+        modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 18.dp, vertical = 18.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -93,7 +95,7 @@ fun DashboardScreen(
             }
             OutlinedButton(onClick = onOpenSetup, shape = RoundedCornerShape(12.dp)) { Text("Configurações") }
         }
-        ShiftControlCard()
+        ShiftStatusStrip()
         Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(22.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
             Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
@@ -106,10 +108,6 @@ fun DashboardScreen(
                     else "Seu resultado aparecerá aqui após o registro de corridas concluídas e despesas.",
                     style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                Spacer(modifier = Modifier.height(4.dp))
-                Button(onClick = onTestOverlay, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp), colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary, contentColor = MaterialTheme.colorScheme.onPrimary)) {
-                    Text("TESTAR CARD FLUTUANTE", fontWeight = FontWeight.Bold)
-                }
             }
         }
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -167,18 +165,24 @@ fun DashboardScreen(
                 OutlinedButton(onClick = onOpenSetup, shape = RoundedCornerShape(12.dp)) { Text("Revisar configuração do aplicativo") }
             }
         }
+        Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)) {
+            Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text("FERRAMENTAS", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                Text("O teste do card é uma ferramenta de conferência, não faz parte do fluxo diário.", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+                OutlinedButton(onClick = onTestOverlay, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(10.dp)) { Text("Testar card flutuante") }
+            }
+        }
         Spacer(modifier = Modifier.height(8.dp))
     }
 }
 
 
 @Composable
-private fun ShiftControlCard() {
+private fun ShiftStatusStrip() {
     val context = LocalContext.current
     val store = remember { ShiftSessionStore(context) }
     var shift by remember { mutableStateOf(store.snapshot()) }
     var overlayAllowed by remember { mutableStateOf(Settings.canDrawOverlays(context)) }
-
     LaunchedEffect(Unit) {
         while (true) {
             shift = store.snapshot()
@@ -186,78 +190,44 @@ private fun ShiftControlCard() {
             delay(1_000L)
         }
     }
-
-    val monitoringReady = shift.monitoringConnected && overlayAllowed
-    val statusText = when {
-        !shift.monitoringConnected -> "Serviço de acessibilidade desconectado"
-        !overlayAllowed -> "Permissão de janela flutuante pendente"
-        shift.active && shift.paused -> "Turno pausado"
-        shift.active -> "Turno ativo · monitoramento ligado"
-        else -> "Monitoramento pronto"
-    }
+    val ready = shift.monitoringConnected && overlayAllowed
     val statusColor = when {
-        !monitoringReady -> MaterialTheme.colorScheme.error
+        !ready -> MaterialTheme.colorScheme.error
         shift.active && shift.paused -> MaterialTheme.colorScheme.tertiary
         shift.active -> Color(0xFF22C55E)
         else -> MaterialTheme.colorScheme.primary
     }
+    val statusText = when {
+        !shift.monitoringConnected -> "Serviço desconectado"
+        !overlayAllowed -> "Permissão da bolha pendente"
+        shift.active && shift.paused -> "Turno pausado"
+        shift.active -> "Turno ativo · análise ligada"
+        else -> "Pronto para iniciar"
+    }
     val currency = remember { NumberFormat.getCurrencyInstance(Locale.forLanguageTag("pt-BR")) }
-
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)
-    ) {
-        Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(11.dp)) {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Text("CONTROLE DE TURNO", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text(if (shift.active) "EM SESSÃO" else "SEM TURNO", style = MaterialTheme.typography.labelSmall, color = statusColor, fontWeight = FontWeight.Bold)
+    Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            androidx.compose.material3.Surface(color = statusColor, shape = RoundedCornerShape(50)) { Spacer(Modifier.size(9.dp)) }
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(statusText, color = statusColor, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                Text(
+                    if (shift.active) "${formatShiftElapsed(shift.elapsedMillis())} · ${shift.completedTrips} corridas · ${currency.format(shift.receivedFareCents / 100.0)}"
+                    else "O controle rápido do turno fica na bolha flutuante.",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall, maxLines = 2
+                )
             }
-            Text(statusText, style = MaterialTheme.typography.titleMedium, color = statusColor, fontWeight = FontWeight.Bold)
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Column {
-                    Text("Tempo ativo", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text(formatShiftElapsed(shift.elapsedMillis()), style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurface)
-                }
-                Column(horizontalAlignment = Alignment.End) {
-                    Text("Corridas concluídas", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text(shift.completedTrips.toString(), style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurface)
-                }
+            if (!shift.monitoringConnected || !overlayAllowed) {
+                TextButton(onClick = {
+                    val action = if (!shift.monitoringConnected) Settings.ACTION_ACCESSIBILITY_SETTINGS else Settings.ACTION_MANAGE_OVERLAY_PERMISSION
+                    context.startActivity(Intent(action).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                }) { Text("Ativar") }
+            } else if (!shift.active) {
+                TextButton(onClick = { store.start(); shift = store.snapshot() }) { Text("Iniciar") }
+            } else if (shift.paused) {
+                TextButton(onClick = { store.resume(); shift = store.snapshot() }) { Text("Retomar") }
+            } else {
+                TextButton(onClick = { store.pause(); shift = store.snapshot() }) { Text("Pausar") }
             }
-            Text("Recebido no turno: ${currency.format(shift.receivedFareCents / 100.0)}", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
-            when {
-                !shift.monitoringConnected -> OutlinedButton(
-                    onClick = { context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) },
-                    modifier = Modifier.fillMaxWidth()
-                ) { Text("Ativar serviço de acessibilidade") }
-                !overlayAllowed -> OutlinedButton(
-                    onClick = { context.startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) },
-                    modifier = Modifier.fillMaxWidth()
-                ) { Text("Conceder permissão da bolha") }
-                !shift.active -> Button(
-                    onClick = { store.start(); shift = store.snapshot() },
-                    modifier = Modifier.fillMaxWidth()
-                ) { Text("INICIAR TURNO", fontWeight = FontWeight.Bold) }
-                shift.paused -> Button(
-                    onClick = { store.resume(); shift = store.snapshot() },
-                    modifier = Modifier.fillMaxWidth()
-                ) { Text("RETOMAR TURNO", fontWeight = FontWeight.Bold) }
-                else -> OutlinedButton(
-                    onClick = { store.pause(); shift = store.snapshot() },
-                    modifier = Modifier.fillMaxWidth()
-                ) { Text("PAUSAR TURNO") }
-            }
-            if (shift.active) {
-                OutlinedButton(
-                    onClick = { store.end(); shift = store.snapshot() },
-                    modifier = Modifier.fillMaxWidth()
-                ) { Text("ENCERRAR TURNO") }
-            }
-            Text(
-                "A análise automática só funciona com turno iniciado, serviço conectado e permissão de sobreposição ativa. O registro de corridas ainda depende da confirmação no card.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
         }
     }
 }
@@ -326,9 +296,9 @@ private fun SectionHeading(title: String, subtitle: String) {
 @Composable
 private fun MetricCard(title: String, value: String, supporting: String, modifier: Modifier = Modifier) {
     Card(modifier = modifier, shape = RoundedCornerShape(18.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)) {
-        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
             Text(title, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Text(value, style = MaterialTheme.typography.headlineMedium, color = MaterialTheme.colorScheme.onSurface)
+            Text(value, style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold)
             Text(supporting, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
