@@ -71,11 +71,11 @@ private enum class MainTab(val label: String, val icon: ImageVector) {
     DASHBOARD("Painel", Icons.Outlined.Dashboard),
     HISTORY("Corridas", Icons.Outlined.History),
     SCHEDULE("Agenda", Icons.Outlined.CalendarMonth),
-    SETTLEMENTS("Fechamento", Icons.Outlined.AccountBalanceWallet),
     EXPENSES("Gastos", Icons.Outlined.ReceiptLong),
     REPORTS("Relatórios", Icons.Outlined.QueryStats),
     VEHICLES("Veículos", Icons.Outlined.DirectionsCar),
-    SETTINGS("Personalização", Icons.Outlined.Settings)
+    SETTINGS("Personalização", Icons.Outlined.Settings),
+    SETTLEMENTS("Fechamento", Icons.Outlined.AccountBalanceWallet)
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
