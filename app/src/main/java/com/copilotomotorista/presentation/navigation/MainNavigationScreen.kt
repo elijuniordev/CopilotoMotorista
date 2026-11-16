@@ -19,6 +19,7 @@ import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.Dashboard
 import androidx.compose.material.icons.outlined.DirectionsCar
 import androidx.compose.material.icons.outlined.History
+import androidx.compose.material.icons.outlined.MoreHoriz
 import androidx.compose.material.icons.outlined.QueryStats
 import androidx.compose.material.icons.outlined.ReceiptLong
 import androidx.compose.material3.Card
@@ -29,6 +30,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
@@ -82,19 +84,17 @@ fun MainNavigationScreen(
     expenseRepository: com.copilotomotorista.data.repository.ExpenseRepository
 ) {
     var selectedIndex by rememberSaveable { mutableIntStateOf(0) }
+    var showMore by rememberSaveable { mutableStateOf(false) }
     val selected = MainTab.entries[selectedIndex]
+    val bottomTabs = listOf(MainTab.DASHBOARD, MainTab.HISTORY, MainTab.SCHEDULE)
+
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             TopAppBar(
                 title = {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(9.dp)) {
-                        Icon(
-                            painter = painterResource(R.drawable.copiloto_pro_mark),
-                            contentDescription = "Copiloto Pro",
-                            modifier = Modifier.size(34.dp),
-                            tint = Color.Unspecified
-                        )
+                        Icon(painter = painterResource(R.drawable.copiloto_pro_mark), contentDescription = "Copiloto Pro", modifier = Modifier.size(32.dp), tint = Color.Unspecified)
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text("Copiloto", color = MaterialTheme.colorScheme.onSurface, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                             Text(" PRO", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.ExtraBold)
@@ -106,16 +106,12 @@ fun MainNavigationScreen(
         },
         bottomBar = {
             NavigationBar(containerColor = MaterialTheme.colorScheme.surfaceContainer, tonalElevation = 0.dp) {
-                MainTab.entries.forEachIndexed { index, tab ->
-                    val isSelected = selectedIndex == index
+                bottomTabs.forEach { tab ->
                     NavigationBarItem(
-                        selected = isSelected,
-                        onClick = { selectedIndex = index },
+                        selected = selected == tab,
+                        onClick = { selectedIndex = tab.ordinal },
                         icon = { Icon(tab.icon, contentDescription = tab.label, modifier = Modifier.size(21.dp)) },
-                        label = {
-                            Text(tab.label, maxLines = 1, softWrap = false, fontSize = 10.sp,
-                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium)
-                        },
+                        label = { Text(tab.label, maxLines = 1, softWrap = false, fontSize = 10.sp, fontWeight = if (selected == tab) FontWeight.Bold else FontWeight.Medium) },
                         alwaysShowLabel = true,
                         colors = NavigationBarItemDefaults.colors(
                             selectedIconColor = MaterialTheme.colorScheme.primary,
@@ -126,17 +122,46 @@ fun MainNavigationScreen(
                         )
                     )
                 }
+                NavigationBarItem(
+                    selected = selectedIndex >= MainTab.EXPENSES.ordinal,
+                    onClick = { showMore = true },
+                    icon = { Icon(Icons.Outlined.MoreHoriz, contentDescription = "Mais opções", modifier = Modifier.size(21.dp)) },
+                    label = { Text("Mais", maxLines = 1, fontSize = 10.sp) },
+                    alwaysShowLabel = true
+                )
             }
         }
     ) { innerPadding ->
         Box(Modifier.fillMaxSize().padding(innerPadding).background(MaterialTheme.colorScheme.background)) {
             when (selected) {
-                MainTab.DASHBOARD -> DashboardScreen(dashboardDataSource, { selectedIndex = MainTab.VEHICLES.ordinal }, onTestOverlay)
+                MainTab.DASHBOARD -> DashboardScreen(dashboardDataSource, { selectedIndex = MainTab.VEHICLES.ordinal; showMore = false }, onTestOverlay)
                 MainTab.HISTORY -> HistoryScreen(tripRecordRepository)
                 MainTab.SCHEDULE -> PrivateScheduleScreen(privateTripRepository, clientRepository)
                 MainTab.EXPENSES -> ExpenseManagementScreen(expenseRepository, vehicleRepository)
                 MainTab.REPORTS -> FinancialReportsScreen(dashboardDataSource)
                 MainTab.VEHICLES -> VehicleConfigurationScreen(vehicleRepository, preferences)
+            }
+        }
+    }
+
+    if (showMore) {
+        ModalBottomSheet(onDismissRequest = { showMore = false }, containerColor = MaterialTheme.colorScheme.surfaceContainer) {
+            Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("MAIS RECURSOS", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                Text("Ferramentas complementares", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+                listOf(MainTab.EXPENSES, MainTab.REPORTS, MainTab.VEHICLES).forEach { tab ->
+                    Surface(
+                        Modifier.fillMaxWidth().clickable { selectedIndex = tab.ordinal; showMore = false },
+                        color = if (selected == tab) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerHigh,
+                        shape = RoundedCornerShape(14.dp)
+                    ) {
+                        Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                            Icon(tab.icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                            Text(tab.label, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.SemiBold)
+                        }
+                    }
+                }
+                Spacer(Modifier.size(8.dp))
             }
         }
     }
