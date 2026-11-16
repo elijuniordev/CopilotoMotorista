@@ -1,5 +1,6 @@
 package com.copilotomotorista.data.local.entity
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 
@@ -14,5 +15,10 @@ data class VehicleEntity(
     val energyPriceCents: Long,
     val maintenanceCentsPerKm: Long,
     val depreciationCentsPerKm: Long,
-    val otherCostsCentsPerKm: Long
+    val otherCostsCentsPerKm: Long,
+    @ColumnInfo(defaultValue = "''") val brand: String = "",
+    @ColumnInfo(defaultValue = "''") val model: String = "",
+    @ColumnInfo(defaultValue = "0") val year: Int = 0,
+    @ColumnInfo(defaultValue = "''") val version: String = "",
+    @ColumnInfo(defaultValue = "''") val motorization: String = ""
 )
