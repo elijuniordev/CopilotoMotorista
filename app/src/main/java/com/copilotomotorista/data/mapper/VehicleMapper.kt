@@ -85,7 +85,6 @@ fun VehicleEntity.toDomain(): Vehicle {
         year = year,
         version = version,
         motorization = motorization
-        )
     )
 }
 
