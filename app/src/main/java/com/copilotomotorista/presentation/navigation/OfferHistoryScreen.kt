@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.weight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -92,11 +91,11 @@ fun OfferHistoryScreen(repository: TripRecordRepository) {
     }
 
     Column(Modifier.fillMaxSize().padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        ScreenHeader(
-            "OFERTAS CAPTURADAS",
-            "Histórico de ofertas",
-            "Consulte todas as ofertas que tocaram. O registro permanece aqui mesmo quando você não aceita a corrida."
-        )
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text("OFERTAS CAPTURADAS", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+            Text("Histórico de ofertas", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+            Text("Consulte todas as ofertas que tocaram. O registro permanece aqui mesmo quando você não aceita a corrida.", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+        }
 
         OutlinedTextField(
             value = searchQuery,
@@ -158,12 +157,14 @@ fun OfferHistoryScreen(repository: TripRecordRepository) {
         }
 
         if (filtered.isEmpty()) {
-            EmptyState(
-                "⌕",
-                if (trips.isEmpty()) "Nenhuma oferta registrada" else "Nenhuma oferta encontrada",
-                if (trips.isEmpty()) "Quando o Copiloto identificar uma oferta da Uber ou 99, ela aparecerá aqui automaticamente."
-                else "Tente mudar o período, a plataforma ou o texto pesquisado."
-            )
+            Column(Modifier.fillMaxWidth().padding(vertical = 28.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(if (trips.isEmpty()) "Nenhuma oferta registrada" else "Nenhuma oferta encontrada", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Text(
+                    if (trips.isEmpty()) "Quando o Copiloto identificar uma oferta da Uber ou 99, ela aparecerá aqui automaticamente."
+                    else "Tente mudar o período, a plataforma ou o texto pesquisado.",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
         } else {
             LazyColumn(
                 modifier = Modifier.weight(1f),
