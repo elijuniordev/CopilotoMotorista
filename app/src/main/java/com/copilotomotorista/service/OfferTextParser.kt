@@ -64,7 +64,7 @@ class OfferTextParser {
                 )
             }
         }
-        val segmentPair = totalSummary?.let { total ->
+        val matchingSegmentPairs = totalSummary?.let { total ->
             segments.asSequence()
                 .filterNot { segment ->
                     segment.minutes == total.minutes &&
@@ -76,12 +76,16 @@ class OfferTextParser {
                         (first + 1 until candidates.size).asSequence().map { second ->
                             candidates[first] to candidates[second]
                         }
-                    }.firstOrNull { (pickup, trip) ->
+                    }.filter { (pickup, trip) ->
                         kotlin.math.abs(total.minutes - pickup.minutes - trip.minutes) <= 1 &&
                             kotlin.math.abs(total.distanceKm - pickup.distanceKm - trip.distanceKm) <= 0.2
-                    }
+                    }.distinctBy { (pickup, trip) ->
+                        listOf(pickup.minutes, pickup.distanceKm, trip.minutes, trip.distanceKm)
+                    }.toList()
                 }
-        }
+        }.orEmpty()
+        val segmentPairAmbiguous = matchingSegmentPairs.size > 1
+        val segmentPair = matchingSegmentPairs.singleOrNull()
 
         if (segmentPair != null) {
             val (pickup, trip) = segmentPair
@@ -89,7 +93,7 @@ class OfferTextParser {
             pickupTime = NumberCandidate(pickup.minutes.toDouble(), false)
             tripDistance = NumberCandidate(trip.distanceKm, false)
             tripTime = NumberCandidate(trip.minutes.toDouble(), false)
-        } else {
+        } else if (!segmentPairAmbiguous) {
             if (pickupDistance.value == null && pickupTime.value == null && segments.size >= 2) {
                 val pickup = segments.first()
                 pickupDistance = NumberCandidate(pickup.distanceKm, false)
