@@ -29,6 +29,7 @@ fun VehicleConfigurationScreen(repository: VehicleRepository, preferences: AppPr
     val targets by preferences.financialTargets.collectAsState(initial = FinancialTargets())
     val scope = rememberCoroutineScope()
     var editingId by remember { mutableStateOf<String?>(null) }
+    var showEditor by remember { mutableStateOf(false) }
     var name by remember { mutableStateOf("") }
     var energy by remember { mutableStateOf(EnergyOption.GASOLINE) }
     var consumption by remember { mutableStateOf("10,0") }
@@ -44,12 +45,12 @@ fun VehicleConfigurationScreen(repository: VehicleRepository, preferences: AppPr
     var message by remember { mutableStateOf<String?>(null) }
 
     fun clearForm() {
-        editingId = null; name = ""; energy = EnergyOption.GASOLINE
+        editingId = null; showEditor = false; name = ""; energy = EnergyOption.GASOLINE
         consumption = "10,0"; energyPrice = "5,90"; maintenance = "0,18"
         depreciation = "0,25"; otherCosts = "0,00"; error = null
     }
     fun edit(vehicle: Vehicle) {
-        editingId = vehicle.id; name = vehicle.name
+        editingId = vehicle.id; showEditor = true; name = vehicle.name
         when (val source = vehicle.energy) {
             is VehicleEnergy.Electric -> { energy = EnergyOption.ELECTRIC; consumption = decimal(source.consumptionKwhPer100Km); energyPrice = money(source.pricePerKwhCents) }
             is VehicleEnergy.LiquidFuel -> { energy = if (source.fuelType == FuelType.GASOLINE) EnergyOption.GASOLINE else EnergyOption.ETHANOL; consumption = decimal(source.consumptionKmPerLiter); energyPrice = money(source.pricePerLiterCents) }
@@ -61,11 +62,12 @@ fun VehicleConfigurationScreen(repository: VehicleRepository, preferences: AppPr
         error = null; message = "Editando ${vehicle.name}."
     }
 
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
             Text("CONFIGURAÇÃO FINANCEIRA", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelMedium)
             Text("Veículos e metas", style = MaterialTheme.typography.headlineLarge, color = MaterialTheme.colorScheme.onBackground)
             Text("Cadastre seus veículos e defina os parâmetros usados para avaliar cada oferta.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Button(onClick = { if (editingId == null) clearForm(); showEditor = true }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)) { Text(if (editingId == null) "Adicionar veículo" else "Continuar edição") }
         }
         Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(18.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -94,7 +96,7 @@ fun VehicleConfigurationScreen(repository: VehicleRepository, preferences: AppPr
                 }
             }
         }
-        Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(18.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)) {
+        if (showEditor || editingId != null) Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(18.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(if (editingId == null) "CADASTRAR VEÍCULO" else "EDITAR VEÍCULO", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelMedium)
                 OutlinedTextField(name, { name = it }, Modifier.fillMaxWidth(), label = { Text("Nome do veículo") }, singleLine = true)
