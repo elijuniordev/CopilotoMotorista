@@ -138,6 +138,25 @@ class OfferTextParserTest {
 
 
     @Test
+    fun reportsAmbiguousWhenMultipleSegmentPairsMatchTheSameTotalSummary() {
+        val result = parser.parse(
+            """
+            UberX
+            R$ 20,00
+            20 min • 5.7 km • Est. de R$3,50/km
+            5 min • 1.1 km
+            6 min • 1.2 km
+            15 min • 4.6 km
+            14 min • 4.5 km
+            """.trimIndent()
+        )
+
+        assertEquals(OfferTextParseStatus.AMBIGUOUS, result.status)
+        assertNull(result.offer)
+        assertEquals(setOf("segmentos de busca e viagem"), result.ambiguousFields)
+    }
+
+    @Test
     fun parsesUberOcrLayoutWhereEmbarqueLineRepeatsTotalSummary() {
         val result = parser.parse(
             """
