@@ -77,7 +77,8 @@ class MainActivity : ComponentActivity() {
             tripRecordRepository = appContainer.tripRecordRepository,
             expenseRepository = appContainer.expenseRepository,
             vehicleRepository = appContainer.vehicleRepository,
-            preferences = appContainer.preferences
+            preferences = appContainer.preferences,
+            dailySettlementRepository = appContainer.dailySettlementRepository
         )
 
         setContent {

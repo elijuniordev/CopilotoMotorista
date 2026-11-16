@@ -71,7 +71,8 @@ fun DashboardScreen(
         CalculateDashboardDailyMetricsUseCase().execute(
             trips = snapshot.trips,
             expenses = snapshot.expenses,
-            nowEpochMillis = dashboardNowEpochMillis
+            nowEpochMillis = dashboardNowEpochMillis,
+            settlements = snapshot.settlements
         )
     }
     val recentTrips = remember(snapshot.trips) {
@@ -82,7 +83,7 @@ fun DashboardScreen(
     }
     val currency = remember { NumberFormat.getCurrencyInstance(Locale.forLanguageTag("pt-BR")) }
     val balanceText = currency.format(metrics.registeredBalanceCents / 100.0)
-    val hasRecords = metrics.completedTrips > 0 || metrics.recordedExpensesCents > 0L
+    val hasRecords = metrics.completedTrips > 0 || metrics.receivedFareCents > 0L || metrics.recordedExpensesCents > 0L
     val targets = snapshot.financialTargets
 
     Column(
@@ -105,7 +106,7 @@ fun DashboardScreen(
                 }
                 Text(if (hasRecords) balanceText else "—", style = MaterialTheme.typography.displayLarge, color = MaterialTheme.colorScheme.onSurface)
                 Text(
-                    if (hasRecords) "Saldo de corridas concluídas menos despesas lançadas hoje. Não inclui custos estimados ainda não registrados."
+                    if (hasRecords) "Saldo dos recebimentos lançados manualmente menos despesas registradas hoje. Corridas concluídas alimentam distância e tempo, não o faturamento."
                     else "Seu resultado aparecerá aqui após o registro de corridas concluídas e despesas.",
                     style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

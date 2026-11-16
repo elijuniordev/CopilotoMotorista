@@ -1,5 +1,6 @@
 package com.copilotomotorista.presentation.dashboard
 
+import com.copilotomotorista.domain.model.DailySettlement
 import com.copilotomotorista.domain.model.ExpenseRecord
 import com.copilotomotorista.domain.model.TripRecord
 import java.time.DayOfWeek
@@ -33,7 +34,8 @@ class BuildFinancialReportUseCase {
         expenses: List<ExpenseRecord>,
         nowEpochMillis: Long,
         period: FinancialReportPeriod,
-        zoneId: ZoneId = ZoneId.systemDefault()
+        zoneId: ZoneId = ZoneId.systemDefault(),
+        settlements: List<DailySettlement> = emptyList()
     ): FinancialReportSnapshot {
         val today = Instant.ofEpochMilli(nowEpochMillis).atZone(zoneId).toLocalDate()
         val start = when (period) {
@@ -46,7 +48,8 @@ class BuildFinancialReportUseCase {
             )
         }
         val selectedExpenses = expenses.filter { inRange(it.occurredAtEpochMillis, start, today, zoneId) }
-        val revenue = completed.sumOf { it.receivedFareCents }
+        val selectedSettlements = settlements.filter { inRange(it.dateEpochMillis, start, today, zoneId) }
+        val revenue = selectedSettlements.sumOf { it.amountCents }
         val expensesTotal = selectedExpenses.sumOf { it.amountCents }
         return FinancialReportSnapshot(
             period = period,

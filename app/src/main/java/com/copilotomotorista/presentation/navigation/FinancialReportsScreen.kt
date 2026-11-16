@@ -24,7 +24,13 @@ fun FinancialReportsScreen(dataSource: DashboardDataSource) {
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
     var showCategories by remember { mutableStateOf(false) }
     val report = remember(snapshot, period, now) {
-        BuildFinancialReportUseCase().execute(snapshot.trips, snapshot.expenses, now, period)
+        BuildFinancialReportUseCase().execute(
+            trips = snapshot.trips,
+            expenses = snapshot.expenses,
+            nowEpochMillis = now,
+            period = period,
+            settlements = snapshot.settlements
+        )
     }
     val currency = remember { NumberFormat.getCurrencyInstance(Locale.forLanguageTag("pt-BR")) }
     val dateFormat = remember { java.time.format.DateTimeFormatter.ofPattern("dd/MM") }
@@ -32,7 +38,7 @@ fun FinancialReportsScreen(dataSource: DashboardDataSource) {
         Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
             Text("DESEMPENHO E RESULTADOS", color = MaterialTheme.colorScheme.primary, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.1.sp)
             Text("Relatórios", style = MaterialTheme.typography.headlineLarge, color = MaterialTheme.colorScheme.onBackground)
-            Text("Consolidação das corridas concluídas e despesas efetivamente lançadas.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("Recebimentos lançados manualmente, despesas registradas e métricas das corridas concluídas.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         Spacer(Modifier.height(12.dp))
         SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
@@ -91,7 +97,7 @@ fun FinancialReportsScreen(dataSource: DashboardDataSource) {
                 }
             }
             item {
-                Text("Os valores consideram somente corridas com status concluído e despesas registradas no período. A agenda de corridas particulares não compõe este relatório.", Modifier.padding(top = 8.dp, bottom = 12.dp), color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.labelSmall)
+                Text("O faturamento considera exclusivamente os recebimentos lançados no Fechamento Diário. Corridas concluídas são usadas apenas para quantidade, distância e duração.", Modifier.padding(top = 8.dp, bottom = 12.dp), color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.labelSmall)
             }
         }
     }

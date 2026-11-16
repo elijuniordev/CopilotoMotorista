@@ -1,5 +1,6 @@
 package com.copilotomotorista
 
+import com.copilotomotorista.domain.model.DailySettlement
 import com.copilotomotorista.domain.model.ExpenseRecord
 import com.copilotomotorista.domain.model.TripRecord
 import com.copilotomotorista.presentation.dashboard.CalculateDashboardDailyMetricsUseCase
@@ -33,7 +34,7 @@ class DashboardDailyMetricsTest {
             expense(id = "yesterday", amount = 1_000, occurredAt = yesterday)
         )
 
-        val result = useCase.execute(trips, expenses, today, zone)
+        val result = useCase.execute(trips, expenses, today, zone, listOf(DailySettlement("manual-today", today, "Uber", "Pix", 12_000, null, today)))
 
         assertEquals(1, result.completedTrips)
         assertEquals(12_000L, result.receivedFareCents)
@@ -43,6 +44,17 @@ class DashboardDailyMetricsTest {
         assertEquals(25, result.totalDurationMinutes)
         assertEquals(950.0, result.balanceCentsPerKm!!, 0.001)
         assertEquals(22_800.0, result.balanceCentsPerHour!!, 0.001)
+    }
+
+    @Test
+    fun completedTripFareDoesNotCountAsReceivedMoneyWithoutSettlement() {
+        val result = useCase.execute(
+            trips = listOf(trip(id = "completed", status = "completed", fare = 12_000, completedAt = today)),
+            expenses = emptyList(), nowEpochMillis = today, zoneId = zone
+        )
+        assertEquals(1, result.completedTrips)
+        assertEquals(0L, result.receivedFareCents)
+        assertEquals(0L, result.registeredBalanceCents)
     }
 
     @Test
@@ -88,7 +100,7 @@ class DashboardDailyMetricsTest {
         )
 
         assertEquals(1, result.completedTrips)
-        assertEquals(5_000L, result.receivedFareCents)
+        assertEquals(0L, result.receivedFareCents)
     }
 
     private fun trip(
