@@ -19,21 +19,28 @@ class DashboardDataSource(
     preferences: DashboardPreferences,
     dailySettlementRepository: DailySettlementRepository? = null
 ) {
-    val snapshot: Flow<DashboardSnapshot> = combine(
+    private val records = combine(
         tripRecordRepository.observeTrips(),
         expenseRepository.observeExpenses(),
-        vehicleRepository.observeVehicles(),
+        vehicleRepository.observeVehicles()
+    ) { trips, expenses, vehicles -> Triple(trips, expenses, vehicles) }
+
+    private val settings = combine(
         preferences.selectedVehicleId,
         preferences.financialTargets,
         dailySettlementRepository?.observeSettlements() ?: flowOf(emptyList())
-    ) { trips, expenses, vehicles, selectedVehicleId, financialTargets, settlements ->
+    ) { selectedVehicleId, financialTargets, settlements ->
+        Triple(selectedVehicleId, financialTargets, settlements)
+    }
+
+    val snapshot: Flow<DashboardSnapshot> = combine(records, settings) { records, settings ->
         DashboardSnapshot(
-            trips = trips,
-            expenses = expenses,
-            vehicles = vehicles,
-            selectedVehicleId = selectedVehicleId,
-            financialTargets = financialTargets,
-            settlements = settlements
+            trips = records.first,
+            expenses = records.second,
+            vehicles = records.third,
+            selectedVehicleId = settings.first,
+            financialTargets = settings.second,
+            settlements = settings.third
         )
     }
 }
