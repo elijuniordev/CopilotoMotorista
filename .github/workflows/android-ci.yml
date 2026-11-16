@@ -64,7 +64,9 @@ jobs:
           set -euo pipefail
           RELEASE_APK="$(find app/build/outputs/apk/release -maxdepth 1 -name '*.apk' -print -quit)"
           test -n "$RELEASE_APK"
-          apksigner verify --verbose --print-certs "$RELEASE_APK"
+          APKSIGNER="$(find "${ANDROID_HOME:-${ANDROID_SDK_ROOT}}/build-tools" -maxdepth 2 -type f -name apksigner -print -quit)"
+          test -n "$APKSIGNER"
+          "$APKSIGNER" verify --verbose --print-certs "$RELEASE_APK"
       - name: Publish validation APKs
         if: matrix.api-level == 35
         uses: actions/upload-artifact@v6
