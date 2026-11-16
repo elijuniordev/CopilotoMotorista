@@ -1,0 +1,86 @@
+package com.copilotomotorista.service
+
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
+import org.junit.Test
+
+class OfferTextParserTest {
+
+    private val parser = OfferTextParser()
+
+    @Test
+    fun parsesBrazilianOfferWithPickupAndTripDetails() {
+        val result = parser.parse(
+            """
+            UberX
+            R$ 32,50
+            Busca: 2,0 km · 6 min
+            Viagem: 8,5 km · 22 min
+            """.trimIndent()
+        )
+
+        assertEquals(OfferTextParseStatus.COMPLETE, result.status)
+        val offer = result.offer
+        assertNotNull(offer)
+        assertEquals(3250L, offer!!.receivedFareCents)
+        assertEquals(2.0, offer.pickupDistanceKm, 0.001)
+        assertEquals(8.5, offer.tripDistanceKm, 0.001)
+        assertEquals(6, offer.pickupTimeMinutes)
+        assertEquals(22, offer.tripTimeMinutes)
+    }
+
+    @Test
+    fun parsesBrazilianCurrencyWithThousandsSeparator() {
+        val result = parser.parse(
+            """
+            R$ 1.234,56
+            Viagem: 10 km · 30 min
+            """.trimIndent()
+        )
+
+        assertEquals(OfferTextParseStatus.COMPLETE, result.status)
+        assertEquals(123456L, result.offer?.receivedFareCents)
+    }
+
+    @Test
+    fun reportsIncompleteOfferWhenFareIsMissing() {
+        val result = parser.parse("Viagem: 8,5 km · 22 min")
+
+        assertEquals(OfferTextParseStatus.INCOMPLETE, result.status)
+        assertNull(result.offer)
+        assertEquals(setOf("valor recebido"), result.missingFields)
+    }
+
+    @Test
+    fun reportsAmbiguousOfferWhenMoreThanOneFareIsVisible() {
+        val result = parser.parse(
+            """
+            R$ 32,50
+            R$ 35,00
+            Viagem: 8,5 km · 22 min
+            """.trimIndent()
+        )
+
+        assertEquals(OfferTextParseStatus.AMBIGUOUS, result.status)
+        assertNull(result.offer)
+        assertEquals(setOf("valor recebido"), result.ambiguousFields)
+    }
+
+    @Test
+    fun ignoresTextThatDoesNotContainOfferClues() {
+        val result = parser.parse("Bom dia! Como está o trânsito hoje?")
+
+        assertEquals(OfferTextParseStatus.NOT_OFFER, result.status)
+        assertNull(result.offer)
+    }
+
+    @Test
+    fun reportsIncompleteOfferWhenTripDistanceOrTimeIsMissing() {
+        val result = parser.parse("R$ 18,90\nViagem: 8,5 km")
+
+        assertEquals(OfferTextParseStatus.INCOMPLETE, result.status)
+        assertNull(result.offer)
+        assertEquals(setOf("tempo da viagem"), result.missingFields)
+    }
+}
