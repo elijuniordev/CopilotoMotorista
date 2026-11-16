@@ -19,12 +19,18 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.Icon
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.PlayArrow
+import androidx.compose.material.icons.outlined.Pause
+import androidx.compose.material.icons.outlined.Stop
+import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -51,8 +57,6 @@ import androidx.savedstate.SavedStateRegistryOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import com.copilotomotorista.ui.theme.CopilotoMotoristaTheme
 import kotlinx.coroutines.delay
-import java.text.NumberFormat
-import java.util.Locale
 
 private class FloatingViewTreeOwner : LifecycleOwner, SavedStateRegistryOwner, ViewModelStoreOwner {
     private val registry = LifecycleRegistry(this)
@@ -160,9 +164,11 @@ class FloatingControlWindowManager(
     }
 }
 
+
 @Composable
 private fun FloatingControlContent(store: ShiftSessionStore, onDrag: (Float, Float) -> Unit) {
     var expanded by remember { mutableStateOf(false) }
+    var confirmEnd by remember { mutableStateOf(false) }
     var snapshot by remember { mutableStateOf(store.snapshot()) }
     LaunchedEffect(Unit) {
         while (true) {
@@ -176,44 +182,32 @@ private fun FloatingControlContent(store: ShiftSessionStore, onDrag: (Float, Flo
         snapshot.active -> Color(0xFF22C55E)
         else -> Color(0xFF3B82F6)
     }
-
-    Column(
-        horizontalAlignment = Alignment.End,
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-        modifier = Modifier.padding(6.dp)
-    ) {
+    Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(6.dp)) {
         if (expanded) {
-            Card(
-                modifier = Modifier.width(260.dp),
-                shape = RoundedCornerShape(18.dp)
-            ) {
-                Column(
-                    modifier = Modifier.padding(14.dp),
-                    verticalArrangement = Arrangement.spacedBy(9.dp)
-                ) {
-                    Text("COPILOTO PRO", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+            Card(modifier = Modifier.width(176.dp), shape = RoundedCornerShape(18.dp)) {
+                Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(
                         when {
-                            !snapshot.monitoringConnected -> "Monitoramento desconectado"
-                            snapshot.active && snapshot.paused -> "Turno pausado"
-                            snapshot.active -> "Turno ativo · monitorando"
-                            else -> "Pronto para iniciar"
+                            !snapshot.monitoringConnected -> "Sistema desconectado"
+                            snapshot.active && snapshot.paused -> "Expediente pausado"
+                            snapshot.active -> "Sistema funcionando"
+                            else -> "Sistema pronto"
                         },
-                        style = MaterialTheme.typography.titleSmall,
+                        style = MaterialTheme.typography.labelMedium,
                         fontWeight = FontWeight.Bold
                     )
-                    Text("Turno: ${formatElapsed(snapshot.elapsedMillis())}", style = MaterialTheme.typography.bodySmall)
-                    Text("${snapshot.completedTrips} corridas · ${formatMoney(snapshot.receivedFareCents)}", style = MaterialTheme.typography.bodySmall)
-                    when {
-                        !snapshot.monitoringConnected -> Text("Abra o Copiloto e reative o serviço de acessibilidade.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
-                        !snapshot.active -> Button(onClick = { store.start(); snapshot = store.snapshot() }, modifier = Modifier.fillMaxWidth()) { Text("Iniciar turno") }
-                        snapshot.paused -> Button(onClick = { store.resume(); snapshot = store.snapshot() }, modifier = Modifier.fillMaxWidth()) { Text("Retomar turno") }
-                        else -> OutlinedButton(onClick = { store.pause(); snapshot = store.snapshot() }, modifier = Modifier.fillMaxWidth()) { Text("Pausar turno") }
+                    if (!snapshot.monitoringConnected) {
+                        Text("Reative a Acessibilidade nas configurações do app.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+                    } else if (!snapshot.active) {
+                        ControlAction(Icons.Outlined.PlayArrow, "Iniciar") { store.start(); snapshot = store.snapshot() }
+                    } else if (snapshot.paused) {
+                        ControlAction(Icons.Outlined.Refresh, "Retomar") { store.resume(); snapshot = store.snapshot() }
+                    } else {
+                        ControlAction(Icons.Outlined.Pause, "Pausar") { store.pause(); snapshot = store.snapshot() }
                     }
                     if (snapshot.active) {
-                        OutlinedButton(onClick = { store.end(); snapshot = store.snapshot() }, modifier = Modifier.fillMaxWidth()) { Text("Encerrar turno") }
+                        ControlAction(Icons.Outlined.Stop, "Finalizar", Color(0xFFEF4444)) { confirmEnd = true }
                     }
-                    Text("Toque na bolha para recolher.", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         }
@@ -221,8 +215,7 @@ private fun FloatingControlContent(store: ShiftSessionStore, onDrag: (Float, Flo
             color = statusColor,
             shape = CircleShape,
             shadowElevation = 8.dp,
-            modifier = Modifier
-                .size(56.dp)
+            modifier = Modifier.size(48.dp)
                 .pointerInput(Unit) {
                     detectDragGestures { change, amount ->
                         change.consume()
@@ -236,14 +229,39 @@ private fun FloatingControlContent(store: ShiftSessionStore, onDrag: (Float, Flo
             }
         }
     }
+    if (confirmEnd) {
+        AlertDialog(
+            onDismissRequest = { confirmEnd = false },
+            title = { Text("Finalizar expediente?") },
+            text = { Text("O monitoramento das ofertas será interrompido até você iniciar outro expediente.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    store.end()
+                    snapshot = store.snapshot()
+                    confirmEnd = false
+                    expanded = false
+                }) { Text("Finalizar") }
+            },
+            dismissButton = { TextButton(onClick = { confirmEnd = false }) { Text("Continuar") } }
+        )
+    }
 }
 
-private fun formatElapsed(milliseconds: Long): String {
-    val totalSeconds = milliseconds / 1_000L
-    val hours = totalSeconds / 3_600L
-    val minutes = (totalSeconds % 3_600L) / 60L
-    return if (hours > 0) "${hours}h ${minutes}min" else "${minutes}min"
+@Composable
+private fun ControlAction(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    tint: Color = Color(0xFF3B82F6),
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).padding(vertical = 5.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        Surface(color = tint.copy(alpha = 0.14f), shape = CircleShape, modifier = Modifier.size(34.dp)) {
+            Box(contentAlignment = Alignment.Center) { Icon(icon, contentDescription = label, tint = tint) }
+        }
+        Text(label, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
+    }
 }
-
-private fun formatMoney(cents: Long): String =
-    NumberFormat.getCurrencyInstance(Locale.forLanguageTag("pt-BR")).format(cents / 100.0)
