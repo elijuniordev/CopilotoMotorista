@@ -215,11 +215,22 @@ private fun HistoryScreen(
                                 java.util.Locale("pt", "BR"), trip.pickupDistanceKm, trip.tripDistanceKm,
                                 trip.pickupDistanceKm + trip.tripDistanceKm),
                                 color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
-                            Text("Tempo total: %d min".format(trip.pickupTimeMinutes + trip.tripTimeMinutes),
-                                color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+                            val totalDistance = trip.pickupDistanceKm + trip.tripDistanceKm
+                            val totalMinutes = trip.pickupTimeMinutes + trip.tripTimeMinutes
+                            val fareValue = trip.receivedFareCents / 100.0
+                            if (totalDistance > 0.0) {
+                                Text("Média: R$ %.2f/km".format(java.util.Locale("pt", "BR"), fareValue / totalDistance),
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+                            }
+                            if (totalMinutes > 0) {
+                                Text("Ritmo bruto estimado: %s/h".format(currency.format(fareValue * 60.0 / totalMinutes)),
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+                            }
                             trip.vehicleNameSnapshot?.let { Text("Veículo: $it", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall) }
                             trip.operatingCostCentsSnapshot?.let {
                                 Text("Custo operacional estimado: " + currency.format(it / 100.0),
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+                                Text("Resultado estimado: " + currency.format(fareValue - it / 100.0),
                                     color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
                             }
                         }
