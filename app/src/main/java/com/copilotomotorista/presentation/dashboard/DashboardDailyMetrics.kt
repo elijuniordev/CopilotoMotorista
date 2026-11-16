@@ -1,16 +1,13 @@
 package com.copilotomotorista.presentation.dashboard
 
+import com.copilotomotorista.domain.model.DailySettlement
 import com.copilotomotorista.domain.model.ExpenseRecord
 import com.copilotomotorista.domain.model.TripRecord
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 
-/**
- * Daily totals based only on completed trips and expenses actually recorded.
- * The balance is revenue minus recorded expenses; it is not a forecast of
- * unrecorded vehicle costs.
- */
+/** Daily metrics: only manual settlements count as received money. */
 data class DashboardDailyMetrics(
     val completedTrips: Int = 0,
     val receivedFareCents: Long = 0L,
@@ -33,7 +30,8 @@ class CalculateDashboardDailyMetricsUseCase {
         trips: List<TripRecord>,
         expenses: List<ExpenseRecord>,
         nowEpochMillis: Long,
-        zoneId: ZoneId = ZoneId.systemDefault()
+        zoneId: ZoneId = ZoneId.systemDefault(),
+        settlements: List<DailySettlement> = emptyList()
     ): DashboardDailyMetrics {
         val today = Instant.ofEpochMilli(nowEpochMillis).atZone(zoneId).toLocalDate()
 
@@ -44,8 +42,11 @@ class CalculateDashboardDailyMetricsUseCase {
         val expensesToday = expenses.filter { expense ->
             epochDay(expense.occurredAtEpochMillis, zoneId) == today
         }
+        val settlementsToday = settlements.filter {
+            epochDay(it.dateEpochMillis, zoneId) == today
+        }
 
-        val revenue = completedToday.sumOf { it.receivedFareCents }
+        val revenue = settlementsToday.sumOf { it.amountCents }
         val recordedExpenses = expensesToday.sumOf { it.amountCents }
 
         return DashboardDailyMetrics(
