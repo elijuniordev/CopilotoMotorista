@@ -266,7 +266,7 @@ private fun HistoryScreen(
                     val shift = shiftStore.snapshot()
                     if (trip.startedAtEpochMillis != null &&
                         trip.startedAtEpochMillis >= shift.startedAtEpochMillis
-                    ) shiftStore.recordCompletedTrip(trip.receivedFareCents)
+                    ) shiftStore.recordCompletedTrip(trip.id, trip.receivedFareCents)
                     selectedTrip = null
                 }
             }) else null
