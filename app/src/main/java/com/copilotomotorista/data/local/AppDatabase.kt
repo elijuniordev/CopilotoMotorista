@@ -21,7 +21,7 @@ import com.copilotomotorista.data.local.entity.PrivateTripEntity
 
 @Database(
     entities = [AppMetadataEntity::class, VehicleEntity::class, TripRecordEntity::class, ExpenseEntity::class, ClientEntity::class, PrivateTripEntity::class],
-    version = 4,
+    version = 5,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -80,6 +80,16 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE vehicles ADD COLUMN brand TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE vehicles ADD COLUMN model TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE vehicles ADD COLUMN year INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE vehicles ADD COLUMN version TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE vehicles ADD COLUMN motorization TEXT NOT NULL DEFAULT ''")
+            }
+        }
+
         @Volatile
         private var instance: AppDatabase? = null
 
@@ -90,7 +100,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     DATABASE_NAME
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
                     .build()
                     .also { instance = it }
             }
