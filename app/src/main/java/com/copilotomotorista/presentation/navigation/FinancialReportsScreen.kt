@@ -97,7 +97,7 @@ fun FinancialReportsScreen(dataSource: DashboardDataSource) {
                 }
             }
             item {
-                Text("Os valores consideram somente corridas com status concluído e despesas registradas no período. A agenda de corridas particulares não compõe este relatório.", Modifier.padding(top = 8.dp, bottom = 12.dp), color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.labelSmall)
+                Text("O faturamento considera exclusivamente os recebimentos lançados no Fechamento Diário. Corridas concluídas são usadas apenas para quantidade, distância e duração.", Modifier.padding(top = 8.dp, bottom = 12.dp), color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.labelSmall)
             }
         }
     }
