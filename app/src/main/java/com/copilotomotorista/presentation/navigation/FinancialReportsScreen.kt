@@ -6,6 +6,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.foundation.clickable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -21,6 +22,7 @@ fun FinancialReportsScreen(dataSource: DashboardDataSource) {
     val snapshot by dataSource.snapshot.collectAsState(initial = com.copilotomotorista.presentation.dashboard.DashboardSnapshot())
     var period by remember { mutableStateOf(FinancialReportPeriod.WEEK) }
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    var showCategories by remember { mutableStateOf(false) }
     val report = remember(snapshot, period, now) {
         BuildFinancialReportUseCase().execute(snapshot.trips, snapshot.expenses, now, period)
     }
@@ -67,15 +69,20 @@ fun FinancialReportsScreen(dataSource: DashboardDataSource) {
                 }
             }
             item {
-                Text("DESPESAS POR CATEGORIA", Modifier.padding(top = 7.dp), color = MaterialTheme.colorScheme.primary, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+                Surface(Modifier.fillMaxWidth().clickable { showCategories = !showCategories }, color = MaterialTheme.colorScheme.surfaceContainerLow, shape = RoundedCornerShape(12.dp)) {
+                    Row(Modifier.padding(horizontal = 14.dp, vertical = 12.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("Despesas por categoria", color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.SemiBold)
+                        Text(if (showCategories) "−" else "+", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                    }
+                }
             }
-            if (report.expensesByCategory.isEmpty()) {
+            if (showCategories && report.expensesByCategory.isEmpty()) {
                 item {
                     Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(15.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)) {
                         Text("Nenhuma despesa registrada neste período.", Modifier.padding(16.dp), color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
                     }
                 }
-            } else {
+            } else if (showCategories) {
                 items(report.expensesByCategory.entries.toList(), key = { it.key }) { entry ->
                     Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 5.dp), horizontalArrangement = Arrangement.SpaceBetween) {
                         Text(entry.key, color = MaterialTheme.colorScheme.onSurface, style = MaterialTheme.typography.bodyMedium)
