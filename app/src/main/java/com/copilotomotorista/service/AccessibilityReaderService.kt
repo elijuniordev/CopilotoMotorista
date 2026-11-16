@@ -197,6 +197,19 @@ class AccessibilityReaderService : AccessibilityService() {
             val existingOffer = withContext(Dispatchers.IO) {
                 appContainer.tripRecordRepository.getTrip(recordId)
             }
+            if (existingOffer != null && existingOffer.rawOfferText.isNullOrBlank()) {
+                runCatching {
+                    withContext(Dispatchers.IO) {
+                        appContainer.tripRecordRepository.saveTrip(
+                            existingOffer.copy(
+                                rawOfferText = snapshot.text,
+                                origin = existingOffer.origin ?: extractLabeledAddress(snapshot.text, true),
+                                destination = existingOffer.destination ?: extractLabeledAddress(snapshot.text, false)
+                            )
+                        )
+                    }
+                }
+            }
             if (existingOffer == null) {
                 val costSnapshot = selected?.let { (vehicle, targets, currentOffer) ->
                     runCatching { evaluateOfferUseCase.execute(currentOffer, vehicle, targets) }
