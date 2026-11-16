@@ -24,7 +24,13 @@ fun FinancialReportsScreen(dataSource: DashboardDataSource) {
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
     var showCategories by remember { mutableStateOf(false) }
     val report = remember(snapshot, period, now) {
-        BuildFinancialReportUseCase().execute(snapshot.trips, snapshot.expenses, now, period)
+        BuildFinancialReportUseCase().execute(
+            trips = snapshot.trips,
+            expenses = snapshot.expenses,
+            nowEpochMillis = now,
+            period = period,
+            settlements = snapshot.settlements
+        )
     }
     val currency = remember { NumberFormat.getCurrencyInstance(Locale.forLanguageTag("pt-BR")) }
     val dateFormat = remember { java.time.format.DateTimeFormatter.ofPattern("dd/MM") }
