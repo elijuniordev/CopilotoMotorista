@@ -111,6 +111,7 @@ class OfferTextParser {
         }
 
         val ambiguous = linkedSetOf<String>()
+        if (segmentPairAmbiguous) ambiguous += "segmentos de busca e viagem"
         if (fareCandidates.size > 1) ambiguous += "valor recebido"
         if (pickupDistance.ambiguous) ambiguous += "distância de busca"
         if (pickupTime.ambiguous) ambiguous += "tempo de busca"
