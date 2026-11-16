@@ -198,10 +198,10 @@ class AccessibilityReaderService : AccessibilityService() {
                 paymentMethod = detectPaymentMethod(snapshot.text),
                 onDismiss = {},
                 onAccepted = {
-                    saveConfirmedTrip(recordId, platform, currentOffer, vehicle.id, vehicle.name, analysis.operatingCostCents, TRIP_STATUS_ACCEPTED, detectPaymentMethod(snapshot.text))
+                    saveConfirmedTrip(recordId, platform, currentOffer, vehicle.id, vehicle.name, analysis.operatingCostCents, TRIP_STATUS_ACCEPTED, detectPaymentMethod(snapshot.text), extractLabeledAddress(snapshot.text, true), extractLabeledAddress(snapshot.text, false))
                 },
                 onCompleted = {
-                    saveConfirmedTrip(recordId, platform, currentOffer, vehicle.id, vehicle.name, analysis.operatingCostCents, TRIP_STATUS_COMPLETED, detectPaymentMethod(snapshot.text))
+                    saveConfirmedTrip(recordId, platform, currentOffer, vehicle.id, vehicle.name, analysis.operatingCostCents, TRIP_STATUS_COMPLETED, detectPaymentMethod(snapshot.text), extractLabeledAddress(snapshot.text, true), extractLabeledAddress(snapshot.text, false))
                 },
                 showCompleteAction = recentRecord?.status == "in_progress"
             )
@@ -217,6 +217,16 @@ class AccessibilityReaderService : AccessibilityService() {
         return patterns.firstOrNull { pattern ->
             Regex(Regex.escape(pattern), RegexOption.IGNORE_CASE).containsMatchIn(text)
         } ?: "Categoria não identificada"
+    }
+
+    private fun extractLabeledAddress(text: String, origin: Boolean): String? {
+        val labels = if (origin) listOf("origem:", "embarque:", "partida:", "buscar em:", "buscar:")
+        else listOf("destino:", "desembarque:", "chegada:", "deixar em:", "levar para:")
+        return text.lineSequence().map { it.trim() }.firstNotNullOfOrNull { line ->
+            val normalized = line.lowercase()
+            val label = labels.firstOrNull { normalized.startsWith(it) }
+            label?.let { line.substring(it.length).trim().takeIf { value -> value.length >= 5 } }
+        }
     }
 
     private fun detectPaymentMethod(text: String): String {
@@ -237,7 +247,9 @@ class AccessibilityReaderService : AccessibilityService() {
         vehicleName: String,
         operatingCostCents: Long,
         status: String,
-        paymentMethod: String
+        paymentMethod: String,
+        detectedOrigin: String?,
+        detectedDestination: String?
     ) {
         if (serviceDestroyed) return
         serviceScope.launch {
@@ -253,8 +265,8 @@ class AccessibilityReaderService : AccessibilityService() {
                 tripDistanceKm = offer.tripDistanceKm,
                 pickupTimeMinutes = offer.pickupTimeMinutes,
                 tripTimeMinutes = offer.tripTimeMinutes,
-                origin = null,
-                destination = null,
+                origin = existing?.origin ?: detectedOrigin,
+                destination = existing?.destination ?: detectedDestination,
                 passengerRating = null,
                 paymentMethod = existing?.paymentMethod ?: paymentMethod.takeUnless { it == "Pagamento não identificado" },
                 startedAtEpochMillis = existing?.startedAtEpochMillis
