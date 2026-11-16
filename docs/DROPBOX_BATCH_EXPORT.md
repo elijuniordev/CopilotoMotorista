@@ -9,12 +9,27 @@ Este utilitário usa o GitHub Actions para baixar em lote os arquivos de uma ún
 3. Na aba **Permissions**, habilite somente:
    - `files.metadata.read`
    - `files.content.read`
-4. Salve as permissões e, na aba **Settings**, obtenha o App key e o App secret.
-5. Gere um **refresh token OAuth** para sua conta com o escopo `offline_access` e as duas permissões acima. Não use um access token temporário como refresh token.
+4. Salve as permissões e, na aba **Settings**, copie o **App key** e o **App secret**.
 
-> Segurança: o app deve ser somente leitura. Não habilite permissões de escrita, exclusão, compartilhamento ou gerenciamento de membros. Nunca cole App secret, refresh token ou access token nesta conversa ou no código do repositório.
+O acesso é somente leitura. Não habilite permissões de escrita, exclusão, compartilhamento ou gerenciamento de membros.
 
-## 2. Cadastrar os secrets no GitHub
+## 2. Autorizar sua conta e obter o refresh token
+
+1. Monte este endereço, substituindo `APP_KEY` pela App key do seu aplicativo, e abra-o no navegador em que você está conectado ao Dropbox:
+
+   `https://www.dropbox.com/oauth2/authorize?client_id=APP_KEY&response_type=code&token_access_type=offline&scope=files.metadata.read%20files.content.read`
+
+2. Confira as permissões solicitadas e clique em **Allow/Permitir**. O Dropbox exibirá um código de autorização. Esse código é temporário e de uso único.
+3. No computador, baixe o projeto/branch e execute:
+
+   `python scripts/dropbox_oauth_setup.py`
+
+4. Informe a App key, o App secret e o código de autorização quando solicitado. O App secret e o código são digitados sem aparecer na tela. O script troca o código por um refresh token e mostra somente esse refresh token.
+5. Copie o refresh token para o secret do GitHub na etapa seguinte. Não o envie nesta conversa, não o compartilhe e não o salve no código.
+
+Se o Dropbox não retornar refresh token, repita a autorização usando exatamente o parâmetro `token_access_type=offline`.
+
+## 3. Cadastrar os secrets no GitHub
 
 No repositório, abra **Settings → Secrets and variables → Actions → New repository secret** e crie estes três secrets:
 
@@ -22,11 +37,11 @@ No repositório, abra **Settings → Secrets and variables → Actions → New r
 | --- | --- |
 | `DROPBOX_APP_KEY` | App key do app Dropbox |
 | `DROPBOX_APP_SECRET` | App secret do app Dropbox |
-| `DROPBOX_REFRESH_TOKEN` | Refresh token OAuth |
+| `DROPBOX_REFRESH_TOKEN` | Refresh token obtido no passo anterior |
 
 Não crie um secret para o caminho da pasta: o workflow solicita esse caminho ao iniciar e já sugere `/Copiloto Pro — Exemplos de Corridas`.
 
-## 3. Executar
+## 4. Executar
 
 1. Abra a aba **Actions** do repositório.
 2. Selecione **Export Dropbox corrida examples**.
@@ -40,6 +55,6 @@ O artefato fica disponível por 3 dias. Depois de baixá-lo no aparelho/computad
 
 - O ZIP é publicado como artefato da execução do GitHub Actions, acessível a quem tiver acesso ao repositório; não é um link público de download.
 - O workflow é manual: nada é executado automaticamente nem em intervalos recorrentes.
-- O token é renovado durante a execução usando os secrets do GitHub e não é impresso nos logs.
-- Os arquivos são processados em memória temporária do runner e incluídos no ZIP mantendo os caminhos relativos dentro da pasta de origem.
+- O token de acesso temporário é renovado durante a execução usando os secrets do GitHub e não é impresso nos logs.
+- Os arquivos são processados em armazenamento temporário do runner e incluídos no ZIP mantendo os caminhos relativos dentro da pasta de origem.
 - A integração não anexa automaticamente o ZIP ao ChatGPT. É necessário baixar o artefato e anexá-lo aqui.
