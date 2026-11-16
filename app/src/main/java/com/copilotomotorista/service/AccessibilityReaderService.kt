@@ -222,9 +222,9 @@ class AccessibilityReaderService : AccessibilityService() {
     private fun detectPaymentMethod(text: String): String {
         val normalized = text.lowercase()
         return when {
-            Regex("""\\b(pix)\\b""").containsMatchIn(normalized) -> "Pix"
-            Regex("""\\b(dinheiro|cash)\\b""").containsMatchIn(normalized) -> "Dinheiro"
-            Regex("""\\b(cart[aã]o|cr[eé]dito|d[eé]bito)\\b""").containsMatchIn(normalized) -> "Cartão"
+            Regex("""\b(pix)\b""").containsMatchIn(normalized) -> "Pix"
+            Regex("""\b(dinheiro|cash)\b""").containsMatchIn(normalized) -> "Dinheiro"
+            Regex("""\b(cart[aã]o|cr[eé]dito|d[eé]bito)\b""").containsMatchIn(normalized) -> "Cartão"
             else -> "Pagamento não identificado"
         }
     }
