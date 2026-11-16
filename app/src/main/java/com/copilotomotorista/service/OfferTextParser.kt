@@ -135,18 +135,18 @@ class OfferTextParser {
 
     private companion object {
         val WHITESPACE = Regex("\\s+")
-        val FARE_REGEX = Regex("""R\\$\\s*([0-9.]+(?:,[0-9]{1,2})?|[0-9]+(?:\\.[0-9]{1,2})?)""", RegexOption.IGNORE_CASE)
+        val FARE_REGEX = Regex("""R\$\s*([0-9.]+(?:,[0-9]{1,2})?|[0-9]+(?:\.[0-9]{1,2})?)""", RegexOption.IGNORE_CASE)
         val NON_FARE_AMOUNT_REGEX = Regex(
-            """R\\$\\s*[0-9.,]+\\s*/\\s*km|tarifa\\s+base|din[aâ]mica""",
+            """R\$\s*[0-9.,]+\s*/\s*km|tarifa\s+base|din[aâ]mica""",
             RegexOption.IGNORE_CASE
         )
-        val DISTANCE_REGEX = Regex("""([0-9]+(?:[,.][0-9]+)?)\\s*km\\b""", RegexOption.IGNORE_CASE)
-        val TIME_REGEX = Regex("""([0-9]+)\\s*(?:min(?:uto)?s?)\\b""", RegexOption.IGNORE_CASE)
+        val DISTANCE_REGEX = Regex("""([0-9]+(?:[,.][0-9]+)?)\s*km\b""", RegexOption.IGNORE_CASE)
+        val TIME_REGEX = Regex("""([0-9]+)\s*(?:min(?:uto)?s?)\b""", RegexOption.IGNORE_CASE)
         val UNLABELED_TIME_DISTANCE_REGEX = Regex(
-            """([0-9]+)\\s*min(?:uto)?s?\\s*\\(\\s*([0-9]+(?:[,.][0-9]+)?)\\s*(m|km)\\s*\\)""",
+            """([0-9]+)\s*min(?:uto)?s?\s*\(\s*([0-9]+(?:[,.][0-9]+)?)\s*(m|km)\s*\)""",
             RegexOption.IGNORE_CASE
         )
-        val PICKUP_KEYWORDS = Regex("""\\b(busca|buscar|embarque|coleta|pickup|passageiro)\\b""", RegexOption.IGNORE_CASE)
-        val TRIP_KEYWORDS = Regex("""\\b(viagem|trajeto|destino)\\b""", RegexOption.IGNORE_CASE)
+        val PICKUP_KEYWORDS = Regex("""\b(busca|buscar|embarque|coleta|pickup|passageiro)\b""", RegexOption.IGNORE_CASE)
+        val TRIP_KEYWORDS = Regex("""\b(viagem|trajeto|destino)\b""", RegexOption.IGNORE_CASE)
     }
 }
