@@ -31,6 +31,11 @@ fun VehicleConfigurationScreen(repository: VehicleRepository, preferences: AppPr
     var editingId by remember { mutableStateOf<String?>(null) }
     var showEditor by remember { mutableStateOf(false) }
     var name by remember { mutableStateOf("") }
+    var brand by remember { mutableStateOf("") }
+    var model by remember { mutableStateOf("") }
+    var year by remember { mutableStateOf("") }
+    var version by remember { mutableStateOf("") }
+    var motorization by remember { mutableStateOf("") }
     var energy by remember { mutableStateOf(EnergyOption.GASOLINE) }
     var consumption by remember { mutableStateOf("10,0") }
     var energyPrice by remember { mutableStateOf("5,90") }
@@ -45,12 +50,13 @@ fun VehicleConfigurationScreen(repository: VehicleRepository, preferences: AppPr
     var message by remember { mutableStateOf<String?>(null) }
 
     fun clearForm() {
-        editingId = null; showEditor = false; name = ""; energy = EnergyOption.GASOLINE
+        editingId = null; showEditor = false; name = ""; brand = ""; model = ""; year = ""; version = ""; motorization = ""; energy = EnergyOption.GASOLINE
         consumption = "10,0"; energyPrice = "5,90"; maintenance = "0,18"
         depreciation = "0,25"; otherCosts = "0,00"; error = null
     }
     fun edit(vehicle: Vehicle) {
         editingId = vehicle.id; showEditor = true; name = vehicle.name
+        brand = vehicle.brand; model = vehicle.model; year = if (vehicle.year > 0) vehicle.year.toString() else ""; version = vehicle.version; motorization = vehicle.motorization
         when (val source = vehicle.energy) {
             is VehicleEnergy.Electric -> { energy = EnergyOption.ELECTRIC; consumption = decimal(source.consumptionKwhPer100Km); energyPrice = money(source.pricePerKwhCents) }
             is VehicleEnergy.LiquidFuel -> { energy = if (source.fuelType == FuelType.GASOLINE) EnergyOption.GASOLINE else EnergyOption.ETHANOL; consumption = decimal(source.consumptionKmPerLiter); energyPrice = money(source.pricePerLiterCents) }
@@ -99,7 +105,12 @@ fun VehicleConfigurationScreen(repository: VehicleRepository, preferences: AppPr
         if (showEditor || editingId != null) Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(18.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(if (editingId == null) "CADASTRAR VEÍCULO" else "EDITAR VEÍCULO", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelMedium)
-                OutlinedTextField(name, { name = it }, Modifier.fillMaxWidth(), label = { Text("Nome do veículo") }, singleLine = true)
+                OutlinedTextField(name, { name = it }, Modifier.fillMaxWidth(), label = { Text("Nome de identificação (ex.: Meu carro)") }, singleLine = true)
+                OutlinedTextField(brand, { brand = it }, Modifier.fillMaxWidth(), label = { Text("Marca") }, singleLine = true)
+                OutlinedTextField(model, { model = it }, Modifier.fillMaxWidth(), label = { Text("Modelo") }, singleLine = true)
+                OutlinedTextField(year, { year = it.filter(Char::isDigit).take(4) }, Modifier.fillMaxWidth(), label = { Text("Ano") }, singleLine = true)
+                OutlinedTextField(version, { version = it }, Modifier.fillMaxWidth(), label = { Text("Versão") }, singleLine = true)
+                OutlinedTextField(motorization, { motorization = it }, Modifier.fillMaxWidth(), label = { Text("Motorização / motor") }, singleLine = true)
                 Text("Tipo de energia", style = MaterialTheme.typography.labelMedium)
                 EnergyOption.entries.chunked(2).forEach { options ->
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -130,7 +141,9 @@ fun VehicleConfigurationScreen(repository: VehicleRepository, preferences: AppPr
                             EnergyOption.ETHANOL -> VehicleEnergy.LiquidFuel(FuelType.ETHANOL, consumptionValue, price)
                             EnergyOption.CNG -> VehicleEnergy.Cng(consumptionValue, price)
                         }
-                        Vehicle(editingId ?: UUID.randomUUID().toString(), vehicleName, source, costs)
+                        val vehicleYear = year.toIntOrNull() ?: 0
+                        require(vehicleYear == 0 || vehicleYear in 1886..2100) { "Informe um ano válido." }
+                        Vehicle(editingId ?: UUID.randomUUID().toString(), vehicleName, source, costs, brand.trim(), model.trim(), vehicleYear, version.trim(), motorization.trim())
                     }
                     result.onSuccess { vehicle ->
                         scope.launch {
@@ -179,8 +192,8 @@ private fun parseMoney(value: String): Long {
 }
 private fun money(cents: Long): String = BigDecimal.valueOf(cents, 2).setScale(2).toPlainString().replace(".", ",")
 private fun decimal(value: Double): String = String.format(Locale("pt", "BR"), "%.2f", value)
-private fun vehicleSummary(vehicle: Vehicle): String = when (val source = vehicle.energy) {
+private fun vehicleSummary(vehicle: Vehicle): String = listOf(vehicle.brand, vehicle.model, vehicle.year.takeIf { it > 0 }?.toString(), vehicle.version, vehicle.motorization).filter { it.isNotBlank() }.joinToString(" · ").let { details -> (if (details.isBlank()) "" else "$details · ") + when (val source = vehicle.energy) {
     is VehicleEnergy.Electric -> "Elétrico · ${decimal(source.consumptionKwhPer100Km)} kWh/100 km"
     is VehicleEnergy.LiquidFuel -> "${if (source.fuelType == FuelType.GASOLINE) "Gasolina" else "Etanol"} · ${decimal(source.consumptionKmPerLiter)} km/l"
     is VehicleEnergy.Cng -> "GNV · ${decimal(source.consumptionKmPerCubicMeter)} km/m³"
-}
+} }
