@@ -139,8 +139,8 @@ private fun shareOffer(context: Context, trip: TripRecord) {
     val totalDistance = trip.pickupDistanceKm + trip.tripDistanceKm
     val totalMinutes = trip.pickupTimeMinutes + trip.tripTimeMinutes
     val details = buildString {
-        appendLine("Oferta \${trip.platform.uppercase(java.util.Locale.ROOT)}")
-        appendLine("Valor: \${currency.format(trip.receivedFareCents / 100.0)}")
+        appendLine("Oferta ${trip.platform.uppercase(java.util.Locale.ROOT)}")
+        appendLine("Valor: ${currency.format(trip.receivedFareCents / 100.0)}")
         appendLine("Distância: %.1f km".format(java.util.Locale("pt", "BR"), totalDistance))
         appendLine("Tempo estimado: $totalMinutes min")
         trip.origin?.takeIf { it.isNotBlank() }?.let { appendLine("Origem: $it") }
