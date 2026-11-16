@@ -106,7 +106,7 @@ fun DashboardScreen(
                 }
                 Text(if (hasRecords) balanceText else "—", style = MaterialTheme.typography.displayLarge, color = MaterialTheme.colorScheme.onSurface)
                 Text(
-                    if (hasRecords) "Saldo de corridas concluídas menos despesas lançadas hoje. Não inclui custos estimados ainda não registrados."
+                    if (hasRecords) "Saldo dos recebimentos lançados manualmente menos despesas registradas hoje. Corridas concluídas alimentam distância e tempo, não o faturamento."
                     else "Seu resultado aparecerá aqui após o registro de corridas concluídas e despesas.",
                     style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
