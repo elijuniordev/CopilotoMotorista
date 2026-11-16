@@ -395,10 +395,12 @@ class AccessibilityReaderService : AccessibilityService() {
                         val bitmap = hardware?.copy(Bitmap.Config.ARGB_8888, false)
                         hardware?.recycle()
                         if (bitmap == null) {
+                            evidenceCaptureRequested.remove(recordId)
                             captureNextPendingEvidence()
                             return
                         }
                         serviceScope.launch {
+                            var evidenceSaved = false
                             try {
                                 val path = withContext(Dispatchers.IO) {
                                     OfferEvidenceStorage.save(this@AccessibilityReaderService, bitmap)
@@ -411,8 +413,12 @@ class AccessibilityReaderService : AccessibilityService() {
                                             appContainer.tripRecordRepository.saveTrip(existing.copy(evidenceUri = path))
                                         }
                                     }
+                                    evidenceSaved = true
                                 }
+                            } catch (_: Exception) {
+                                // Keep the offer eligible for a later retry.
                             } finally {
+                                if (!evidenceSaved) evidenceCaptureRequested.remove(recordId)
                                 bitmap.recycle()
                                 captureNextPendingEvidence()
                             }
@@ -421,15 +427,18 @@ class AccessibilityReaderService : AccessibilityService() {
 
                     override fun onFailure(errorCode: Int) {
                         screenshotInProgress = false
+                        evidenceCaptureRequested.remove(recordId)
                         captureNextPendingEvidence()
                     }
                 }
             )
         } catch (_: SecurityException) {
             screenshotInProgress = false
+            evidenceCaptureRequested.remove(recordId)
             captureNextPendingEvidence()
         } catch (_: IllegalStateException) {
             screenshotInProgress = false
+            evidenceCaptureRequested.remove(recordId)
             captureNextPendingEvidence()
         }
     }
