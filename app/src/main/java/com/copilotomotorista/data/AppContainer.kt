@@ -13,4 +13,5 @@ class AppContainer(context: Context) {
  val expenseRepository: ExpenseRepository = RoomExpenseRepository(database.expenseDao())
  val clientRepository: ClientRepository = RoomClientRepository(database.clientDao())
  val privateTripRepository: PrivateTripRepository = RoomPrivateTripRepository(database.privateTripDao())
+ val dailySettlementRepository: DailySettlementRepository = RoomDailySettlementRepository(database.dailySettlementDao())
 }
