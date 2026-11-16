@@ -10,3 +10,22 @@ internal fun shouldRequestOcrFallback(
 ): Boolean =
     source == ScreenTextSource.ACCESSIBILITY_TREE &&
         status == OfferTextParseStatus.INCOMPLETE
+
+/** Keeps screenshot evidence requests in arrival order while another screenshot is running. */
+internal class PendingEvidenceCaptureQueue {
+    private val pendingRecordIds = LinkedHashSet<String>()
+
+    fun enqueue(recordId: String) {
+        pendingRecordIds.add(recordId)
+    }
+
+    fun pollNext(): String? {
+        val next = pendingRecordIds.firstOrNull() ?: return null
+        pendingRecordIds.remove(next)
+        return next
+    }
+
+    fun clear() {
+        pendingRecordIds.clear()
+    }
+}
