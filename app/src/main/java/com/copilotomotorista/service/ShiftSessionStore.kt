@@ -39,7 +39,8 @@ class ShiftSessionStore(context: Context) {
         endedAtEpochMillis = preferences.getLong(KEY_ENDED_AT, 0L),
         completedTrips = preferences.getInt(KEY_COMPLETED_TRIPS, 0),
         receivedFareCents = preferences.getLong(KEY_RECEIVED_FARE, 0L),
-        monitoringConnected = preferences.getBoolean(KEY_MONITORING_CONNECTED, false)
+        monitoringConnected = preferences.getBoolean(KEY_MONITORING_CONNECTED, false) &&
+            System.currentTimeMillis() - preferences.getLong(KEY_MONITORING_HEARTBEAT, 0L) <= MONITORING_HEARTBEAT_TIMEOUT_MILLIS
     )
 
     @Synchronized
@@ -94,7 +95,17 @@ class ShiftSessionStore(context: Context) {
 
     @Synchronized
     fun setMonitoringConnected(connected: Boolean) {
-        preferences.edit().putBoolean(KEY_MONITORING_CONNECTED, connected).apply()
+        preferences.edit()
+            .putBoolean(KEY_MONITORING_CONNECTED, connected)
+            .putLong(KEY_MONITORING_HEARTBEAT, if (connected) System.currentTimeMillis() else 0L)
+            .apply()
+    }
+
+    @Synchronized
+    fun heartbeat() {
+        if (preferences.getBoolean(KEY_MONITORING_CONNECTED, false)) {
+            preferences.edit().putLong(KEY_MONITORING_HEARTBEAT, System.currentTimeMillis()).apply()
+        }
     }
 
     @Synchronized
@@ -117,5 +128,7 @@ class ShiftSessionStore(context: Context) {
         const val KEY_COMPLETED_TRIPS = "completed_trips"
         const val KEY_RECEIVED_FARE = "received_fare_cents"
         const val KEY_MONITORING_CONNECTED = "monitoring_connected"
+        const val KEY_MONITORING_HEARTBEAT = "monitoring_heartbeat"
+        const val MONITORING_HEARTBEAT_TIMEOUT_MILLIS = 5_000L
     }
 }

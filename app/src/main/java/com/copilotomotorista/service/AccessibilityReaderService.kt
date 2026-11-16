@@ -70,6 +70,7 @@ class AccessibilityReaderService : AccessibilityService() {
         floatingControlWindowManager.show()
         serviceScope.launch {
             while (!serviceDestroyed) {
+                shiftSessionStore.heartbeat()
                 if (!shiftSessionStore.snapshot().canProcessOffers) {
                     overlayWindowManager.hideOverlay()
                 }
