@@ -38,7 +38,7 @@ fun FinancialReportsScreen(dataSource: DashboardDataSource) {
         Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
             Text("DESEMPENHO E RESULTADOS", color = MaterialTheme.colorScheme.primary, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.1.sp)
             Text("Relatórios", style = MaterialTheme.typography.headlineLarge, color = MaterialTheme.colorScheme.onBackground)
-            Text("Consolidação das corridas concluídas e despesas efetivamente lançadas.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("Recebimentos lançados manualmente, despesas registradas e métricas das corridas concluídas.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         Spacer(Modifier.height(12.dp))
         SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
