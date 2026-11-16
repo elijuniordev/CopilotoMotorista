@@ -83,7 +83,7 @@ fun DashboardScreen(
     }
     val currency = remember { NumberFormat.getCurrencyInstance(Locale.forLanguageTag("pt-BR")) }
     val balanceText = currency.format(metrics.registeredBalanceCents / 100.0)
-    val hasRecords = metrics.completedTrips > 0 || metrics.recordedExpensesCents > 0L
+    val hasRecords = metrics.completedTrips > 0 || metrics.receivedFareCents > 0L || metrics.recordedExpensesCents > 0L
     val targets = snapshot.financialTargets
 
     Column(
