@@ -2,6 +2,7 @@ package com.copilotomotorista.presentation.navigation
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -11,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.CalendarMonth
@@ -163,7 +165,7 @@ private fun HistoryScreen(
     }
     Column(Modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         ScreenHeader("CONTROLE DE CORRIDAS", "Histórico", "Acompanhe os registros confirmados e finalize corridas aceitas.")
-        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        Row(modifier = Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             listOf("Todas", "Aceitas", "Em andamento", "Concluídas", "Canceladas").forEach { label ->
                 val selected = filter == label
                 Surface(
