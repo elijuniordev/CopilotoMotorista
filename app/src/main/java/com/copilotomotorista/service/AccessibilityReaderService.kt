@@ -49,6 +49,7 @@ class AccessibilityReaderService : AccessibilityService() {
     private var currentOfferRecordId: String? = null
     private var captureGeneration: Long = 0L
     private val evidenceCaptureRequested = mutableSetOf<String>()
+    private val pendingEvidenceCaptureRecordIds = LinkedHashSet<String>()
     private val pendingEvidenceByRecordId = mutableMapOf<String, String>()
 
     override fun onCreate() {
@@ -369,7 +370,14 @@ class AccessibilityReaderService : AccessibilityService() {
     }
 
     private fun captureOfferEvidence(recordId: String) {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R || screenshotInProgress || serviceDestroyed) return
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R || serviceDestroyed) return
+        if (screenshotInProgress) {
+            // OCR and evidence share Android's screenshot API. Never lose an evidence
+            // request just because the OCR screenshot currently owns the capture slot.
+            pendingEvidenceCaptureRecordIds.add(recordId)
+            return
+        }
+
         screenshotInProgress = true
         try {
             takeScreenshot(
@@ -386,34 +394,51 @@ class AccessibilityReaderService : AccessibilityService() {
                         screenshot.hardwareBuffer.close()
                         val bitmap = hardware?.copy(Bitmap.Config.ARGB_8888, false)
                         hardware?.recycle()
-                        if (bitmap == null) return
+                        if (bitmap == null) {
+                            captureNextPendingEvidence()
+                            return
+                        }
                         serviceScope.launch {
-                            val path = withContext(Dispatchers.IO) {
-                                OfferEvidenceStorage.save(this@AccessibilityReaderService, bitmap)
-                            }
-                            bitmap.recycle()
-                            if (path != null && !serviceDestroyed) {
-                                pendingEvidenceByRecordId[recordId] = path
-                                withContext(Dispatchers.IO) {
-                                    val existing = appContainer.tripRecordRepository.getTrip(recordId)
-                                    if (existing != null && existing.evidenceUri == null) {
-                                        appContainer.tripRecordRepository.saveTrip(existing.copy(evidenceUri = path))
+                            try {
+                                val path = withContext(Dispatchers.IO) {
+                                    OfferEvidenceStorage.save(this@AccessibilityReaderService, bitmap)
+                                }
+                                if (path != null && !serviceDestroyed) {
+                                    pendingEvidenceByRecordId[recordId] = path
+                                    withContext(Dispatchers.IO) {
+                                        val existing = appContainer.tripRecordRepository.getTrip(recordId)
+                                        if (existing != null && existing.evidenceUri == null) {
+                                            appContainer.tripRecordRepository.saveTrip(existing.copy(evidenceUri = path))
+                                        }
                                     }
                                 }
+                            } finally {
+                                bitmap.recycle()
+                                captureNextPendingEvidence()
                             }
                         }
                     }
 
                     override fun onFailure(errorCode: Int) {
                         screenshotInProgress = false
+                        captureNextPendingEvidence()
                     }
                 }
             )
         } catch (_: SecurityException) {
             screenshotInProgress = false
+            captureNextPendingEvidence()
         } catch (_: IllegalStateException) {
             screenshotInProgress = false
+            captureNextPendingEvidence()
         }
+    }
+
+    private fun captureNextPendingEvidence() {
+        if (screenshotInProgress || serviceDestroyed) return
+        val nextRecordId = pendingEvidenceCaptureRecordIds.firstOrNull() ?: return
+        pendingEvidenceCaptureRecordIds.remove(nextRecordId)
+        captureOfferEvidence(nextRecordId)
     }
 
     private fun requestLocalOcr(
@@ -445,7 +470,10 @@ class AccessibilityReaderService : AccessibilityService() {
                         screenshot.hardwareBuffer.close()
                         val softwareBitmap = hardwareBitmap?.copy(Bitmap.Config.ARGB_8888, false)
                         hardwareBitmap?.recycle()
-                        if (softwareBitmap == null) return
+                        if (softwareBitmap == null) {
+                            captureNextPendingEvidence()
+                            return
+                        }
 
                         ocrRecognizer?.recognize(softwareBitmap) { recognizedText ->
                             val resultAge = SystemClock.uptimeMillis() - requestedAtMillis
@@ -464,18 +492,25 @@ class AccessibilityReaderService : AccessibilityService() {
                                     generation
                                 )
                             }
-                        } ?: softwareBitmap.recycle()
+                            captureNextPendingEvidence()
+                        } ?: run {
+                            softwareBitmap.recycle()
+                            captureNextPendingEvidence()
+                        }
                     }
 
                     override fun onFailure(errorCode: Int) {
                         screenshotInProgress = false
+                        captureNextPendingEvidence()
                     }
                 }
             )
         } catch (_: SecurityException) {
             screenshotInProgress = false
+            captureNextPendingEvidence()
         } catch (_: IllegalStateException) {
             screenshotInProgress = false
+            captureNextPendingEvidence()
         }
     }
 
