@@ -83,4 +83,30 @@ class OfferTextParserTest {
         assertNull(result.offer)
         assertEquals(setOf("tempo da viagem"), result.missingFields)
     }
+    @Test
+    fun parsesUberOfferLayoutWithPickupMetersAndTripKilometers() {
+        val result = parser.parse(
+            """
+            Pgto. no app
+            R$19,00 ⚡1,5x
+            R$3,15/km
+            R$1,28 Tarifa base dinâmica incl.
+            4,88 • 582 corridas • Cartão verif.
+            2 min (242 m)
+            Rua Achiles Beline, 760, Vila Pauliceia
+            19 min (5,8 km)
+            Burguesinha Brechó Chic | Osasco - SP
+            """.trimIndent()
+        )
+
+        assertEquals(OfferTextParseStatus.COMPLETE, result.status)
+        val offer = result.offer
+        assertNotNull(offer)
+        assertEquals(1900L, offer!!.receivedFareCents)
+        assertEquals(0.242, offer.pickupDistanceKm, 0.001)
+        assertEquals(5.8, offer.tripDistanceKm, 0.001)
+        assertEquals(2, offer.pickupTimeMinutes)
+        assertEquals(19, offer.tripTimeMinutes)
+    }
+
 }
