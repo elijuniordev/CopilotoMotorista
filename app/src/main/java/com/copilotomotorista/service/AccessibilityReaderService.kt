@@ -43,6 +43,7 @@ class AccessibilityReaderService : AccessibilityService() {
     private var ocrRecognizer: LocalOcrTextRecognizer? = null
     private var screenshotInProgress = false
     private var lastScreenshotRequestAt = 0L
+    private var pendingOcrRequest: PendingOcrRequest? = null
     private var serviceDestroyed = false
     private var lastOfferFingerprint: String? = null
     private var lastOfferShownAt = 0L
@@ -396,7 +397,7 @@ class AccessibilityReaderService : AccessibilityService() {
                         hardware?.recycle()
                         if (bitmap == null) {
                             evidenceCaptureRequested.remove(recordId)
-                            captureNextPendingEvidence()
+                            drainPendingScreenshotWork()
                             return
                         }
                         serviceScope.launch {
@@ -455,8 +456,13 @@ class AccessibilityReaderService : AccessibilityService() {
         generation: Long
     ) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return
-        if (screenshotInProgress || serviceDestroyed || generation != captureGeneration) return
+        if (serviceDestroyed || generation != captureGeneration) return
         if (requestedAtMillis - lastScreenshotRequestAt < SCREENSHOT_DEBOUNCE_MILLIS) return
+        if (screenshotInProgress) {
+            // Keep the most recent OCR request instead of silently dropping its fallback.
+            pendingOcrRequest = PendingOcrRequest(requestedAtMillis, platform, generation)
+            return
+        }
 
         screenshotInProgress = true
         lastScreenshotRequestAt = requestedAtMillis
@@ -532,6 +538,7 @@ class AccessibilityReaderService : AccessibilityService() {
         captureGeneration++
         screenshotInProgress = false
         pendingEvidenceCaptureQueue.clear()
+        pendingOcrRequest = null
         serviceScope.cancel()
         ocrRecognizer?.close()
         ocrRecognizer = null
@@ -540,6 +547,12 @@ class AccessibilityReaderService : AccessibilityService() {
         if (::shiftSessionStore.isInitialized) shiftSessionStore.setMonitoringConnected(false)
         super.onDestroy()
     }
+
+    private data class PendingOcrRequest(
+        val requestedAtMillis: Long,
+        val platform: String,
+        val generation: Long
+    )
 
     private companion object {
         const val SCREENSHOT_DEBOUNCE_MILLIS = 1_500L
