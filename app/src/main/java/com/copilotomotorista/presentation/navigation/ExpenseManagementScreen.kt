@@ -45,6 +45,7 @@ fun ExpenseManagementScreen(
     val vehicles by vehicleRepository.observeVehicles().collectAsState(initial = emptyList())
     val scope = rememberCoroutineScope()
     var filter by remember { mutableStateOf("Todas") }
+    var filterExpanded by remember { mutableStateOf(false) }
     var editing by remember { mutableStateOf<ExpenseRecord?>(null) }
     var showForm by remember { mutableStateOf(false) }
     var pendingDelete by remember { mutableStateOf<ExpenseRecord?>(null) }
@@ -55,7 +56,7 @@ fun ExpenseManagementScreen(
     val currency = remember { java.text.NumberFormat.getCurrencyInstance(Locale.forLanguageTag("pt-BR")) }
     val total = filtered.sumOf { it.amountCents }
 
-    Column(Modifier.fillMaxSize().padding(horizontal = 18.dp, vertical = 18.dp), verticalArrangement = Arrangement.spacedBy(13.dp)) {
+    Column(Modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 16.dp), verticalArrangement = Arrangement.spacedBy(11.dp)) {
         Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
             Text("CONTROLE FINANCEIRO", color = MaterialTheme.colorScheme.primary, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.1.sp)
             Text("Despesas", style = MaterialTheme.typography.headlineLarge, color = MaterialTheme.colorScheme.onBackground)
@@ -71,15 +72,11 @@ fun ExpenseManagementScreen(
                 Button(onClick = { editing = null; showForm = true }, shape = RoundedCornerShape(12.dp)) { Text("＋ Nova") }
             }
         }
-        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-            (listOf("Todas") + expenseCategories).forEach { category ->
-                val selected = filter == category
-                Surface(
-                    modifier = Modifier.clickable { filter = category },
-                    shape = RoundedCornerShape(50),
-                    color = if (selected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerHigh
-                ) {
-                    Text(category, Modifier.padding(horizontal = 12.dp, vertical = 9.dp), color = if (selected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+        Box {
+            OutlinedButton(onClick = { filterExpanded = true }, shape = RoundedCornerShape(10.dp)) { Text("Categoria: $filter") }
+            DropdownMenu(expanded = filterExpanded, onDismissRequest = { filterExpanded = false }) {
+                (listOf("Todas") + expenseCategories).forEach { category ->
+                    DropdownMenuItem(text = { Text(category) }, onClick = { filter = category; filterExpanded = false })
                 }
             }
         }
