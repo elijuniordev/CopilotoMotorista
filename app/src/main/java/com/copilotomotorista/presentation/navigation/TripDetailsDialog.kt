@@ -1,5 +1,10 @@
 package com.copilotomotorista.presentation.navigation
 
+import android.content.Context
+import android.content.Intent
+import android.graphics.BitmapFactory
+import android.net.Uri
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -9,11 +14,14 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.Button
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -42,6 +50,8 @@ fun TripDetailsDialog(
     var destination by remember(trip.id) { mutableStateOf(trip.destination.orEmpty()) }
     var notes by remember(trip.id) { mutableStateOf(trip.notes.orEmpty()) }
     var error by remember(trip.id) { mutableStateOf<String?>(null) }
+    val context = LocalContext.current
+    val evidence = remember(trip.evidenceUri) { trip.evidenceUri?.let { BitmapFactory.decodeFile(it) } }
 
     fun decimal(value: String): Double? = value.trim().replace(",", ".").toDoubleOrNull()
     fun cents(value: String): Long? = runCatching {
@@ -58,6 +68,16 @@ fun TripDetailsDialog(
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Text("Plataforma: ${trip.platform.uppercase(Locale.ROOT)} · Status: ${trip.status}")
+                evidence?.let {
+                    Text("Registro visual da oferta", style = androidx.compose.material3.MaterialTheme.typography.labelLarge)
+                    Image(bitmap = it.asImageBitmap(), contentDescription = "Captura da oferta da corrida", modifier = Modifier.fillMaxWidth().heightIn(max = 180.dp))
+                }
+                trip.origin?.takeIf { it.isNotBlank() }?.let { address ->
+                    TextButton(onClick = { openNavigationChooser(context, address) }) { Text("Navegar até a origem") }
+                }
+                trip.destination?.takeIf { it.isNotBlank() }?.let { address ->
+                    TextButton(onClick = { openNavigationChooser(context, address) }) { Text("Navegar até o destino") }
+                }
                 OutlinedTextField(fare, { fare = it }, label = { Text("Valor recebido (R$)") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), modifier = Modifier.fillMaxWidth())
                 OutlinedTextField(pickupDistance, { pickupDistance = it }, label = { Text("Distância de busca (km)") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), modifier = Modifier.fillMaxWidth())
                 OutlinedTextField(tripDistance, { tripDistance = it }, label = { Text("Distância da viagem (km)") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), modifier = Modifier.fillMaxWidth())
@@ -99,4 +119,12 @@ fun TripDetailsDialog(
             }
         }
     )
+}
+
+
+private fun openNavigationChooser(context: Context, address: String) {
+    val uri = Uri.parse("geo:0,0?q=" + Uri.encode(address))
+    val intent = Intent(Intent.ACTION_VIEW, uri)
+    val chooser = Intent.createChooser(intent, "Abrir endereço com")
+    runCatching { context.startActivity(chooser) }
 }
