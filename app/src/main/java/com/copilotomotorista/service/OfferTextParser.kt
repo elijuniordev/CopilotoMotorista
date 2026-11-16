@@ -187,7 +187,7 @@ class OfferTextParser {
             RegexOption.IGNORE_CASE
         )
         val TOTAL_SUMMARY_REGEX = Regex(
-            """([0-9]+)\s*min(?:uto)?s?\s*[:•·]\s*([0-9]+(?:[,.][0-9]+)?)\s*km\s*-\s*Est\.?\s*de\s*R\$""",
+            """([0-9]+)\s*min(?:uto)?s?\s*[:•·]\s*([0-9]+(?:[,.][0-9]+)?)\s*km\s*[-•·]\s*Est\.?\s*de\s*R\$""",
             RegexOption.IGNORE_CASE
         )
         val PICKUP_KEYWORDS = Regex("""\b(busca|buscar|embarque|coleta|pickup|passageiro)\b""", RegexOption.IGNORE_CASE)
