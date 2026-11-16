@@ -56,6 +56,7 @@ fun OfferHistoryScreen(repository: TripRecordRepository) {
     var selectedTrip by remember { mutableStateOf<TripRecord?>(null) }
     var searchQuery by rememberSaveable { mutableStateOf("") }
     var selectedPlatform by rememberSaveable { mutableStateOf("Todas") }
+    var selectedStatus by rememberSaveable { mutableStateOf("Todas") }
     var selectedPeriod by rememberSaveable { mutableStateOf("Hoje") }
     val today = remember { LocalDate.now() }
     var rangeStart by remember { mutableStateOf(today) }
@@ -67,7 +68,7 @@ fun OfferHistoryScreen(repository: TripRecordRepository) {
     val dateTimeFormatter = remember { DateTimeFormatter.ofPattern("dd/MM/yyyy 'às' HH:mm", Locale("pt", "BR")) }
     val dateFormatter = remember { DateTimeFormatter.ofPattern("dd/MM/yyyy", Locale("pt", "BR")) }
 
-    val filtered = remember(trips, searchQuery, selectedPlatform, selectedPeriod, rangeStart, rangeEnd, zone) {
+    val filtered = remember(trips, searchQuery, selectedPlatform, selectedStatus, selectedPeriod, rangeStart, rangeEnd, zone) {
         val query = normalizeSearch(searchQuery.trim())
         trips.filter { trip ->
             val tripDate = Instant.ofEpochMilli(trip.createdAtEpochMillis).atZone(zone).toLocalDate()
@@ -77,16 +78,23 @@ fun OfferHistoryScreen(repository: TripRecordRepository) {
                 "99" -> trip.platform.equals("99", ignoreCase = true)
                 else -> true
             }
+            val inStatus = when (selectedStatus) {
+                "Não confirmadas" -> trip.status == "captured"
+                "Aceitas" -> trip.status == "accepted"
+                "Em andamento" -> trip.status == "in_progress"
+                "Concluídas" -> trip.status == "completed"
+                else -> true
+            }
             val searchableText = normalizeSearch(
                 listOfNotNull(
                     trip.rawOfferText, trip.origin, trip.destination, trip.notes,
-                    trip.platform, trip.paymentMethod,
+                    trip.platform, trip.paymentMethod, offerStatusLabel(trip.status),
                     currency.format(trip.receivedFareCents / 100.0),
                     dateTimeFormatter.format(Instant.ofEpochMilli(trip.createdAtEpochMillis).atZone(zone)),
                     "%.2f".format(Locale.US, trip.receivedFareCents / 100.0)
                 ).joinToString(" ")
             )
-            inPeriod && inPlatform && (query.isBlank() || searchableText.contains(query))
+            inPeriod && inPlatform && inStatus && (query.isBlank() || searchableText.contains(query))
         }.sortedByDescending { it.createdAtEpochMillis }
     }
 
@@ -151,6 +159,22 @@ fun OfferHistoryScreen(repository: TripRecordRepository) {
             }
         }
 
+        Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+            Text("SITUAÇÃO", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+            Row(
+                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(7.dp)
+            ) {
+                listOf("Todas", "Não confirmadas", "Aceitas", "Em andamento", "Concluídas").forEach { status ->
+                    FilterChip(
+                        selected = selectedStatus == status,
+                        onClick = { selectedStatus = status },
+                        label = { Text(status) }
+                    )
+                }
+            }
+        }
+
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Text("Ofertas encontradas", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             Text("${filtered.size}", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
@@ -185,6 +209,16 @@ fun OfferHistoryScreen(repository: TripRecordRepository) {
                                     style = MaterialTheme.typography.labelSmall
                                 )
                             }
+                            Text(
+                                offerStatusLabel(trip.status),
+                                color = when (trip.status) {
+                                    "completed" -> MaterialTheme.colorScheme.tertiary
+                                    "accepted", "in_progress" -> MaterialTheme.colorScheme.primary
+                                    else -> MaterialTheme.colorScheme.onSurfaceVariant
+                                },
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.SemiBold
+                            )
                             Text(
                                 trip.destination?.takeIf { it.isNotBlank() }
                                     ?: trip.origin?.takeIf { it.isNotBlank() }
@@ -275,3 +309,12 @@ fun OfferHistoryScreen(repository: TripRecordRepository) {
 private fun normalizeSearch(value: String): String =
     Normalizer.normalize(value.lowercase(Locale.ROOT), Normalizer.Form.NFD)
         .replace(Regex("\\p{Mn}+"), "")
+
+
+private fun offerStatusLabel(status: String): String = when (status) {
+    "captured" -> "Capturada · não confirmada"
+    "accepted" -> "Aceita"
+    "in_progress" -> "Em andamento"
+    "completed" -> "Concluída"
+    else -> "Situação não identificada"
+}
