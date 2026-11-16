@@ -17,6 +17,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.CalendarMonth
+import androidx.compose.material.icons.outlined.AccountBalanceWallet
 import androidx.compose.material.icons.outlined.Dashboard
 import androidx.compose.material.icons.outlined.DirectionsCar
 import androidx.compose.material.icons.outlined.History
@@ -63,6 +64,7 @@ import kotlinx.coroutines.launch
 import com.copilotomotorista.R
 import com.copilotomotorista.presentation.dashboard.DashboardDataSource
 import com.copilotomotorista.presentation.dashboard.DashboardScreen
+import com.copilotomotorista.data.AppContainer
 import com.copilotomotorista.presentation.settings.OverlaySettingsScreen
 
 private enum class MainTab(val label: String, val icon: ImageVector) {
@@ -72,7 +74,8 @@ private enum class MainTab(val label: String, val icon: ImageVector) {
     EXPENSES("Gastos", Icons.Outlined.ReceiptLong),
     REPORTS("Relatórios", Icons.Outlined.QueryStats),
     VEHICLES("Veículos", Icons.Outlined.DirectionsCar),
-    SETTINGS("Personalização", Icons.Outlined.Settings)
+    SETTINGS("Personalização", Icons.Outlined.Settings),
+    SETTLEMENTS("Fechamento", Icons.Outlined.AccountBalanceWallet)
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -87,6 +90,8 @@ fun MainNavigationScreen(
     clientRepository: com.copilotomotorista.data.repository.ClientRepository,
     expenseRepository: com.copilotomotorista.data.repository.ExpenseRepository
 ) {
+    val context = LocalContext.current
+    val dailySettlementRepository = remember(context) { AppContainer(context).dailySettlementRepository }
     var selectedIndex by rememberSaveable { mutableIntStateOf(0) }
     var showMore by rememberSaveable { mutableStateOf(false) }
     val selected = MainTab.entries[selectedIndex]
@@ -141,6 +146,7 @@ fun MainNavigationScreen(
                 MainTab.DASHBOARD -> DashboardScreen(dashboardDataSource, { selectedIndex = MainTab.VEHICLES.ordinal; showMore = false }, onTestOverlay)
                 MainTab.HISTORY -> HistoryScreen(tripRecordRepository)
                 MainTab.SCHEDULE -> PrivateScheduleScreen(privateTripRepository, clientRepository)
+                MainTab.SETTLEMENTS -> DailySettlementScreen(dailySettlementRepository)
                 MainTab.EXPENSES -> ExpenseManagementScreen(expenseRepository, vehicleRepository)
                 MainTab.REPORTS -> FinancialReportsScreen(dashboardDataSource)
                 MainTab.VEHICLES -> VehicleConfigurationScreen(vehicleRepository, preferences)
@@ -154,7 +160,7 @@ fun MainNavigationScreen(
             Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("MAIS RECURSOS", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
                 Text("Ferramentas complementares", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
-                listOf(MainTab.EXPENSES, MainTab.REPORTS, MainTab.VEHICLES, MainTab.SETTINGS).forEach { tab ->
+                listOf(MainTab.SETTLEMENTS, MainTab.EXPENSES, MainTab.REPORTS, MainTab.VEHICLES, MainTab.SETTINGS).forEach { tab ->
                     Surface(
                         Modifier.fillMaxWidth().clickable { selectedIndex = tab.ordinal; showMore = false },
                         color = if (selected == tab) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerHigh,
