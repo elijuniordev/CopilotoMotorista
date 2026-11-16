@@ -195,6 +195,9 @@ class AccessibilityReaderService : AccessibilityService() {
                 return@launch
             }
             val (vehicle, targets, currentOffer) = selected
+            val displayPreferences = withContext(Dispatchers.IO) {
+                appContainer.preferences.overlayDisplayPreferences.first()
+            }
             val analysis = runCatching {
                 evaluateOfferUseCase.execute(currentOffer, vehicle, targets)
             }.getOrNull() ?: return@launch
@@ -206,6 +209,9 @@ class AccessibilityReaderService : AccessibilityService() {
                 platform = if (platform == "uber") "Uber" else if (platform == "99") "99" else "Aplicativo",
                 rideCategory = detectRideCategory(snapshot.text, platform),
                 paymentMethod = detectPaymentMethod(snapshot.text),
+                showRideCategory = displayPreferences.showRideCategory,
+                showPaymentMethod = displayPreferences.showPaymentMethod,
+                showDistanceAndTime = displayPreferences.showDistanceAndTime,
                 onDismiss = {},
                 onAccepted = {
                     saveConfirmedTrip(recordId, platform, currentOffer, vehicle.id, vehicle.name, analysis.operatingCostCents, TRIP_STATUS_ACCEPTED, detectPaymentMethod(snapshot.text), extractLabeledAddress(snapshot.text, true), extractLabeledAddress(snapshot.text, false))
