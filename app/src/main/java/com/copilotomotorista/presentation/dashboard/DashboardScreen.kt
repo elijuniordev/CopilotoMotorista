@@ -213,7 +213,7 @@ private fun ShiftStatusStrip() {
                 Text(statusText, color = statusColor, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
                 Text(
                     if (shift.active) "${formatShiftElapsed(shift.elapsedMillis())} · ${shift.completedTrips} corridas · ${currency.format(shift.receivedFareCents / 100.0)}"
-                    else "O controle rápido do turno fica na bolha flutuante.",
+                    else "Inicie o turno aqui para ativar a bolha e analisar ofertas.",
                     color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall, maxLines = 2
                 )
             }
