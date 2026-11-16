@@ -144,7 +144,7 @@ fun MainNavigationScreen(
         Box(Modifier.fillMaxSize().padding(innerPadding).background(MaterialTheme.colorScheme.background)) {
             when (selected) {
                 MainTab.DASHBOARD -> DashboardScreen(dashboardDataSource, { selectedIndex = MainTab.VEHICLES.ordinal; showMore = false }, onTestOverlay)
-                MainTab.HISTORY -> HistoryScreen(tripRecordRepository)
+                MainTab.HISTORY -> OfferHistoryScreen(tripRecordRepository)
                 MainTab.SCHEDULE -> PrivateScheduleScreen(privateTripRepository, clientRepository)
                 MainTab.SETTLEMENTS -> DailySettlementScreen(dailySettlementRepository)
                 MainTab.EXPENSES -> ExpenseManagementScreen(expenseRepository, vehicleRepository)

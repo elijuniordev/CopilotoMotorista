@@ -50,6 +50,34 @@ class DatabasePersistenceTest {
     }
 
     @Test
+    fun migration6To7AddsSearchableOfferTextAndPreservesLegacyRecord() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val name = "migration-6-7-${System.currentTimeMillis()}.db"
+        val config = SupportSQLiteOpenHelper.Configuration.builder(context)
+            .name(name)
+            .callback(object : SupportSQLiteOpenHelper.Callback(6) {
+                override fun onCreate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+                    db.execSQL("CREATE TABLE trip_records (id TEXT NOT NULL PRIMARY KEY)")
+                    db.execSQL("INSERT INTO trip_records (id) VALUES ('legacy-offer')")
+                }
+                override fun onUpgrade(db: androidx.sqlite.db.SupportSQLiteDatabase, oldVersion: Int, newVersion: Int) = Unit
+            }).build()
+        val helper = FrameworkSQLiteOpenHelperFactory().create(config)
+        try {
+            val database = helper.writableDatabase
+            AppDatabase.MIGRATION_6_7.migrate(database)
+            database.query("SELECT id, rawOfferText FROM trip_records WHERE id='legacy-offer'").use { cursor ->
+                org.junit.Assert.assertTrue(cursor.moveToFirst())
+                assertEquals("legacy-offer", cursor.getString(0))
+                assertEquals(true, cursor.isNull(1))
+            }
+        } finally {
+            helper.close()
+            context.deleteDatabase(name)
+        }
+    }
+
+    @Test
     fun recordsSurviveDatabaseReopenAndForeignKeysSetNull() = runBlocking {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val databaseName = "persistence-test-${System.currentTimeMillis()}.db"
@@ -61,7 +89,7 @@ class DatabasePersistenceTest {
             database.clientDao().upsert(ClientEntity("client-1", "Cliente", "11999999999", null, 1L, 2L))
             database.tripRecordDao().upsert(
                 TripRecordEntity("trip-1", "uber", "completed", 5000L, 1.0, 8.0, 5, 20,
-                    "A", "B", 4.9, "pix", 10L, 20L, "vehicle-1", null, null, 30L)
+                    "A", "B", 4.9, "pix", 10L, 20L, "vehicle-1", null, null, 30L, rawOfferText = "Destino: Aeroporto de Guarulhos")
             )
             database.expenseDao().upsert(
                 ExpenseEntity("expense-1", "fuel", "Abastecimento", 10000L, 40L,
@@ -90,6 +118,7 @@ class DatabasePersistenceTest {
             database = Room.databaseBuilder(context, AppDatabase::class.java, databaseName).build()
             assertNotNull(database.vehicleDao().findById("vehicle-1"))
             assertNotNull(database.tripRecordDao().findById("trip-1"))
+            assertEquals("Destino: Aeroporto de Guarulhos", database.tripRecordDao().findById("trip-1")?.rawOfferText)
             assertNotNull(database.expenseDao().findById("expense-1"))
             assertNotNull(database.clientDao().findById("client-1"))
             assertNotNull(database.privateTripDao().findById("private-1"))

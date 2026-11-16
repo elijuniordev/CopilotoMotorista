@@ -197,6 +197,19 @@ class AccessibilityReaderService : AccessibilityService() {
             val existingOffer = withContext(Dispatchers.IO) {
                 appContainer.tripRecordRepository.getTrip(recordId)
             }
+            if (existingOffer != null && existingOffer.rawOfferText.isNullOrBlank()) {
+                runCatching {
+                    withContext(Dispatchers.IO) {
+                        appContainer.tripRecordRepository.saveTrip(
+                            existingOffer.copy(
+                                rawOfferText = snapshot.text,
+                                origin = existingOffer.origin ?: extractLabeledAddress(snapshot.text, true),
+                                destination = existingOffer.destination ?: extractLabeledAddress(snapshot.text, false)
+                            )
+                        )
+                    }
+                }
+            }
             if (existingOffer == null) {
                 val costSnapshot = selected?.let { (vehicle, targets, currentOffer) ->
                     runCatching { evaluateOfferUseCase.execute(currentOffer, vehicle, targets) }
@@ -222,7 +235,8 @@ class AccessibilityReaderService : AccessibilityService() {
                     notes = "Oferta capturada automaticamente.",
                     createdAtEpochMillis = nowEpochMillis,
                     operatingCostCentsSnapshot = costSnapshot?.second,
-                    vehicleNameSnapshot = costSnapshot?.third
+                    vehicleNameSnapshot = costSnapshot?.third,
+                    rawOfferText = snapshot.text
                 )
                 runCatching {
                     withContext(Dispatchers.IO) { appContainer.tripRecordRepository.saveTrip(captured) }
@@ -332,7 +346,8 @@ class AccessibilityReaderService : AccessibilityService() {
                 notes = "Registro confirmado manualmente pelo motorista.",
                 createdAtEpochMillis = existing?.createdAtEpochMillis ?: now,
                 operatingCostCentsSnapshot = costSnapshot.operatingCostCents,
-                vehicleNameSnapshot = costSnapshot.vehicleName
+                vehicleNameSnapshot = costSnapshot.vehicleName,
+                rawOfferText = existing?.rawOfferText
             )
             val saved = runCatching {
                 withContext(Dispatchers.IO) {

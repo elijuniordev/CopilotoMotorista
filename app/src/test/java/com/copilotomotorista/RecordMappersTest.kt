@@ -17,7 +17,7 @@ class RecordMappersTest {
     @Test
     fun tripRecordMappingRoundTripPreservesAllFields() {
         val value = TripRecord("trip-1", "uber", "completed", 4250L, 2.4, 8.7, 6, 24,
-            "Origem", "Destino", 4.9, "pix", 1000L, 2000L, "vehicle-1", "content://evidence", "notes", 3000L)
+            "Origem", "Destino", 4.9, "pix", 1000L, 2000L, "vehicle-1", "content://evidence", "notes", 3000L, rawOfferText = "Destino: Aeroporto de Guarulhos")
         assertEquals(value, value.toEntity().toDomain())
     }
 
