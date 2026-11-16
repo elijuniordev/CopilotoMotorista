@@ -73,4 +73,4 @@ Para cada execução, registrar: ID do caso, resultado (aprovado/reprovado/bloqu
 - Os identificadores de pacote Uber/99 podem mudar; confirmar em cada distribuição instalada.
 - O parser depende da linguagem/layout textual observado; atualizações dos apps podem alterar a tela.
 - O CI não simula integralmente overlays de outros apps, políticas OEM de bateria ou telas reais de ofertas.
-- O registro atual de corrida não preserva snapshot dos custos do veículo no momento da oferta; alterar custos pode mudar estimativas históricas.
+- O histórico preserva o custo operacional total e o nome do veículo no momento da confirmação; atualizações posteriores da corrida mantêm esse snapshot.
