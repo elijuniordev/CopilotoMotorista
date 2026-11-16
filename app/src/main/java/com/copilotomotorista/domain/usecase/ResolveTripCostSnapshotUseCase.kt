@@ -20,9 +20,9 @@ class ResolveTripCostSnapshotUseCase {
         require(currentVehicleName.isNotBlank()) { "Nome do veículo inválido." }
 
         return TripCostSnapshot(
-            vehicleId = existing?.vehicleId ?: currentVehicleId,
-            operatingCostCents = existing?.operatingCostCentsSnapshot ?: currentOperatingCostCents,
-            vehicleName = existing?.vehicleNameSnapshot ?: currentVehicleName
+            vehicleId = if (existing == null) currentVehicleId else existing.vehicleId,
+            operatingCostCents = if (existing == null) currentOperatingCostCents else existing.operatingCostCentsSnapshot,
+            vehicleName = if (existing == null) currentVehicleName else existing.vehicleNameSnapshot
         )
     }
 }
