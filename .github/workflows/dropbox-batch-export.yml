@@ -1,0 +1,58 @@
+name: Export Dropbox corrida examples
+
+on:
+  workflow_dispatch:
+    inputs:
+      folder_path:
+        description: "Dropbox folder path to export"
+        required: true
+        default: "/Copiloto Pro — Exemplos de Corridas"
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dropbox-batch-export
+  cancel-in-progress: false
+
+jobs:
+  export:
+    name: Download, ZIP and encrypt
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install encryption dependency
+        run: python -m pip install --disable-pip-version-check cryptography
+
+      - name: Export Dropbox folder as ZIP
+        env:
+          DROPBOX_APP_KEY: ${{ secrets.DROPBOX_APP_KEY }}
+          DROPBOX_APP_SECRET: ${{ secrets.DROPBOX_APP_SECRET }}
+          DROPBOX_REFRESH_TOKEN: ${{ secrets.DROPBOX_REFRESH_TOKEN }}
+          DROPBOX_SOURCE_FOLDER: ${{ inputs.folder_path }}
+          EXPORT_ZIP_PATH: copiloto-pro-exemplos-corridas.zip
+        run: python scripts/dropbox_export.py
+
+      - name: Encrypt ZIP before artifact upload
+        env:
+          EXPORT_ZIP_PATH: copiloto-pro-exemplos-corridas.zip
+          EXPORT_ENCRYPTED_PATH: copiloto-pro-exemplos-corridas.zip.enc
+          EXPORT_ENCRYPTION_KEY: ${{ secrets.EXPORT_ENCRYPTION_KEY }}
+        run: python scripts/dropbox_encrypt_export.py
+
+      - name: Publish encrypted artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: copiloto-pro-exemplos-corridas-encrypted
+          path: copiloto-pro-exemplos-corridas.zip.enc
+          if-no-files-found: error
+          retention-days: 1
