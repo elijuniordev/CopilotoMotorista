@@ -12,16 +12,18 @@ import com.copilotomotorista.data.local.dao.TripRecordDao
 import com.copilotomotorista.data.local.dao.ExpenseDao
 import com.copilotomotorista.data.local.dao.ClientDao
 import com.copilotomotorista.data.local.dao.PrivateTripDao
+import com.copilotomotorista.data.local.dao.DailySettlementDao
 import com.copilotomotorista.data.local.entity.AppMetadataEntity
 import com.copilotomotorista.data.local.entity.VehicleEntity
 import com.copilotomotorista.data.local.entity.TripRecordEntity
 import com.copilotomotorista.data.local.entity.ExpenseEntity
 import com.copilotomotorista.data.local.entity.ClientEntity
 import com.copilotomotorista.data.local.entity.PrivateTripEntity
+import com.copilotomotorista.data.local.entity.DailySettlementEntity
 
 @Database(
-    entities = [AppMetadataEntity::class, VehicleEntity::class, TripRecordEntity::class, ExpenseEntity::class, ClientEntity::class, PrivateTripEntity::class],
-    version = 5,
+    entities = [AppMetadataEntity::class, VehicleEntity::class, TripRecordEntity::class, ExpenseEntity::class, ClientEntity::class, PrivateTripEntity::class, DailySettlementEntity::class],
+    version = 6,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -31,6 +33,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun expenseDao(): ExpenseDao
     abstract fun clientDao(): ClientDao
     abstract fun privateTripDao(): PrivateTripDao
+    abstract fun dailySettlementDao(): DailySettlementDao
 
     companion object {
         const val DATABASE_NAME = "copiloto_motorista.db"
@@ -90,6 +93,14 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("CREATE TABLE IF NOT EXISTS daily_settlements (id TEXT NOT NULL, dateEpochMillis INTEGER NOT NULL, platform TEXT NOT NULL, paymentMethod TEXT NOT NULL, amountCents INTEGER NOT NULL, notes TEXT, createdAtEpochMillis INTEGER NOT NULL, PRIMARY KEY(id))")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_daily_settlements_dateEpochMillis ON daily_settlements(dateEpochMillis)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_daily_settlements_platform ON daily_settlements(platform)")
+            }
+        }
+
         @Volatile
         private var instance: AppDatabase? = null
 
@@ -100,7 +111,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     DATABASE_NAME
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
                     .build()
                     .also { instance = it }
             }
