@@ -91,7 +91,7 @@ def list_files(token: str, folder: str) -> list[dict]:
 
 
 def download_file(token: str, dropbox_path: str, destination: Path) -> None:
-    arg = json.dumps({"path": dropbox_path}, ensure_ascii=False, separators=(",", ":"))
+    arg = json.dumps({"path": dropbox_path}, ensure_ascii=True, separators=(",", ":"))
     req = urllib.request.Request(
         f"{CONTENT}/files/download",
         headers={
