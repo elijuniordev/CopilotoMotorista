@@ -46,6 +46,8 @@ class AccessibilityReaderService : AccessibilityService() {
     private var lastOfferShownAt = 0L
     private var currentOfferRecordId: String? = null
     private var captureGeneration: Long = 0L
+    private val evidenceCaptureRequested = mutableSetOf<String>()
+    private val pendingEvidenceByRecordId = mutableMapOf<String, String>()
 
     override fun onCreate() {
         super.onCreate()
@@ -168,6 +170,9 @@ class AccessibilityReaderService : AccessibilityService() {
             }
             val recordId = recentRecord?.id ?: UUID.randomUUID().toString()
             currentOfferRecordId = recordId
+            if (recentRecord?.evidenceUri == null && evidenceCaptureRequested.add(recordId)) {
+                captureOfferEvidence(recordId)
+            }
             val selected = withContext(Dispatchers.IO) {
                 val vehicleId = appContainer.preferences.selectedVehicleId.first()
                 val vehicle = vehicleId?.let { appContainer.vehicleRepository.getVehicle(it) }
@@ -193,10 +198,10 @@ class AccessibilityReaderService : AccessibilityService() {
                 paymentMethod = detectPaymentMethod(snapshot.text),
                 onDismiss = {},
                 onAccepted = {
-                    saveConfirmedTrip(recordId, platform, currentOffer, vehicle.id, vehicle.name, analysis.operatingCostCents, TRIP_STATUS_ACCEPTED)
+                    saveConfirmedTrip(recordId, platform, currentOffer, vehicle.id, vehicle.name, analysis.operatingCostCents, TRIP_STATUS_ACCEPTED, detectPaymentMethod(snapshot.text))
                 },
                 onCompleted = {
-                    saveConfirmedTrip(recordId, platform, currentOffer, vehicle.id, vehicle.name, analysis.operatingCostCents, TRIP_STATUS_COMPLETED)
+                    saveConfirmedTrip(recordId, platform, currentOffer, vehicle.id, vehicle.name, analysis.operatingCostCents, TRIP_STATUS_COMPLETED, detectPaymentMethod(snapshot.text))
                 },
                 showCompleteAction = recentRecord?.status == "in_progress"
             )
@@ -231,7 +236,8 @@ class AccessibilityReaderService : AccessibilityService() {
         vehicleId: String,
         vehicleName: String,
         operatingCostCents: Long,
-        status: String
+        status: String,
+        paymentMethod: String
     ) {
         if (serviceDestroyed) return
         serviceScope.launch {
@@ -250,12 +256,12 @@ class AccessibilityReaderService : AccessibilityService() {
                 origin = null,
                 destination = null,
                 passengerRating = null,
-                paymentMethod = null,
+                paymentMethod = existing?.paymentMethod ?: paymentMethod.takeUnless { it == "Pagamento não identificado" },
                 startedAtEpochMillis = existing?.startedAtEpochMillis
                     ?: if (status == TRIP_STATUS_COMPLETED) now else null,
                 completedAtEpochMillis = if (status == TRIP_STATUS_COMPLETED) now else existing?.completedAtEpochMillis,
                 vehicleId = vehicleId,
-                evidenceUri = null,
+                evidenceUri = existing?.evidenceUri ?: pendingEvidenceByRecordId[recordId],
                 notes = "Registro confirmado manualmente pelo motorista.",
                 createdAtEpochMillis = existing?.createdAtEpochMillis ?: now,
                 operatingCostCentsSnapshot = operatingCostCents,
@@ -277,6 +283,54 @@ class AccessibilityReaderService : AccessibilityService() {
             if (saved && currentOfferRecordId == recordId) {
                 overlayWindowManager.hideOverlay()
             }
+        }
+    }
+
+    private fun captureOfferEvidence(recordId: String) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R || screenshotInProgress || serviceDestroyed) return
+        screenshotInProgress = true
+        try {
+            takeScreenshot(
+                Display.DEFAULT_DISPLAY,
+                ContextCompat.getMainExecutor(this),
+                object : TakeScreenshotCallback {
+                    override fun onSuccess(screenshot: ScreenshotResult) {
+                        screenshotInProgress = false
+                        if (serviceDestroyed) {
+                            screenshot.hardwareBuffer.close()
+                            return
+                        }
+                        val hardware = Bitmap.wrapHardwareBuffer(screenshot.hardwareBuffer, screenshot.colorSpace)
+                        screenshot.hardwareBuffer.close()
+                        val bitmap = hardware?.copy(Bitmap.Config.ARGB_8888, false)
+                        hardware?.recycle()
+                        if (bitmap == null) return
+                        serviceScope.launch {
+                            val path = withContext(Dispatchers.IO) {
+                                OfferEvidenceStorage.save(this@AccessibilityReaderService, bitmap)
+                            }
+                            bitmap.recycle()
+                            if (path != null && !serviceDestroyed) {
+                                pendingEvidenceByRecordId[recordId] = path
+                                withContext(Dispatchers.IO) {
+                                    val existing = appContainer.tripRecordRepository.getTrip(recordId)
+                                    if (existing != null && existing.evidenceUri == null) {
+                                        appContainer.tripRecordRepository.saveTrip(existing.copy(evidenceUri = path))
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    override fun onFailure(errorCode: Int) {
+                        screenshotInProgress = false
+                    }
+                }
+            )
+        } catch (_: SecurityException) {
+            screenshotInProgress = false
+        } catch (_: IllegalStateException) {
+            screenshotInProgress = false
         }
     }
 
