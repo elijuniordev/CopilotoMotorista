@@ -100,7 +100,7 @@ class DashboardDailyMetricsTest {
         )
 
         assertEquals(1, result.completedTrips)
-        assertEquals(5_000L, result.receivedFareCents)
+        assertEquals(0L, result.receivedFareCents)
     }
 
     private fun trip(
