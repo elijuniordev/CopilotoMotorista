@@ -1,0 +1,48 @@
+name: Export Dropbox corrida examples
+
+on:
+  workflow_dispatch:
+    inputs:
+      folder_path:
+        description: "Dropbox folder path to export"
+        required: true
+        default: "/Copiloto Pro — Exemplos de Corridas"
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dropbox-batch-export
+  cancel-in-progress: false
+
+jobs:
+  export:
+    name: Download folder and create ZIP
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Export Dropbox folder as ZIP
+        env:
+          DROPBOX_APP_KEY: ${{ secrets.DROPBOX_APP_KEY }}
+          DROPBOX_APP_SECRET: ${{ secrets.DROPBOX_APP_SECRET }}
+          DROPBOX_REFRESH_TOKEN: ${{ secrets.DROPBOX_REFRESH_TOKEN }}
+          DROPBOX_SOURCE_FOLDER: ${{ inputs.folder_path }}
+          EXPORT_ZIP_PATH: copiloto-pro-exemplos-corridas.zip
+        run: python scripts/dropbox_export.py
+
+      - name: Publish ZIP as a private workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: copiloto-pro-exemplos-corridas
+          path: copiloto-pro-exemplos-corridas.zip
+          if-no-files-found: error
+          retention-days: 3
