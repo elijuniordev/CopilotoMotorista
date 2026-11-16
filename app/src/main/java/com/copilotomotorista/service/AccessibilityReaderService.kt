@@ -192,6 +192,42 @@ class AccessibilityReaderService : AccessibilityService() {
                 vehicle?.let { Triple(it, targets, offer) }
             }
             if (serviceDestroyed || generation != captureGeneration) return@launch
+
+            // Persist every fully parsed offer immediately, including offers the driver ignores.
+            val existingOffer = withContext(Dispatchers.IO) {
+                appContainer.tripRecordRepository.getTrip(recordId)
+            }
+            if (existingOffer == null) {
+                val costSnapshot = selected?.let { (vehicle, targets, currentOffer) ->
+                    runCatching { evaluateOfferUseCase.execute(currentOffer, vehicle, targets) }
+                        .getOrNull()?.let { Triple(vehicle.id, it.operatingCostCents, vehicle.name) }
+                }
+                val captured = TripRecord(
+                    id = recordId,
+                    platform = platform,
+                    status = TRIP_STATUS_CAPTURED,
+                    receivedFareCents = offer.receivedFareCents,
+                    pickupDistanceKm = offer.pickupDistanceKm,
+                    tripDistanceKm = offer.tripDistanceKm,
+                    pickupTimeMinutes = offer.pickupTimeMinutes,
+                    tripTimeMinutes = offer.tripTimeMinutes,
+                    origin = extractLabeledAddress(snapshot.text, true),
+                    destination = extractLabeledAddress(snapshot.text, false),
+                    passengerRating = null,
+                    paymentMethod = detectPaymentMethod(snapshot.text).takeUnless { it == "Pagamento não identificado" },
+                    startedAtEpochMillis = null,
+                    completedAtEpochMillis = null,
+                    vehicleId = costSnapshot?.first,
+                    evidenceUri = pendingEvidenceByRecordId[recordId],
+                    notes = "Oferta capturada automaticamente.",
+                    createdAtEpochMillis = nowEpochMillis,
+                    operatingCostCentsSnapshot = costSnapshot?.second,
+                    vehicleNameSnapshot = costSnapshot?.third
+                )
+                runCatching {
+                    withContext(Dispatchers.IO) { appContainer.tripRecordRepository.saveTrip(captured) }
+                }
+            }
             if (selected == null) {
                 overlayWindowManager.hideOverlay()
                 return@launch
@@ -451,6 +487,7 @@ class AccessibilityReaderService : AccessibilityService() {
         const val OCR_MAX_RESULT_AGE_MILLIS = 5_000L
         const val OFFER_REPEAT_SUPPRESSION_MILLIS = 15_000L
         const val DUPLICATE_OFFER_WINDOW_MILLIS = 120_000L
+        const val TRIP_STATUS_CAPTURED = "captured"
         const val TRIP_STATUS_ACCEPTED = "accepted"
         const val TRIP_STATUS_IN_PROGRESS = "in_progress"
         const val TRIP_STATUS_COMPLETED = "completed"
