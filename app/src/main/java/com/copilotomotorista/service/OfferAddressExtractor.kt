@@ -55,11 +55,11 @@ internal object OfferAddressExtractor {
         RegexOption.IGNORE_CASE
     )
     private val ADDRESS_HINT_REGEX = Regex(
-        """\b(rua|r\.|avenida|av\.?|estrada|travessa|alameda|praça|rodovia|vila|bairro|osasco|barueri|são paulo|sp)\b|[,|]""",
+        """(?:^|\s)(rua|r\.|avenida|av\.?|estrada|travessa|alameda|praça|rodovia|vila|bairro)(?:\s|$)|\b(osasco|barueri|são paulo|sp)\b|[,|]""",
         RegexOption.IGNORE_CASE
     )
     private val NON_ADDRESS_REGEX = Regex(
-        """\b(uberx|99pop|corridas|cart[aã]o verif|avaliação|minutos? restantes)\b|^r\$""",
+        """\b(uberx|99pop|corridas|cart[aã]o verif|avaliação|minutos? restantes)\b|^r\$|^[0-9],[0-9]{1,2}(?:\s|$)""",
         RegexOption.IGNORE_CASE
     )
     private const val MIN_ADDRESS_LENGTH = 8
