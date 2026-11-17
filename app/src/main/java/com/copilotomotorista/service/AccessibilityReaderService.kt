@@ -8,7 +8,6 @@ import android.os.SystemClock
 import android.util.Log
 import android.view.Display
 import android.view.accessibility.AccessibilityEvent
-import android.view.accessibility.AccessibilityNodeInfo
 import androidx.core.content.ContextCompat
 import com.copilotomotorista.data.AppContainer
 import com.copilotomotorista.domain.model.OfferInput
@@ -36,7 +35,6 @@ class AccessibilityReaderService : AccessibilityService() {
     private lateinit var shiftSessionStore: ShiftSessionStore
     private lateinit var floatingControlWindowManager: FloatingControlWindowManager
     private val eventGate = AccessibilityEventGate()
-    private val nodeTextReader = AccessibilityNodeTextReader()
     private val offerTextParser = OfferTextParser()
     private val captureLatencyMetrics = OfferCaptureLatencyMetrics()
     private val evaluateOfferUseCase = EvaluateOfferUseCase()
@@ -136,6 +134,11 @@ class AccessibilityReaderService : AccessibilityService() {
         val parseStartedAt = SystemClock.uptimeMillis()
         val parsed = offerTextParser.parse(snapshot.text)
         val parseDurationMillis = SystemClock.uptimeMillis() - parseStartedAt
+        Log.d(
+            "OfferCapture",
+            "offer_parse status=${parsed.status} missing=${parsed.missingFields.joinToString(",")} " +
+                "ambiguous=${parsed.ambiguousFields.joinToString(",")} chars=${snapshot.text.length}"
+        )
         if (parsed.status != OfferTextParseStatus.COMPLETE || parsed.offer == null) {
             if (generation != captureGeneration) return
             overlayWindowManager.hideOverlay()
