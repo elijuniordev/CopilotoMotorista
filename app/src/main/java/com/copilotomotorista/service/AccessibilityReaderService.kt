@@ -132,11 +132,12 @@ class AccessibilityReaderService : AccessibilityService() {
         platform: String,
         generation: Long
     ) {
-        if (serviceDestroyed || generation != captureGeneration) return
+        if (serviceDestroyed) return
         val parseStartedAt = SystemClock.uptimeMillis()
         val parsed = offerTextParser.parse(snapshot.text)
         val parseDurationMillis = SystemClock.uptimeMillis() - parseStartedAt
         if (parsed.status != OfferTextParseStatus.COMPLETE || parsed.offer == null) {
+            if (generation != captureGeneration) return
             overlayWindowManager.hideOverlay()
             when (parsed.status) {
                 OfferTextParseStatus.NOT_OFFER -> {
@@ -179,29 +180,21 @@ class AccessibilityReaderService : AccessibilityService() {
                     nowEpochMillis - DUPLICATE_OFFER_WINDOW_MILLIS
                 )
             }
-            if (serviceDestroyed || generation != captureGeneration) return@launch
+            if (serviceDestroyed) return@launch
             if (recentRecord?.status == TRIP_STATUS_COMPLETED) {
-                currentOfferRecordId = null
-                overlayWindowManager.hideOverlay()
+                if (generation == captureGeneration) {
+                    currentOfferRecordId = null
+                    overlayWindowManager.hideOverlay()
+                }
                 return@launch
             }
             val recordId = recentRecord?.id ?: UUID.randomUUID().toString()
-            currentOfferRecordId = recordId
-            if (recentRecord?.evidenceUri == null && evidenceCaptureRequested.add(recordId)) {
-                captureOfferEvidence(recordId)
-            }
-            val selected = withContext(Dispatchers.IO) {
-                val vehicleId = appContainer.preferences.selectedVehicleId.first()
-                val vehicle = vehicleId?.let { appContainer.vehicleRepository.getVehicle(it) }
-                val targets = appContainer.preferences.financialTargets.first()
-                vehicle?.let { Triple(it, targets, offer) }
-            }
-            if (serviceDestroyed || generation != captureGeneration) return@launch
-
-            // Persist every fully parsed offer immediately, including offers the driver ignores.
             val existingOffer = withContext(Dispatchers.IO) {
                 appContainer.tripRecordRepository.getTrip(recordId)
             }
+
+            // Save a complete offer before vehicle/configuration lookups. Those reads may
+            // suspend while the ride app keeps emitting accessibility events.
             if (existingOffer != null && existingOffer.rawOfferText.isNullOrBlank()) {
                 runCatching {
                     withContext(Dispatchers.IO) {
@@ -213,13 +206,11 @@ class AccessibilityReaderService : AccessibilityService() {
                             )
                         )
                     }
+                }.onFailure { error ->
+                    Log.e("OfferCapture", "Failed to enrich captured offer record", error)
                 }
             }
             if (existingOffer == null) {
-                val costSnapshot = selected?.let { (vehicle, targets, currentOffer) ->
-                    runCatching { evaluateOfferUseCase.execute(currentOffer, vehicle, targets) }
-                        .getOrNull()?.let { Triple(vehicle.id, it.operatingCostCents, vehicle.name) }
-                }
                 val captured = TripRecord(
                     id = recordId,
                     platform = platform,
@@ -235,18 +226,40 @@ class AccessibilityReaderService : AccessibilityService() {
                     paymentMethod = detectPaymentMethod(snapshot.text).takeUnless { it == "Pagamento não identificado" },
                     startedAtEpochMillis = null,
                     completedAtEpochMillis = null,
-                    vehicleId = costSnapshot?.first,
+                    vehicleId = null,
                     evidenceUri = pendingEvidenceByRecordId[recordId],
                     notes = "Oferta capturada automaticamente.",
                     createdAtEpochMillis = nowEpochMillis,
-                    operatingCostCentsSnapshot = costSnapshot?.second,
-                    vehicleNameSnapshot = costSnapshot?.third,
+                    operatingCostCentsSnapshot = null,
+                    vehicleNameSnapshot = null,
                     rawOfferText = snapshot.text
                 )
-                runCatching {
-                    withContext(Dispatchers.IO) { appContainer.tripRecordRepository.saveTrip(captured) }
+                val saved = runCatching {
+                    withContext(Dispatchers.IO) {
+                        appContainer.tripRecordRepository.saveTrip(captured)
+                    }
+                }
+                if (saved.isFailure) {
+                    Log.e("OfferCapture", "Failed to persist captured offer", saved.exceptionOrNull())
+                    return@launch
                 }
             }
+
+            if (serviceDestroyed) return@launch
+            if (generation == captureGeneration) {
+                currentOfferRecordId = recordId
+            }
+            if (recentRecord?.evidenceUri == null && evidenceCaptureRequested.add(recordId)) {
+                captureOfferEvidence(recordId)
+            }
+
+            val selected = withContext(Dispatchers.IO) {
+                val vehicleId = appContainer.preferences.selectedVehicleId.first()
+                val vehicle = vehicleId?.let { appContainer.vehicleRepository.getVehicle(it) }
+                val targets = appContainer.preferences.financialTargets.first()
+                vehicle?.let { Triple(it, targets, offer) }
+            }
+            if (serviceDestroyed || generation != captureGeneration) return@launch
             if (selected == null) {
                 overlayWindowManager.hideOverlay()
                 return@launch
@@ -507,7 +520,6 @@ class AccessibilityReaderService : AccessibilityService() {
                         ocrRecognizer?.recognize(softwareBitmap) { recognizedText ->
                             val resultAge = SystemClock.uptimeMillis() - requestedAtMillis
                             if (!serviceDestroyed &&
-                                generation == captureGeneration &&
                                 resultAge in 0..OCR_MAX_RESULT_AGE_MILLIS &&
                                 recognizedText.isNotBlank()
                             ) {
