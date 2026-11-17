@@ -46,6 +46,10 @@ class MediaProjectionCaptureService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (projection != null) {
+            Log.w(TAG, "projection_start_ignored session_already_active")
+            return START_NOT_STICKY
+        }
         val resultCode = intent?.getIntExtra(EXTRA_RESULT_CODE, Int.MIN_VALUE) ?: Int.MIN_VALUE
         val resultData = if (Build.VERSION.SDK_INT >= 33) {
             intent?.getParcelableExtra(EXTRA_RESULT_DATA, Intent::class.java)
@@ -184,16 +188,20 @@ class MediaProjectionCaptureService : Service() {
             pendingCallback = null
             current
         }
-        pending?.invoke(null)
-        imageReader?.setOnImageAvailableListener(null, null)
-        virtualDisplay?.release()
-        virtualDisplay = null
-        imageReader?.close()
+        // Mark capture unavailable before notifying a pending request. Its callback
+        // may drain queued work, but must not enqueue a new frame during teardown.
+        val reader = imageReader
         imageReader = null
+        reader?.setOnImageAvailableListener(null, null)
+        val display = virtualDisplay
+        virtualDisplay = null
+        display?.release()
+        reader?.close()
         val activeProjection = projection
         projection = null
         activeProjection?.unregisterCallback(projectionCallback)
         if (stopProjection) activeProjection?.stop()
+        pending?.invoke(null)
     }
 
     private val projectionCallback = object : MediaProjection.Callback() {
