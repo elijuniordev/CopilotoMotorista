@@ -226,6 +226,7 @@ class MediaProjectionCaptureService : Service() {
         val pending = synchronized(lock) {
             val current = pendingCallback
             pendingCallback = null
+            pendingCaptureRequestId = null
             current
         }
         pending?.invoke(null)
@@ -278,6 +279,7 @@ class MediaProjectionCaptureService : Service() {
         val pending = synchronized(lock) {
             val current = pendingCallback
             pendingCallback = null
+            pendingCaptureRequestId = null
             current
         }
         // Mark capture unavailable before notifying a pending request. Its callback
