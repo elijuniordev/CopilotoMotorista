@@ -546,9 +546,19 @@ class AccessibilityReaderService : AccessibilityService() {
                             screenshot.colorSpace
                         )
                         screenshot.hardwareBuffer.close()
-                        val softwareBitmap = hardwareBitmap?.copy(Bitmap.Config.ARGB_8888, false)
-                        hardwareBitmap?.recycle()
+                        if (hardwareBitmap == null) {
+                            Log.w("OfferCapture", "visual_screenshot_bitmap_unavailable")
+                            drainPendingScreenshotWork()
+                            return
+                        }
+                        Log.d(
+                            "OfferCapture",
+                            "visual_screenshot_success width=${hardwareBitmap.width} height=${hardwareBitmap.height}"
+                        )
+                        val softwareBitmap = hardwareBitmap.copy(Bitmap.Config.ARGB_8888, false)
+                        hardwareBitmap.recycle()
                         if (softwareBitmap == null) {
+                            Log.w("OfferCapture", "visual_screenshot_software_bitmap_unavailable")
                             drainPendingScreenshotWork()
                             return
                         }
