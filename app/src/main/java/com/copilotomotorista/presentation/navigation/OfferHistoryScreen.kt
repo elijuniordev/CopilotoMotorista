@@ -84,14 +84,14 @@ fun OfferHistoryScreen(repository: TripRecordRepository) {
             today = LocalDate.now()
         }
     }
+    var rangeStart by remember { mutableStateOf(today) }
+    var rangeEnd by remember { mutableStateOf(today) }
     LaunchedEffect(today, selectedPeriod) {
         relativeHistoryDateRange(selectedPeriod, today)?.let { (start, end) ->
             rangeStart = start
             rangeEnd = end
         }
     }
-    var rangeStart by remember { mutableStateOf(today) }
-    var rangeEnd by remember { mutableStateOf(today) }
     var showStartPicker by remember { mutableStateOf(false) }
     var showEndPicker by remember { mutableStateOf(false) }
     val zone = ZoneId.systemDefault()
