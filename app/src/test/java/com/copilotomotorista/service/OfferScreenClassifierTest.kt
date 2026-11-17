@@ -94,4 +94,29 @@ class OfferScreenClassifierTest {
         )
         assertEquals(OfferScreenClassifier.ScreenKind.RADAR_CANDIDATE, result.kind)
     }
+    @Test
+    fun recognizesPartialNinetyNineAndUberOcrLayouts() {
+        val ninetyNine = classifier.classify(
+            """
+            Pgto. no app
+            R$8,94
+            R$2,40/km
+            R$1,28 Tarifa base dinâmica incl.
+            10 min (2,7 km)
+            """.trimIndent()
+        )
+        val uber = classifier.classify(
+            """
+            Exclusivo
+            R$ 15,09
+            18 min - 6,1 km - Est. de R$2,47/km
+            +R$1,50 incluído
+            4 min « 0,7 km
+            14 minutos * 5,4 km
+            """.trimIndent()
+        )
+        assertEquals(OfferScreenClassifier.ScreenKind.SINGLE_OFFER, ninetyNine.kind)
+        assertEquals(OfferScreenClassifier.ScreenKind.SINGLE_OFFER, uber.kind)
+    }
+
 }
