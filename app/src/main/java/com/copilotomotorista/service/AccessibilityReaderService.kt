@@ -43,14 +43,13 @@ class AccessibilityReaderService : AccessibilityService() {
     private var ocrRecognizer: LocalOcrTextRecognizer? = null
     private var screenshotInProgress = false
     private var lastScreenshotRequestAt = 0L
-    private var pendingOcrRequest: PendingOcrRequest? = null
     private var serviceDestroyed = false
     private var lastOfferFingerprint: String? = null
     private var lastOfferShownAt = 0L
     private var currentOfferRecordId: String? = null
     private var captureGeneration: Long = 0L
     private val evidenceCaptureRequested = mutableSetOf<String>()
-    private val pendingEvidenceCaptureQueue = PendingEvidenceCaptureQueue()
+    private val pendingScreenshotWork = PendingScreenshotWorkCoordinator()
     private val pendingEvidenceByRecordId = mutableMapOf<String, String>()
 
     override fun onCreate() {
@@ -361,7 +360,7 @@ class AccessibilityReaderService : AccessibilityService() {
         if (screenshotInProgress) {
             // OCR and evidence share Android's screenshot API. Never lose an evidence
             // request just because the OCR screenshot currently owns the capture slot.
-            pendingEvidenceCaptureQueue.enqueue(recordId)
+            pendingScreenshotWork.enqueueEvidence(recordId)
             return
         }
 
@@ -433,17 +432,19 @@ class AccessibilityReaderService : AccessibilityService() {
     private fun drainPendingScreenshotWork() {
         if (screenshotInProgress || serviceDestroyed) return
 
-        val ocrRequest = pendingOcrRequest
-        if (ocrRequest != null) {
-            pendingOcrRequest = null
-            if (SystemClock.uptimeMillis() - ocrRequest.requestedAtMillis <= OCR_MAX_RESULT_AGE_MILLIS) {
-                requestLocalOcr(ocrRequest.requestedAtMillis, ocrRequest.platform, ocrRequest.generation)
+        when (val nextWork = pendingScreenshotWork.pollNext(
+            SystemClock.uptimeMillis(),
+            OCR_MAX_RESULT_AGE_MILLIS
+        )) {
+            null -> return
+            is PendingScreenshotWork.Ocr -> {
+                val request = nextWork.request
+                requestLocalOcr(request.requestedAtMillis, request.platform, request.generation)
                 if (screenshotInProgress) return
+                drainPendingScreenshotWork()
             }
+            is PendingScreenshotWork.Evidence -> captureOfferEvidence(nextWork.recordId)
         }
-
-        val nextRecordId = pendingEvidenceCaptureQueue.pollNext() ?: return
-        captureOfferEvidence(nextRecordId)
     }
 
     private fun requestLocalOcr(
@@ -456,7 +457,7 @@ class AccessibilityReaderService : AccessibilityService() {
         if (requestedAtMillis - lastScreenshotRequestAt < SCREENSHOT_DEBOUNCE_MILLIS) return
         if (screenshotInProgress) {
             // Keep the most recent OCR request instead of silently dropping its fallback.
-            pendingOcrRequest = PendingOcrRequest(requestedAtMillis, platform, generation)
+            pendingScreenshotWork.enqueueOcr(PendingOcrRequest(requestedAtMillis, platform, generation))
             return
         }
 
@@ -533,8 +534,7 @@ class AccessibilityReaderService : AccessibilityService() {
         serviceDestroyed = true
         captureGeneration++
         screenshotInProgress = false
-        pendingEvidenceCaptureQueue.clear()
-        pendingOcrRequest = null
+        pendingScreenshotWork.clear()
         serviceScope.cancel()
         ocrRecognizer?.close()
         ocrRecognizer = null
@@ -543,12 +543,6 @@ class AccessibilityReaderService : AccessibilityService() {
         if (::shiftSessionStore.isInitialized) shiftSessionStore.setMonitoringConnected(false)
         super.onDestroy()
     }
-
-    private data class PendingOcrRequest(
-        val requestedAtMillis: Long,
-        val platform: String,
-        val generation: Long
-    )
 
     private companion object {
         const val SCREENSHOT_DEBOUNCE_MILLIS = 1_500L

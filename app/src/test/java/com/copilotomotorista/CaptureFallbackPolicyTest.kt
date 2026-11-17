@@ -1,6 +1,7 @@
 package com.copilotomotorista
 
-import com.copilotomotorista.service.PendingEvidenceCaptureQueue
+import com.copilotomotorista.service.PendingScreenshotWork
+import com.copilotomotorista.service.PendingScreenshotWorkCoordinator
 import com.copilotomotorista.service.OfferTextParseStatus
 import com.copilotomotorista.service.ScreenTextSource
 import com.copilotomotorista.service.shouldRequestOcrFallback
@@ -22,26 +23,27 @@ class CaptureFallbackPolicyTest {
         assertFalse(shouldRequestOcrFallback(ScreenTextSource.ACCESSIBILITY_TREE, OfferTextParseStatus.AMBIGUOUS))
         assertFalse(shouldRequestOcrFallback(ScreenTextSource.ACCESSIBILITY_TREE, OfferTextParseStatus.NOT_OFFER))
     }
+
     @Test
     fun queuesEvidenceCapturesInOrderAndIgnoresDuplicates() {
-        val queue = PendingEvidenceCaptureQueue()
+        val coordinator = PendingScreenshotWorkCoordinator()
 
-        queue.enqueue("ride-1")
-        queue.enqueue("ride-2")
-        queue.enqueue("ride-1")
+        coordinator.enqueueEvidence("ride-1")
+        coordinator.enqueueEvidence("ride-2")
+        coordinator.enqueueEvidence("ride-1")
 
-        assertEquals("ride-1", queue.pollNext())
-        assertEquals("ride-2", queue.pollNext())
-        assertNull(queue.pollNext())
+        assertEquals(PendingScreenshotWork.Evidence("ride-1"), coordinator.pollNext(10_000L, 5_000L))
+        assertEquals(PendingScreenshotWork.Evidence("ride-2"), coordinator.pollNext(10_000L, 5_000L))
+        assertNull(coordinator.pollNext(10_000L, 5_000L))
     }
 
     @Test
     fun canClearPendingEvidenceWhenServiceIsDestroyed() {
-        val queue = PendingEvidenceCaptureQueue()
-        queue.enqueue("ride-1")
+        val coordinator = PendingScreenshotWorkCoordinator()
+        coordinator.enqueueEvidence("ride-1")
 
-        queue.clear()
+        coordinator.clear()
 
-        assertNull(queue.pollNext())
+        assertNull(coordinator.pollNext(10_000L, 5_000L))
     }
 }
