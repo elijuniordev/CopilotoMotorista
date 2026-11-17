@@ -80,7 +80,7 @@ class OverlayWindowManager(private val context: Context) {
         onAccepted: () -> Unit = {},
         onCompleted: () -> Unit = {},
         showCompleteAction: Boolean = false
-    ) {
+    ): Boolean {
         hideOverlay()
 
         val type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -143,22 +143,19 @@ class OverlayWindowManager(private val context: Context) {
             owner.moveToResumed()
             overlayView = view
             overlayOwner = owner
-        } catch (_: SecurityException) {
-            view.disposeComposition()
-            owner.destroy()
-            overlayView = null
-            overlayOwner = null
-        } catch (_: WindowManager.BadTokenException) {
-            view.disposeComposition()
-            owner.destroy()
-            overlayView = null
-            overlayOwner = null
+            true
+        } catch (exception: SecurityException) {
+            cleanupFailedOverlay(view, owner)
+            android.util.Log.w("OverlayWindowManager", "Unable to show offer overlay: security", exception)
+            false
+        } catch (exception: WindowManager.BadTokenException) {
+            cleanupFailedOverlay(view, owner)
+            android.util.Log.w("OverlayWindowManager", "Unable to show offer overlay: bad token", exception)
+            false
         } catch (exception: RuntimeException) {
-            view.disposeComposition()
-            owner.destroy()
-            overlayView = null
-            overlayOwner = null
-            throw exception
+            cleanupFailedOverlay(view, owner)
+            android.util.Log.e("OverlayWindowManager", "Unable to show offer overlay", exception)
+            false
         }
     }
 
@@ -166,9 +163,9 @@ class OverlayWindowManager(private val context: Context) {
         offers: List<RadarOfferDisplay>,
         platform: String,
         onDismiss: () -> Unit
-    ) {
+    ): Boolean {
         hideOverlay()
-        if (offers.size < 2) return
+        if (offers.size < 2) return false
 
         val type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
@@ -212,23 +209,30 @@ class OverlayWindowManager(private val context: Context) {
             owner.moveToResumed()
             overlayView = view
             overlayOwner = owner
-        } catch (_: SecurityException) {
-            view.disposeComposition()
-            owner.destroy()
-            overlayView = null
-            overlayOwner = null
-        } catch (_: WindowManager.BadTokenException) {
-            view.disposeComposition()
-            owner.destroy()
-            overlayView = null
-            overlayOwner = null
+            true
+        } catch (exception: SecurityException) {
+            cleanupFailedOverlay(view, owner)
+            android.util.Log.w("OverlayWindowManager", "Unable to show radar overlay: security", exception)
+            false
+        } catch (exception: WindowManager.BadTokenException) {
+            cleanupFailedOverlay(view, owner)
+            android.util.Log.w("OverlayWindowManager", "Unable to show radar overlay: bad token", exception)
+            false
         } catch (exception: RuntimeException) {
-            view.disposeComposition()
-            owner.destroy()
-            overlayView = null
-            overlayOwner = null
-            throw exception
+            cleanupFailedOverlay(view, owner)
+            android.util.Log.e("OverlayWindowManager", "Unable to show radar overlay", exception)
+            false
         }
+    }
+
+    private fun cleanupFailedOverlay(view: ComposeView, owner: OverlayViewTreeOwner) {
+        runCatching {
+            if (view.isAttachedToWindow) windowManager.removeView(view)
+        }
+        runCatching { view.disposeComposition() }
+        runCatching { owner.destroy() }
+        if (overlayView === view) overlayView = null
+        if (overlayOwner === owner) overlayOwner = null
     }
 
     fun hideOverlay() {
