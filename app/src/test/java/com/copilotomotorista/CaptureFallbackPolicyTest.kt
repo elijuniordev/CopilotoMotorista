@@ -1,6 +1,5 @@
 package com.copilotomotorista
 
-import com.copilotomotorista.service.PendingEvidenceCaptureQueueTest
 import com.copilotomotorista.service.PendingScreenshotWork
 import com.copilotomotorista.service.PendingScreenshotWorkCoordinator
 import com.copilotomotorista.service.OfferTextParseStatus
