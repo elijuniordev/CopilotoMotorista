@@ -79,13 +79,7 @@ class MediaProjectionCaptureService : Service() {
                 return START_NOT_STICKY
             }
             projection = mediaProjection
-            mediaProjection.registerCallback(object : MediaProjection.Callback() {
-                override fun onStop() {
-                    Log.i(TAG, "projection_stopped_by_system")
-                    releaseCaptureResources()
-                    stopSelf()
-                }
-            }, captureHandler)
+            mediaProjection.registerCallback(projectionCallback, captureHandler)
 
             val metrics = DisplayMetrics()
             @Suppress("DEPRECATION")
@@ -122,16 +116,20 @@ class MediaProjectionCaptureService : Service() {
     }
 
     private fun onImageAvailable(reader: ImageReader) {
-        val callback = synchronized(lock) {
-            val current = pendingCallback ?: return
-            pendingCallback = null
-            current
-        }
         val image = try {
             reader.acquireLatestImage()
         } catch (error: Exception) {
             Log.w(TAG, "image_acquire_failed", error)
             null
+        }
+        val callback = synchronized(lock) {
+            val current = pendingCallback
+            pendingCallback = null
+            current
+        }
+        if (callback == null) {
+            image?.close()
+            return
         }
         if (image == null) {
             callback(null)
@@ -180,24 +178,28 @@ class MediaProjectionCaptureService : Service() {
         }
     }
 
-    private fun releaseCaptureResources() {
-        synchronized(lock) {
-            pendingCallback?.invoke(null)
+    private fun releaseCaptureResources(stopProjection: Boolean = true) {
+        val pending = synchronized(lock) {
+            val current = pendingCallback
             pendingCallback = null
+            current
         }
+        pending?.invoke(null)
         imageReader?.setOnImageAvailableListener(null, null)
         virtualDisplay?.release()
         virtualDisplay = null
         imageReader?.close()
         imageReader = null
-        projection?.unregisterCallback(projectionCallback)
-        projection?.stop()
+        val activeProjection = projection
         projection = null
+        activeProjection?.unregisterCallback(projectionCallback)
+        if (stopProjection) activeProjection?.stop()
     }
 
     private val projectionCallback = object : MediaProjection.Callback() {
         override fun onStop() {
-            releaseCaptureResources()
+            Log.i(TAG, "projection_stopped_by_system")
+            releaseCaptureResources(stopProjection = false)
             stopSelf()
         }
     }
