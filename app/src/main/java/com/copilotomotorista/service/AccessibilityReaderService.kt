@@ -271,6 +271,27 @@ class AccessibilityReaderService : AccessibilityService() {
             val analysis = runCatching {
                 evaluateOfferUseCase.execute(currentOffer, vehicle, targets)
             }.getOrNull() ?: return@launch
+
+            // Enrich the already-persisted capture with the vehicle cost snapshot.
+            // This update is independent from whether this offer is still the newest
+            // screen generation; only overlay presentation is generation-sensitive.
+            runCatching {
+                withContext(Dispatchers.IO) {
+                    val capturedRecord = appContainer.tripRecordRepository.getTrip(recordId)
+                    if (capturedRecord != null && capturedRecord.status == TRIP_STATUS_CAPTURED) {
+                        appContainer.tripRecordRepository.saveTrip(
+                            capturedRecord.copy(
+                                vehicleId = vehicle.id,
+                                operatingCostCentsSnapshot = analysis.operatingCostCents,
+                                vehicleNameSnapshot = vehicle.name
+                            )
+                        )
+                    }
+                }
+            }.onFailure { error ->
+                Log.e("OfferCapture", "Failed to update captured offer cost snapshot", error)
+            }
+
             if (serviceDestroyed || generation != captureGeneration) return@launch
             overlayWindowManager.showOverlay(
                 analysisResult = analysis,
