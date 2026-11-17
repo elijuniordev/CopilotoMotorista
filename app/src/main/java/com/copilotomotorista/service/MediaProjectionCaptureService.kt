@@ -20,6 +20,7 @@ import android.os.HandlerThread
 import android.os.IBinder
 import android.util.DisplayMetrics
 import android.util.Log
+import android.view.Display
 import android.view.WindowManager
 import androidx.core.app.NotificationCompat
 import java.nio.ByteBuffer
@@ -36,6 +37,20 @@ class MediaProjectionCaptureService : Service() {
     private var captureThread: HandlerThread? = null
     private var captureHandler: Handler? = null
     private var pendingCallback: ((Bitmap?) -> Unit)? = null
+    private var displayManager: DisplayManager? = null
+    private var displayWidth = 0
+    private var displayHeight = 0
+    private var displayDensityDpi = 0
+
+    private val displayListener = object : DisplayManager.DisplayListener {
+        override fun onDisplayAdded(displayId: Int) = Unit
+        override fun onDisplayRemoved(displayId: Int) = Unit
+        override fun onDisplayChanged(displayId: Int) {
+            if (displayId == Display.DEFAULT_DISPLAY) {
+                captureHandler?.post(::refreshDisplayConfiguration)
+            }
+        }
+    }
 
     override fun onCreate() {
         super.onCreate()
@@ -110,6 +125,11 @@ class MediaProjectionCaptureService : Service() {
                 null,
                 captureHandler
             )
+            displayWidth = width
+            displayHeight = height
+            displayDensityDpi = metrics.densityDpi
+            displayManager = getSystemService(Context.DISPLAY_SERVICE) as DisplayManager
+            displayManager?.registerDisplayListener(displayListener, captureHandler)
             Log.i(TAG, "projection_ready width=$width height=$height")
         } catch (error: Exception) {
             Log.e(TAG, "projection_start_failed", error)
@@ -162,6 +182,62 @@ class MediaProjectionCaptureService : Service() {
         }
     }
 
+    /**
+     * Keeps the existing projection session and VirtualDisplay while adapting its
+     * surface to rotation or resolution changes. A projection token must not create
+     * a second VirtualDisplay during the same session.
+     */
+    private fun refreshDisplayConfiguration() {
+        if (projection == null || virtualDisplay == null) return
+
+        val metrics = DisplayMetrics()
+        @Suppress("DEPRECATION")
+        (getSystemService(Context.WINDOW_SERVICE) as WindowManager)
+            .defaultDisplay.getRealMetrics(metrics)
+        val width = metrics.widthPixels
+        val height = metrics.heightPixels
+        val densityDpi = metrics.densityDpi
+        if (width <= 0 || height <= 0) return
+        if (width == displayWidth && height == displayHeight && densityDpi == displayDensityDpi) return
+
+        val replacementReader = try {
+            ImageReader.newInstance(width, height, PixelFormat.RGBA_8888, 2)
+        } catch (error: Exception) {
+            Log.e(TAG, "display_resize_reader_failed", error)
+            return
+        }
+        replacementReader.setOnImageAvailableListener(::onImageAvailable, captureHandler)
+
+        val pending = synchronized(lock) {
+            val current = pendingCallback
+            pendingCallback = null
+            current
+        }
+        pending?.invoke(null)
+
+        try {
+            val display = virtualDisplay ?: run {
+                replacementReader.close()
+                return
+            }
+            display.resize(width, height, densityDpi)
+            display.setSurface(replacementReader.surface)
+
+            val previousReader = imageReader
+            imageReader = replacementReader
+            previousReader?.setOnImageAvailableListener(null, null)
+            previousReader?.close()
+            displayWidth = width
+            displayHeight = height
+            displayDensityDpi = densityDpi
+            Log.i(TAG, "projection_display_resized width=$width height=$height densityDpi=$densityDpi")
+        } catch (error: Exception) {
+            replacementReader.setOnImageAvailableListener(null, null)
+            replacementReader.close()
+            Log.e(TAG, "display_resize_failed", error)
+        }
+    }
+
     private fun buildNotification(): Notification =
         NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_menu_camera)
@@ -190,6 +266,11 @@ class MediaProjectionCaptureService : Service() {
         }
         // Mark capture unavailable before notifying a pending request. Its callback
         // may drain queued work, but must not enqueue a new frame during teardown.
+        displayManager?.unregisterDisplayListener(displayListener)
+        displayManager = null
+        displayWidth = 0
+        displayHeight = 0
+        displayDensityDpi = 0
         val reader = imageReader
         imageReader = null
         reader?.setOnImageAvailableListener(null, null)
