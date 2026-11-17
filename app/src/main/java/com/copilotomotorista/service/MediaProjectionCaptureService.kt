@@ -203,7 +203,7 @@ class MediaProjectionCaptureService : Service() {
         }
         // Deliver exactly once, outside the conversion try/catch. A consumer callback
         // exception must never trigger a second callback with a null frame.
-        callback(bitmap)
+        notifyCallbackSafely(callback, bitmap, "frame_delivery")
     }
 
     /**
@@ -245,7 +245,7 @@ class MediaProjectionCaptureService : Service() {
             pendingCaptureRequestId = null
             current
         }
-        pending?.invoke(null)
+        notifyCallbackSafely(pending, null, "display_resize")
 
         try {
             val display = virtualDisplay ?: run {
@@ -266,7 +266,9 @@ class MediaProjectionCaptureService : Service() {
         } catch (error: Exception) {
             replacementReader.setOnImageAvailableListener(null, null)
             replacementReader.close()
-            Log.e(TAG, "display_resize_failed", error)
+            Log.e(TAG, "display_resize_failed_session_stopped", error)
+            releaseCaptureResources()
+            stopSelf()
         }
     }
 
@@ -316,7 +318,17 @@ class MediaProjectionCaptureService : Service() {
         projection = null
         activeProjection?.unregisterCallback(projectionCallback)
         if (stopProjection) activeProjection?.stop()
-        pending?.invoke(null)
+        notifyCallbackSafely(pending, null, "session_teardown")
+    }
+
+    private fun notifyCallbackSafely(
+        callback: ((Bitmap?) -> Unit)?,
+        bitmap: Bitmap?,
+        event: String
+    ) {
+        if (callback == null) return
+        runCatching { callback(bitmap) }
+            .onFailure { error -> Log.e(TAG, "capture_callback_failed event=$event", error) }
     }
 
     private val projectionCallback = object : MediaProjection.Callback() {
@@ -384,7 +396,7 @@ class MediaProjectionCaptureService : Service() {
                         pending
                     }
                 }
-                expired?.invoke(null)
+                service.notifyCallbackSafely(expired, null, "request_timeout")
             }, 1_500L)
             if (!timeoutPosted) {
                 synchronized(lock) {
