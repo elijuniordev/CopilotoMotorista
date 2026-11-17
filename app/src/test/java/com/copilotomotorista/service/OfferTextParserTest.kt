@@ -259,4 +259,57 @@ class OfferTextParserTest {
         assertEquals(setOf("valor recebido"), result.ambiguousFields)
     }
 
+
+    @Test
+    fun deduplicatesRepeatedOcrSegmentsBeforeAssociatingPickupAndTrip() {
+        val result = parser.parse(
+            """
+            R$ 24,50
+            2 min · 350 m
+            2 min · 350 m
+            18 min • 6,4 km
+            18 min • 6,4 km
+            """.trimIndent()
+        )
+
+        assertEquals(OfferTextParseStatus.COMPLETE, result.status)
+        assertEquals(0.35, result.offer?.pickupDistanceKm ?: 0.0, 0.001)
+        assertEquals(6.4, result.offer?.tripDistanceKm ?: 0.0, 0.001)
+        assertEquals(2, result.offer?.pickupTimeMinutes)
+        assertEquals(18, result.offer?.tripTimeMinutes)
+    }
+
+    @Test
+    fun reportsAmbiguousWhenSeveralUnlabeledSegmentsCannotBeAssociatedSafely() {
+        val result = parser.parse(
+            """
+            R$ 24,50
+            2 min · 350 m
+            3 min * 1,2 km
+            18 min e 6,4 km
+            """.trimIndent()
+        )
+
+        assertEquals(OfferTextParseStatus.AMBIGUOUS, result.status)
+        assertNull(result.offer)
+        assertEquals(setOf("segmentos de busca e viagem"), result.ambiguousFields)
+    }
+
+    @Test
+    fun acceptsOcrSegmentsWithMissingSpacesAndParentheses() {
+        val result = parser.parse(
+            """
+            R$ 18,90
+            2min(350m)
+            17min(6,4km)
+            """.trimIndent()
+        )
+
+        assertEquals(OfferTextParseStatus.COMPLETE, result.status)
+        assertEquals(0.35, result.offer?.pickupDistanceKm ?: 0.0, 0.001)
+        assertEquals(6.4, result.offer?.tripDistanceKm ?: 0.0, 0.001)
+        assertEquals(2, result.offer?.pickupTimeMinutes)
+        assertEquals(17, result.offer?.tripTimeMinutes)
+    }
+
 }

@@ -39,7 +39,9 @@ class OfferTextParser {
 
         // Ofertas exclusivas 99: "2 min (242 m)" e "19 min (5,8 km)".
         // Uber: resumo total "20 min • 5.7 km", depois busca e trajeto separados.
-        var segments = lines.mapNotNull { line ->
+        // OCR pode repetir o mesmo segmento em um resumo e em uma linha de endereço.
+        // Normalizamos metros para km e removemos duplicatas antes de procurar pares.
+        val segments = lines.mapNotNull { line ->
             UNLABELED_TIME_DISTANCE_REGEX.find(line)?.let { match ->
                 val minutes = match.groupValues[1].toIntOrNull() ?: return@let null
                 val distance = match.groupValues[2].replace(',', '.').toDoubleOrNull()
@@ -47,7 +49,7 @@ class OfferTextParser {
                 val unit = match.groupValues[3].lowercase()
                 ParsedSegment(minutes, if (unit == "m") distance / 1000.0 else distance, unit)
             }
-        }
+        }.distinctBy { it.minutes to it.distanceKm }
 
         // Na tela de oferta da Uber, a linha "30 min: 15,9 km - Est. de ..."
         // representa o total desde a busca até o destino. As linhas seguintes
@@ -82,7 +84,7 @@ class OfferTextParser {
                     }.toList()
                 }
         }.orEmpty()
-        val segmentPairAmbiguous = matchingSegmentPairs.size > 1
+        var segmentPairAmbiguous = matchingSegmentPairs.size > 1
         val segmentPair = matchingSegmentPairs.singleOrNull()
 
         if (segmentPair != null) {
@@ -92,15 +94,29 @@ class OfferTextParser {
             tripDistance = NumberCandidate(trip.distanceKm, false)
             tripTime = NumberCandidate(trip.minutes.toDouble(), false)
         } else if (!segmentPairAmbiguous) {
-            if (pickupDistance.value == null && pickupTime.value == null && segments.size >= 2) {
-                val pickup = segments.first()
-                pickupDistance = NumberCandidate(pickup.distanceKm, false)
-                pickupTime = NumberCandidate(pickup.minutes.toDouble(), false)
-            }
-            if (tripDistance.value == null && tripTime.value == null && segments.size >= 2) {
-                val trip = segments.last()
-                tripDistance = NumberCandidate(trip.distanceKm, false)
-                tripTime = NumberCandidate(trip.minutes.toDouble(), false)
+            val hasPickupDetails = pickupDistance.value != null || pickupTime.value != null
+            val hasTripDetails = tripDistance.value != null || tripTime.value != null
+
+            when {
+                // Sem resumo total ou rótulos, só duas combinações distintas permitem
+                // inferir com segurança: a primeira é busca e a segunda é viagem.
+                segments.size == 2 -> {
+                    val pickup = segments.first()
+                    val trip = segments.last()
+                    if (!hasPickupDetails) {
+                        pickupDistance = NumberCandidate(pickup.distanceKm, false)
+                        pickupTime = NumberCandidate(pickup.minutes.toDouble(), false)
+                    }
+                    if (!hasTripDetails) {
+                        tripDistance = NumberCandidate(trip.distanceKm, false)
+                        tripTime = NumberCandidate(trip.minutes.toDouble(), false)
+                    }
+                }
+                // Com três ou mais segmentos sem rótulos/resumo, escolher first/last
+                // seria arbitrário. Mantemos a captura para revisão em vez de inventar.
+                segments.size > 2 && (!hasPickupDetails || !hasTripDetails) -> {
+                    segmentPairAmbiguous = true
+                }
             }
         }
         if (pickupDistance.value == null && pickupTime.value == null && segments.size == 1 && segments.single().unit == "m") {
