@@ -34,7 +34,7 @@ class AccessibilityReaderService : AccessibilityService() {
     private lateinit var appContainer: AppContainer
     private lateinit var shiftSessionStore: ShiftSessionStore
     private lateinit var floatingControlWindowManager: FloatingControlWindowManager
-    private val eventGate = AccessibilityEventGate()
+    private val eventGate = AccessibilityEventGate(supportedPackages = SupportedRideApps.packages)
     private val offerTextParser = OfferTextParser()
     private val offerScreenClassifier = OfferScreenClassifier()
     private val captureLatencyMetrics = OfferCaptureLatencyMetrics()
@@ -105,6 +105,9 @@ class AccessibilityReaderService : AccessibilityService() {
         }
         val packageName = event.packageName?.toString()
         if (packageName == null || packageName == applicationContext.packageName) return
+        // Package ID is used only to avoid capturing unrelated apps. Offer content
+        // still comes exclusively from the visible screenshot + local OCR.
+        if (!SupportedRideApps.contains(packageName)) return
         val accepted = eventGate.shouldAccept(
             packageName = packageName,
             eventType = event.eventType,
@@ -659,7 +662,7 @@ class AccessibilityReaderService : AccessibilityService() {
     }
 
     private companion object {
-        const val SCREENSHOT_DEBOUNCE_MILLIS = 350L
+        const val SCREENSHOT_DEBOUNCE_MILLIS = 1_500L
         const val OCR_MAX_RESULT_AGE_MILLIS = 5_000L
         const val OFFER_REPEAT_SUPPRESSION_MILLIS = 15_000L
         const val DUPLICATE_OFFER_WINDOW_MILLIS = 120_000L
