@@ -130,6 +130,7 @@ class MediaProjectionCaptureService : Service() {
             displayDensityDpi = metrics.densityDpi
             displayManager = getSystemService(Context.DISPLAY_SERVICE) as DisplayManager
             displayManager?.registerDisplayListener(displayListener, captureHandler)
+            setCaptureActive(true)
             Log.i(TAG, "projection_ready width=$width height=$height")
         } catch (error: Exception) {
             Log.e(TAG, "projection_start_failed", error)
@@ -259,6 +260,7 @@ class MediaProjectionCaptureService : Service() {
     }
 
     private fun releaseCaptureResources(stopProjection: Boolean = true) {
+        setCaptureActive(false)
         val pending = synchronized(lock) {
             val current = pendingCallback
             pendingCallback = null
@@ -308,10 +310,25 @@ class MediaProjectionCaptureService : Service() {
         private const val TAG = "LegacyScreenCapture"
         private const val CHANNEL_ID = "legacy_screen_capture"
         private const val NOTIFICATION_ID = 4102
+        const val ACTION_CAPTURE_STATE_CHANGED = "com.copilotomotorista.action.CAPTURE_STATE_CHANGED"
+        const val EXTRA_CAPTURE_ACTIVE = "capture_active"
         const val EXTRA_RESULT_CODE = "projection_result_code"
         const val EXTRA_RESULT_DATA = "projection_result_data"
         private val lock = Any()
         @Volatile private var instance: MediaProjectionCaptureService? = null
+        @Volatile private var captureActive: Boolean = false
+
+        fun isCaptureActive(): Boolean = captureActive
+
+        private fun setCaptureActive(active: Boolean) {
+            captureActive = active
+            instance?.let { service ->
+                val stateIntent = Intent(ACTION_CAPTURE_STATE_CHANGED)
+                    .setPackage(service.packageName)
+                    .putExtra(EXTRA_CAPTURE_ACTIVE, active)
+                service.sendBroadcast(stateIntent)
+            }
+        }
 
         /** Returns false when the user has not enabled the capture session. */
         fun requestScreenshot(callback: (Bitmap?) -> Unit): Boolean {
