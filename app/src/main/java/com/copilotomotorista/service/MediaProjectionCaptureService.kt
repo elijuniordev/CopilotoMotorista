@@ -183,13 +183,16 @@ class MediaProjectionCaptureService : Service() {
                     image.height,
                     Bitmap.Config.ARGB_8888
                 )
+                var keepPaddedBitmap = false
                 try {
                     val buffer: ByteBuffer = plane.buffer
                     buffer.rewind()
                     padded.copyPixelsFromBuffer(buffer)
-                    Bitmap.createBitmap(padded, 0, 0, image.width, image.height)
+                    val cropped = Bitmap.createBitmap(padded, 0, 0, image.width, image.height)
+                    keepPaddedBitmap = cropped === padded
+                    cropped
                 } finally {
-                    if (!padded.isRecycled) padded.recycle()
+                    if (!keepPaddedBitmap && !padded.isRecycled) padded.recycle()
                 }
             }
         } catch (error: Exception) {
