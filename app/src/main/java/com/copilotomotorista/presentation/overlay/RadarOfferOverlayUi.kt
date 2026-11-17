@@ -103,9 +103,9 @@ private fun RadarOfferCard(offer: RadarOfferDisplay) {
             }
             Text(money(offer.grossFare), color = RadarText, fontSize = 21.sp, fontWeight = FontWeight.Bold)
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                RadarMetric("R$/KM", analysis.earningsPerKm)
-                RadarMetric("R$/H", analysis.earningsPerHour)
-                RadarMetric("LUCRO", analysis.netProfit)
+                RadarMetric("R$/KM", analysis.earningsPerKm, Modifier.weight(1f))
+                RadarMetric("R$/H", analysis.earningsPerHour, Modifier.weight(1f))
+                RadarMetric("LUCRO", analysis.netProfit, Modifier.weight(1f))
             }
             Text(
                 String.format(Locale("pt", "BR"), "%.1f km · %d min", analysis.totalDistanceKm, analysis.totalTimeMinutes),
@@ -117,10 +117,9 @@ private fun RadarOfferCard(offer: RadarOfferDisplay) {
 }
 
 @Composable
-private fun RadarMetric(label: String, value: Double) {
+private fun RadarMetric(label: String, value: Double, modifier: Modifier = Modifier) {
     Column(
-        modifier = Modifier
-            .weight(1f)
+        modifier = modifier
             .background(RadarBackground, RoundedCornerShape(7.dp))
             .padding(horizontal = 7.dp, vertical = 6.dp),
         verticalArrangement = Arrangement.spacedBy(2.dp)
