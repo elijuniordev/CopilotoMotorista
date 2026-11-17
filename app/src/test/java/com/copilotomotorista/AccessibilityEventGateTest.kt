@@ -11,7 +11,7 @@ class AccessibilityEventGateTest {
     private val gate = AccessibilityEventGate()
 
     @Test
-    fun acceptsWindowEventsOnlyFromSupportedDriverApps() {
+    fun acceptsWindowEventsFromAnyForegroundApplication() {
         assertTrue(
             gate.shouldAccept(
                 SupportedRideApps.UBER_DRIVER,
@@ -26,7 +26,7 @@ class AccessibilityEventGateTest {
                 1_000L
             )
         )
-        assertFalse(
+        assertTrue(
             gate.shouldAccept(
                 "com.example.other",
                 AccessibilityEventGate.TYPE_WINDOW_STATE_CHANGED,
@@ -43,19 +43,19 @@ class AccessibilityEventGateTest {
     }
 
     @Test
-    fun debouncesRepeatedContentChangesPerPackage() {
+    fun debouncesRepeatedContentChangesPerPackageEvenWithoutPackageAllowList() {
         val first = gate.shouldAccept(
-            SupportedRideApps.UBER_DRIVER,
+            "com.example.ride.app",
             AccessibilityEventGate.TYPE_WINDOW_CONTENT_CHANGED,
             1_000L
         )
         val repeated = gate.shouldAccept(
-            SupportedRideApps.UBER_DRIVER,
+            "com.example.ride.app",
             AccessibilityEventGate.TYPE_WINDOW_CONTENT_CHANGED,
             1_200L
         )
         val afterDebounce = gate.shouldAccept(
-            SupportedRideApps.UBER_DRIVER,
+            "com.example.ride.app",
             AccessibilityEventGate.TYPE_WINDOW_CONTENT_CHANGED,
             1_350L
         )
