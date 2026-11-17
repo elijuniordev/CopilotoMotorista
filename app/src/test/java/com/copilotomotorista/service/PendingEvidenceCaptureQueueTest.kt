@@ -6,60 +6,68 @@ import org.junit.Test
 
 class PendingEvidenceCaptureQueueTest {
 
-    private val queue = PendingEvidenceCaptureQueue()
+    private val coordinator = PendingScreenshotWorkCoordinator()
 
     @Test
-    fun keepsRequestsInArrivalOrderAndIgnoresRepeatedRecordIds() {
-        queue.enqueue("record-a")
-        queue.enqueue("record-b")
-        queue.enqueue("record-a")
-        queue.enqueue("record-c")
-        queue.enqueue("record-b")
+    fun keepsEvidenceRequestsInArrivalOrderAndIgnoresRepeatedRecordIds() {
+        coordinator.enqueueEvidence("record-a")
+        coordinator.enqueueEvidence("record-b")
+        coordinator.enqueueEvidence("record-a")
+        coordinator.enqueueEvidence("record-c")
+        coordinator.enqueueEvidence("record-b")
 
-        assertEquals("record-a", queue.pollNext())
-        assertEquals("record-b", queue.pollNext())
-        assertEquals("record-c", queue.pollNext())
-        assertNull(queue.pollNext())
+        assertEquals(PendingScreenshotWork.Evidence("record-a"), coordinator.pollNext(10_000L, 5_000L))
+        assertEquals(PendingScreenshotWork.Evidence("record-b"), coordinator.pollNext(10_000L, 5_000L))
+        assertEquals(PendingScreenshotWork.Evidence("record-c"), coordinator.pollNext(10_000L, 5_000L))
+        assertNull(coordinator.pollNext(10_000L, 5_000L))
     }
 
     @Test
-    fun allowsRetryAfterARequestWasDequeuedAndCaptureFailed() {
-        queue.enqueue("record-a")
+    fun retriesEvidenceAfterFailedCaptureIsDequeued() {
+        coordinator.enqueueEvidence("record-a")
+        assertEquals(PendingScreenshotWork.Evidence("record-a"), coordinator.pollNext(10_000L, 5_000L))
 
-        val failedRequest = queue.pollNext()
-        assertEquals("record-a", failedRequest)
-
-        // The service removes a failed capture from its in-flight guard and
-        // enqueues it again when a later event requests evidence for that record.
-        queue.enqueue(failedRequest!!)
-
-        assertEquals("record-a", queue.pollNext())
-        assertNull(queue.pollNext())
+        // A failed screenshot can be requested again by a later service event.
+        coordinator.enqueueEvidence("record-a")
+        assertEquals(PendingScreenshotWork.Evidence("record-a"), coordinator.pollNext(10_000L, 5_000L))
     }
 
     @Test
-    fun drainsRequestsOneAtATimeAfterTheCurrentScreenshotCompletes() {
-        queue.enqueue("record-a")
-        queue.enqueue("record-b")
-        queue.enqueue("record-c")
+    fun prioritizesPendingOcrBeforeEvidenceAfterScreenshotCompletes() {
+        val ocr = PendingOcrRequest(9_500L, "uber", 7L)
+        coordinator.enqueueEvidence("record-a")
+        coordinator.enqueueOcr(ocr)
 
-        val drained = mutableListOf<String>()
-        while (true) {
-            val next = queue.pollNext() ?: break
-            drained += next
-        }
-
-        assertEquals(listOf("record-a", "record-b", "record-c"), drained)
-        assertNull(queue.pollNext())
+        assertEquals(PendingScreenshotWork.Ocr(ocr), coordinator.pollNext(10_000L, 5_000L))
+        assertEquals(PendingScreenshotWork.Evidence("record-a"), coordinator.pollNext(10_000L, 5_000L))
     }
 
     @Test
-    fun clearDiscardsPendingRequestsWhenTheServiceIsDestroyed() {
-        queue.enqueue("record-a")
-        queue.enqueue("record-b")
+    fun keepsOnlyMostRecentPendingOcrRequest() {
+        val older = PendingOcrRequest(9_000L, "uber", 4L)
+        val latest = PendingOcrRequest(9_500L, "99", 5L)
+        coordinator.enqueueOcr(older)
+        coordinator.enqueueOcr(latest)
 
-        queue.clear()
+        assertEquals(PendingScreenshotWork.Ocr(latest), coordinator.pollNext(10_000L, 5_000L))
+        assertNull(coordinator.pollNext(10_000L, 5_000L))
+    }
 
-        assertNull(queue.pollNext())
+    @Test
+    fun discardsExpiredOcrAndContinuesWithEvidence() {
+        coordinator.enqueueOcr(PendingOcrRequest(1_000L, "uber", 2L))
+        coordinator.enqueueEvidence("record-a")
+
+        assertEquals(PendingScreenshotWork.Evidence("record-a"), coordinator.pollNext(10_000L, 5_000L))
+        assertNull(coordinator.pollNext(10_000L, 5_000L))
+    }
+
+    @Test
+    fun clearDiscardsPendingOcrAndEvidenceWhenServiceIsDestroyed() {
+        coordinator.enqueueOcr(PendingOcrRequest(9_500L, "uber", 7L))
+        coordinator.enqueueEvidence("record-a")
+        coordinator.clear()
+
+        assertNull(coordinator.pollNext(10_000L, 5_000L))
     }
 }
