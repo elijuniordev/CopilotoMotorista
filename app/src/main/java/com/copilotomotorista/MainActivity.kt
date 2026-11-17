@@ -1,6 +1,9 @@
 package com.copilotomotorista
 
+import android.content.BroadcastReceiver
 import android.content.ComponentName
+import android.content.Context
+import android.content.IntentFilter
 import android.media.projection.MediaProjectionManager
 import android.os.Build
 import android.content.Intent
@@ -72,6 +75,18 @@ class MainActivity : ComponentActivity() {
     private var permissionStatus by mutableStateOf(PermissionStatus())
     private var showDashboard by mutableStateOf(false)
     private var legacyCaptureActive by mutableStateOf(false)
+    private var captureStateReceiverRegistered = false
+
+    private val captureStateReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent?.action == MediaProjectionCaptureService.ACTION_CAPTURE_STATE_CHANGED) {
+                legacyCaptureActive = intent.getBooleanExtra(
+                    MediaProjectionCaptureService.EXTRA_CAPTURE_ACTIVE,
+                    false
+                )
+            }
+        }
+    }
 
     private val screenCaptureLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
@@ -87,8 +102,31 @@ class MainActivity : ComponentActivity() {
             } else {
                 startService(serviceIntent)
             }
-            legacyCaptureActive = true
+            // The service broadcasts active only after MediaProjection and VirtualDisplay
+            // have both initialized successfully. Consent alone is not an active session.
+            legacyCaptureActive = false
         }
+    }
+
+    override fun onStart() {
+        super.onStart()
+        val filter = IntentFilter(MediaProjectionCaptureService.ACTION_CAPTURE_STATE_CHANGED)
+        if (Build.VERSION.SDK_INT >= 33) {
+            registerReceiver(captureStateReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+        } else {
+            @Suppress("DEPRECATION")
+            registerReceiver(captureStateReceiver, filter)
+        }
+        captureStateReceiverRegistered = true
+        legacyCaptureActive = MediaProjectionCaptureService.isCaptureActive()
+    }
+
+    override fun onStop() {
+        if (captureStateReceiverRegistered) {
+            unregisterReceiver(captureStateReceiver)
+            captureStateReceiverRegistered = false
+        }
+        super.onStop()
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
