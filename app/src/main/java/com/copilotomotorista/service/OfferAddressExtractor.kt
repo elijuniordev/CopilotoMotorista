@@ -59,7 +59,7 @@ internal object OfferAddressExtractor {
         RegexOption.IGNORE_CASE
     )
     private val NON_ADDRESS_REGEX = Regex(
-        """\b(uberx|99pop|corridas|cart[aã]o verif|avaliação|minutos? restantes)\b|^r\$|^[0-9],[0-9]{1,2}(?:\s|$)""",
+        """\b(uberx|99pop|corridas|cart[aã]o verif|avaliaç(?:ão|ões)|minutos? restantes|pagamento|dinheiro|pix|tarifa|estimativa)\b|^r\$|^[0-9],[0-9]{1,2}(?:\s|$)|/[km]\b""",
         RegexOption.IGNORE_CASE
     )
     private const val MIN_ADDRESS_LENGTH = 8

@@ -66,4 +66,58 @@ class OfferAddressExtractorTest {
             )
         )
     }
+
+    @Test
+    fun extractsAddressAliasesAndPlaceNamesWithoutStreetNumbers() {
+        val cases = listOf(
+            Triple(
+                "Partida: Av. dos Autonomistas, Centro",
+                true,
+                "Av. dos Autonomistas, Centro"
+            ),
+            Triple(
+                "Levar para: Shopping União | Osasco - SP",
+                false,
+                "Shopping União | Osasco - SP"
+            ),
+            Triple(
+                "Destino: Praça Antônio Menck, Centro",
+                false,
+                "Praça Antônio Menck, Centro"
+            ),
+            Triple(
+                "Destino: Alameda Rio Negro, Alphaville",
+                false,
+                "Alameda Rio Negro, Alphaville"
+            )
+        )
+
+        cases.forEach { (text, origin, expected) ->
+            assertEquals(expected, OfferAddressExtractor.extract(text, origin))
+        }
+    }
+
+    @Test
+    fun rejectsPaymentAndFareLinesEvenWhenTheyContainCommas() {
+        val text = """
+            2 min (242 m)
+            Pagamento no cartão, R$ 19,00
+            19 min (5,8 km)
+            Tarifa dinâmica, R$ 3,15/km
+        """.trimIndent()
+
+        assertNull(OfferAddressExtractor.extract(text, origin = true))
+        assertNull(OfferAddressExtractor.extract(text, origin = false))
+    }
+
+    @Test
+    fun returnsNullForAmbiguousPlaceLikeTextWithoutAddressClues() {
+        val text = """
+            Embarque: Centro Comercial
+            Destino: Ponto de encontro
+        """.trimIndent()
+
+        assertNull(OfferAddressExtractor.extract(text, origin = true))
+        assertNull(OfferAddressExtractor.extract(text, origin = false))
+    }
 }
