@@ -70,7 +70,7 @@ internal class OfferScreenClassifier {
         val WHITESPACE = Regex("\\s+")
         val FARE_REGEX = Regex("""r\$\s*[0-9]+(?:\.[0-9]{3})*(?:[,.][0-9]{1,2})?""")
         val ROUTE_SEGMENT_REGEX = Regex(
-            """[0-9]{1,3}\s*min(?:uto)?s?\s*(?:[:•·*e-]\s*|\(\s*)[0-9]+(?:[,.][0-9]+)?\s*(?:km|m)"""
+            """[0-9]{1,3}\s*min(?:uto)?s?\s*(?:[:•·*e+«»~-]\s*|\(\s*)[0-9]+(?:[,.][0-9]+)?\s*(?:km|m)"""
         )
         val DISTANCE_OR_TIME_REGEX = Regex("""[0-9]+(?:[,.][0-9]+)?\s*km|[0-9]+\s*min""")
         val PICKUP_REGEX = Regex("""\b(embarque|busca|buscar|pickup|coleta)\b""")
