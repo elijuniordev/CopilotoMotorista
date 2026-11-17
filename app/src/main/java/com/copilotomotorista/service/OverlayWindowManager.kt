@@ -143,19 +143,19 @@ class OverlayWindowManager(private val context: Context) {
             owner.moveToResumed()
             overlayView = view
             overlayOwner = owner
-            true
+            return true
         } catch (exception: SecurityException) {
             cleanupFailedOverlay(view, owner)
             android.util.Log.w("OverlayWindowManager", "Unable to show offer overlay: security", exception)
-            false
+            return false
         } catch (exception: WindowManager.BadTokenException) {
             cleanupFailedOverlay(view, owner)
             android.util.Log.w("OverlayWindowManager", "Unable to show offer overlay: bad token", exception)
-            false
+            return false
         } catch (exception: RuntimeException) {
             cleanupFailedOverlay(view, owner)
             android.util.Log.e("OverlayWindowManager", "Unable to show offer overlay", exception)
-            false
+            return false
         }
     }
 
@@ -209,19 +209,19 @@ class OverlayWindowManager(private val context: Context) {
             owner.moveToResumed()
             overlayView = view
             overlayOwner = owner
-            true
+            return true
         } catch (exception: SecurityException) {
             cleanupFailedOverlay(view, owner)
             android.util.Log.w("OverlayWindowManager", "Unable to show radar overlay: security", exception)
-            false
+            return false
         } catch (exception: WindowManager.BadTokenException) {
             cleanupFailedOverlay(view, owner)
             android.util.Log.w("OverlayWindowManager", "Unable to show radar overlay: bad token", exception)
-            false
+            return false
         } catch (exception: RuntimeException) {
             cleanupFailedOverlay(view, owner)
             android.util.Log.e("OverlayWindowManager", "Unable to show radar overlay", exception)
-            false
+            return false
         }
     }
 
