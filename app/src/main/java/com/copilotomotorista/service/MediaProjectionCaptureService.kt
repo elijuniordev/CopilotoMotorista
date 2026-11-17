@@ -163,31 +163,44 @@ class MediaProjectionCaptureService : Service() {
             image?.close()
             return
         }
-        if (image == null) {
-            callback(null)
-            return
-        }
-        try {
-            val plane = image.planes.firstOrNull() ?: run {
-                callback(null)
-                return
+        val bitmap = try {
+            if (image == null) {
+                null
+            } else {
+                val plane = image.planes.firstOrNull()
+                    ?: throw IllegalStateException("Captured image has no planes")
+                val pixelStride = plane.pixelStride
+                val rowStride = plane.rowStride
+                if (pixelStride <= 0 || rowStride <= 0) {
+                    throw IllegalStateException("Captured image has invalid stride")
+                }
+                val paddedWidth = rowStride / pixelStride
+                if (paddedWidth < image.width) {
+                    throw IllegalStateException("Captured image row is narrower than its width")
+                }
+                val padded = Bitmap.createBitmap(
+                    paddedWidth,
+                    image.height,
+                    Bitmap.Config.ARGB_8888
+                )
+                try {
+                    val buffer: ByteBuffer = plane.buffer
+                    buffer.rewind()
+                    padded.copyPixelsFromBuffer(buffer)
+                    Bitmap.createBitmap(padded, 0, 0, image.width, image.height)
+                } finally {
+                    if (!padded.isRecycled) padded.recycle()
+                }
             }
-            val pixelStride = plane.pixelStride
-            val rowStride = plane.rowStride
-            val paddedWidth = rowStride / pixelStride
-            val padded = Bitmap.createBitmap(paddedWidth, image.height, Bitmap.Config.ARGB_8888)
-            val buffer: ByteBuffer = plane.buffer
-            buffer.rewind()
-            padded.copyPixelsFromBuffer(buffer)
-            val cropped = Bitmap.createBitmap(padded, 0, 0, image.width, image.height)
-            if (cropped !== padded) padded.recycle()
-            callback(cropped)
         } catch (error: Exception) {
             Log.e(TAG, "image_conversion_failed", error)
-            callback(null)
+            null
         } finally {
-            image.close()
+            image?.close()
         }
+        // Deliver exactly once, outside the conversion try/catch. A consumer callback
+        // exception must never trigger a second callback with a null frame.
+        callback(bitmap)
     }
 
     /**
