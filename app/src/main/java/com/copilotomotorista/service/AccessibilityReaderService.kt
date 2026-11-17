@@ -5,6 +5,7 @@ import android.accessibilityservice.AccessibilityServiceInfo
 import android.graphics.Bitmap
 import android.os.Build
 import android.os.SystemClock
+import android.util.Log
 import android.view.Display
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
@@ -37,6 +38,7 @@ class AccessibilityReaderService : AccessibilityService() {
     private val eventGate = AccessibilityEventGate()
     private val nodeTextReader = AccessibilityNodeTextReader()
     private val offerTextParser = OfferTextParser()
+    private val captureLatencyMetrics = OfferCaptureLatencyMetrics()
     private val evaluateOfferUseCase = EvaluateOfferUseCase()
     private val resolveTripCostSnapshotUseCase = ResolveTripCostSnapshotUseCase()
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
@@ -131,7 +133,9 @@ class AccessibilityReaderService : AccessibilityService() {
         generation: Long
     ) {
         if (serviceDestroyed || generation != captureGeneration) return
+        val parseStartedAt = SystemClock.uptimeMillis()
         val parsed = offerTextParser.parse(snapshot.text)
+        val parseDurationMillis = SystemClock.uptimeMillis() - parseStartedAt
         if (parsed.status != OfferTextParseStatus.COMPLETE || parsed.offer == null) {
             overlayWindowManager.hideOverlay()
             when (parsed.status) {
@@ -274,6 +278,20 @@ class AccessibilityReaderService : AccessibilityService() {
                 },
                 showCompleteAction = recentRecord?.status == "in_progress"
             )
+            val overlayShownAt = SystemClock.uptimeMillis()
+            val summary = captureLatencyMetrics.record(
+                platform = platform,
+                source = snapshot.source.name,
+                durationMillis = overlayShownAt - snapshot.capturedAtMillis
+            )
+            if (summary != null) {
+                Log.i(
+                    "OfferCaptureMetrics",
+                    "platform=${summary.platform} source=${summary.source} " +
+                        "samples=${summary.count} p50Ms=${summary.p50Millis} " +
+                        "p95Ms=${summary.p95Millis} parseMs=$parseDurationMillis"
+                )
+            }
         }
     }
 
@@ -497,7 +515,8 @@ class AccessibilityReaderService : AccessibilityService() {
                                     ScreenTextSnapshot(
                                         text = ScreenTextSnapshot.normalize(recognizedText),
                                         source = ScreenTextSource.OCR,
-                                        capturedAtMillis = SystemClock.uptimeMillis()
+                                        // Preserve the original request time so OCR latency includes screenshot and recognition.
+                                        capturedAtMillis = requestedAtMillis
                                     ),
                                     platform,
                                     generation
