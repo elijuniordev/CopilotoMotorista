@@ -124,7 +124,7 @@ class MediaProjectionCaptureService : Service() {
                 reader.surface,
                 null,
                 captureHandler
-            )
+            ) ?: throw IllegalStateException("VirtualDisplay creation returned null")
             displayWidth = width
             displayHeight = height
             displayDensityDpi = metrics.densityDpi
