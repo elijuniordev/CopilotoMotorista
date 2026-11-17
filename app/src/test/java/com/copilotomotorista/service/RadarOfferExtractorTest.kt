@@ -30,6 +30,7 @@ class RadarOfferExtractorTest {
         )
 
         assertEquals(2, candidates.size)
+        assertEquals(listOf(1, 2), candidates.map { it.position })
         assertEquals(1250L, candidates[0].offer.receivedFareCents)
         assertEquals(1890L, candidates[1].offer.receivedFareCents)
         assertEquals(1.1, candidates[0].offer.pickupDistanceKm, 0.001)
