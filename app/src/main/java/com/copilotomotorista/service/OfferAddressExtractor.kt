@@ -47,19 +47,19 @@ internal object OfferAddressExtractor {
     private val ORIGIN_LABELS = listOf("origem:", "embarque:", "partida:", "buscar em:", "buscar:")
     private val DESTINATION_LABELS = listOf("destino:", "desembarque:", "chegada:", "deixar em:", "levar para:")
     private val TIME_DISTANCE_REGEX = Regex(
-        """\b[0-9]+\\s*min(?:uto)?s?\\s*(?:[:•·:*e-]\\s*|\\(\\s*)[0-9]+(?:[,.][0-9]+)?\\s*(?:m|km)""",
+        """\b[0-9]+\s*min(?:uto)?s?\s*(?:[:•·:*e-]\s*|\(\s*)[0-9]+(?:[,.][0-9]+)?\s*(?:m|km)""",
         RegexOption.IGNORE_CASE
     )
     private val TRAILING_SEGMENT_REGEX = Regex(
-        """\s*\\(\\s*[0-9]+\\s*min(?:uto)?s?\\s+[0-9]+(?:[,.][0-9]+)?\\s*(?:m|km)\\s*\\)\\s*$""",
+        """\s*\(\s*[0-9]+\s*min(?:uto)?s?\s+[0-9]+(?:[,.][0-9]+)?\s*(?:m|km)\s*\)\s*$""",
         RegexOption.IGNORE_CASE
     )
     private val ADDRESS_HINT_REGEX = Regex(
-        """\b(rua|r\\.|avenida|av\\.?|estrada|travessa|alameda|praça|rodovia|vila|bairro|osasco|barueri|são paulo|sp)\\b|[,|]""",
+        """\b(rua|r\.|avenida|av\.?|estrada|travessa|alameda|praça|rodovia|vila|bairro|osasco|barueri|são paulo|sp)\b|[,|]""",
         RegexOption.IGNORE_CASE
     )
     private val NON_ADDRESS_REGEX = Regex(
-        """\b(uberx|99pop|corridas|cart[aã]o verif|avaliação|minutos? restantes)\\b|^r\\$""",
+        """\b(uberx|99pop|corridas|cart[aã]o verif|avaliação|minutos? restantes)\b|^r\$""",
         RegexOption.IGNORE_CASE
     )
     private const val MIN_ADDRESS_LENGTH = 8
