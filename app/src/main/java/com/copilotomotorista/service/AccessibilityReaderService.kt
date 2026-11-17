@@ -10,6 +10,7 @@ import android.view.Display
 import android.view.accessibility.AccessibilityEvent
 import androidx.core.content.ContextCompat
 import com.copilotomotorista.data.AppContainer
+import com.copilotomotorista.service.MediaProjectionCaptureService
 import com.copilotomotorista.domain.model.OfferInput
 import com.copilotomotorista.domain.model.TripRecord
 import com.copilotomotorista.domain.usecase.EvaluateOfferUseCase
@@ -585,16 +586,95 @@ class AccessibilityReaderService : AccessibilityService() {
         }
     }
 
+    private fun processCapturedBitmap(
+        bitmap: Bitmap,
+        requestedAtMillis: Long,
+        platform: String,
+        generation: Long
+    ) {
+        val recognizer = ocrRecognizer
+        if (recognizer == null) {
+            bitmap.recycle()
+            drainPendingScreenshotWork()
+            return
+        }
+        recognizer.recognize(bitmap) { recognizedText ->
+            ContextCompat.getMainExecutor(this).execute {
+                val resultAge = SystemClock.uptimeMillis() - requestedAtMillis
+                if (!serviceDestroyed &&
+                    generation == captureGeneration &&
+                    resultAge in 0..OCR_MAX_RESULT_AGE_MILLIS &&
+                    recognizedText.isNotBlank()
+                ) {
+                    val normalizedText = ScreenTextSnapshot.normalize(recognizedText)
+                    val detectedPlatform = when {
+                        Regex("\\buber\\b", RegexOption.IGNORE_CASE).containsMatchIn(normalizedText) -> "uber"
+                        Regex("\\b99(?:pop|plus|comfort|moto|entrega|taxi)\\b", RegexOption.IGNORE_CASE).containsMatchIn(normalizedText) -> "99"
+                        else -> platform
+                    }
+                    Log.d("OfferCapture", "ocr_result chars=${normalizedText.length} platform=$detectedPlatform ageMs=$resultAge")
+                    processSnapshot(
+                        ScreenTextSnapshot(
+                            text = normalizedText,
+                            source = ScreenTextSource.OCR,
+                            capturedAtMillis = requestedAtMillis
+                        ),
+                        detectedPlatform,
+                        generation
+                    )
+                } else if (!serviceDestroyed && resultAge in 0..OCR_MAX_RESULT_AGE_MILLIS) {
+                    Log.d("OfferCapture", "ocr_result_empty ageMs=$resultAge")
+                }
+                drainPendingScreenshotWork()
+            }
+        }
+    }
+
     private fun requestLocalOcr(
         requestedAtMillis: Long,
         platform: String,
         generation: Long
     ) {
+        if (serviceDestroyed || generation != captureGeneration) return
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
-            Log.w("OfferCapture", "visual_ocr_unavailable api=${Build.VERSION.SDK_INT}; Accessibility screenshot requires API 30+")
+            if (screenshotInProgress) {
+                pendingScreenshotWork.enqueueOcr(PendingOcrRequest(requestedAtMillis, platform, generation))
+                return
+            }
+            val elapsedSinceLastCapture = requestedAtMillis - lastScreenshotRequestAt
+            if (lastScreenshotRequestAt > 0L && elapsedSinceLastCapture < SCREENSHOT_DEBOUNCE_MILLIS) {
+                val waitMillis = SCREENSHOT_DEBOUNCE_MILLIS - elapsedSinceLastCapture
+                serviceScope.launch {
+                    delay(waitMillis)
+                    if (!serviceDestroyed && generation == captureGeneration) {
+                        requestLocalOcr(SystemClock.uptimeMillis(), platform, generation)
+                    }
+                }
+                return
+            }
+            screenshotInProgress = true
+            lastScreenshotRequestAt = requestedAtMillis
+            val accepted = MediaProjectionCaptureService.requestScreenshot { bitmap ->
+                if (serviceDestroyed) {
+                    bitmap?.recycle()
+                    screenshotInProgress = false
+                    return@requestScreenshot
+                }
+                screenshotInProgress = false
+                if (bitmap == null) {
+                    Log.w("OfferCapture", "legacy_visual_screenshot_unavailable")
+                    drainPendingScreenshotWork()
+                } else {
+                    processCapturedBitmap(bitmap, requestedAtMillis, platform, generation)
+                }
+            }
+            if (!accepted) {
+                screenshotInProgress = false
+                Log.w("OfferCapture", "legacy_capture_not_authorized_or_busy")
+                drainPendingScreenshotWork()
+            }
             return
         }
-        if (serviceDestroyed || generation != captureGeneration) return
         if (screenshotInProgress) {
             pendingScreenshotWork.enqueueOcr(PendingOcrRequest(requestedAtMillis, platform, generation))
             return
