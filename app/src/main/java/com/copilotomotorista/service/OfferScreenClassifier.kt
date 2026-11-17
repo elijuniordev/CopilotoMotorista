@@ -47,6 +47,7 @@ internal class OfferScreenClassifier {
         }
 
         val hasRouteStructure = routeSegmentCount >= 2 ||
+            (routeSegmentCount >= 1 && hasPlatformOfferMarker) ||
             (hasLabeledPickup && hasLabeledDestination && DISTANCE_OR_TIME_REGEX.containsMatchIn(text))
         val hasOfferContext = hasPlatformOfferMarker || hasFareRateMarker ||
             (hasLabeledPickup && hasLabeledDestination)
