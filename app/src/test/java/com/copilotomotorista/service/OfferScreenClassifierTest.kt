@@ -119,4 +119,18 @@ class OfferScreenClassifierTest {
         assertEquals(OfferScreenClassifier.ScreenKind.SINGLE_OFFER, uber.kind)
     }
 
+    @Test
+    fun recognizesUberOfferUsingRPerKilometerLabelsWithoutAddressLabels() {
+        val result = classifier.classify(
+            """
+            R$ 22,31
+            R$/KM R$/HORA LÍQUIDO
+            30 min: 14,5 km - Est. de R$1,54/km
+            5 min - 1,3 km
+            25 min • 13,2 km
+            """.trimIndent()
+        )
+        assertEquals(OfferScreenClassifier.ScreenKind.SINGLE_OFFER, result.kind)
+    }
+
 }
