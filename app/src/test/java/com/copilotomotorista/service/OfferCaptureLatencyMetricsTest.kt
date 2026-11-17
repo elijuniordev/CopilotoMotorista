@@ -31,6 +31,28 @@ class OfferCaptureLatencyMetricsTest {
     }
 
     @Test
+    fun reportsCoarseOutcomeCountsWithoutRetainingOfferContent() {
+        val metrics = OfferCaptureLatencyMetrics(reportEvery = 3)
+        assertNull(metrics.recordOutcome("uber", "accessibility", "not_offer"))
+        assertNull(metrics.recordOutcome("uber", "accessibility", "incomplete"))
+        val summary = metrics.recordOutcome("uber", "accessibility", "ambiguous")
+        assertEquals(3, summary?.count)
+        assertEquals(1, summary?.outcomes?.get("not_offer"))
+        assertEquals(1, summary?.outcomes?.get("incomplete"))
+        assertEquals(1, summary?.outcomes?.get("ambiguous"))
+        assertNull(metrics.recordOutcome("uber", "accessibility", "R$ 32,00"))
+    }
+
+    @Test
+    fun keepsOutcomeCountsSeparateByPlatformAndSource() {
+        val metrics = OfferCaptureLatencyMetrics(reportEvery = 1)
+        val uber = metrics.recordOutcome("uber", "accessibility", "complete")
+        val nineNine = metrics.recordOutcome("99", "ocr", "ocr_expired")
+        assertEquals(mapOf("complete" to 1), uber?.outcomes)
+        assertEquals(mapOf("ocr_expired" to 1), nineNine?.outcomes)
+    }
+
+    @Test
     fun ignoresNegativeDurations() {
         val metrics = OfferCaptureLatencyMetrics(reportEvery = 1)
         assertNull(metrics.record("uber", "accessibility", -1))

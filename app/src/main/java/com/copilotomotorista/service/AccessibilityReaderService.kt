@@ -132,10 +132,20 @@ class AccessibilityReaderService : AccessibilityService() {
         platform: String,
         generation: Long
     ) {
-        if (serviceDestroyed || generation != captureGeneration) return
+        if (serviceDestroyed) return
+        if (generation != captureGeneration) {
+            recordCaptureOutcome(platform, snapshot.source.name, "stale_generation")
+            return
+        }
         val parseStartedAt = SystemClock.uptimeMillis()
         val parsed = offerTextParser.parse(snapshot.text)
         val parseDurationMillis = SystemClock.uptimeMillis() - parseStartedAt
+        recordCaptureOutcome(platform, snapshot.source.name, when (parsed.status) {
+            OfferTextParseStatus.NOT_OFFER -> "not_offer"
+            OfferTextParseStatus.INCOMPLETE -> "incomplete"
+            OfferTextParseStatus.AMBIGUOUS -> "ambiguous"
+            OfferTextParseStatus.COMPLETE -> "complete"
+        })
         if (parsed.status != OfferTextParseStatus.COMPLETE || parsed.offer == null) {
             overlayWindowManager.hideOverlay()
             when (parsed.status) {
@@ -166,7 +176,10 @@ class AccessibilityReaderService : AccessibilityService() {
         val now = SystemClock.uptimeMillis()
         if (fingerprint == lastOfferFingerprint &&
             now - lastOfferShownAt < OFFER_REPEAT_SUPPRESSION_MILLIS
-        ) return
+        ) {
+            recordCaptureOutcome(platform, snapshot.source.name, "duplicate_suppressed")
+            return
+        }
 
         lastOfferFingerprint = fingerprint
         lastOfferShownAt = now
@@ -181,6 +194,7 @@ class AccessibilityReaderService : AccessibilityService() {
             }
             if (serviceDestroyed || generation != captureGeneration) return@launch
             if (recentRecord?.status == TRIP_STATUS_COMPLETED) {
+                recordCaptureOutcome(platform, snapshot.source.name, "already_completed")
                 currentOfferRecordId = null
                 overlayWindowManager.hideOverlay()
                 return@launch
@@ -248,6 +262,7 @@ class AccessibilityReaderService : AccessibilityService() {
                 }
             }
             if (selected == null) {
+                recordCaptureOutcome(platform, snapshot.source.name, "missing_vehicle")
                 overlayWindowManager.hideOverlay()
                 return@launch
             }
@@ -257,7 +272,10 @@ class AccessibilityReaderService : AccessibilityService() {
             }
             val analysis = runCatching {
                 evaluateOfferUseCase.execute(currentOffer, vehicle, targets)
-            }.getOrNull() ?: return@launch
+            }.getOrNull() ?: run {
+                recordCaptureOutcome(platform, snapshot.source.name, "analysis_failed")
+                return@launch
+            }
             if (serviceDestroyed || generation != captureGeneration) return@launch
             overlayWindowManager.showOverlay(
                 analysisResult = analysis,
@@ -293,6 +311,15 @@ class AccessibilityReaderService : AccessibilityService() {
                 )
             }
         }
+    }
+
+    private fun recordCaptureOutcome(platform: String, source: String, outcome: String) {
+        val summary = captureLatencyMetrics.recordOutcome(platform, source, outcome) ?: return
+        Log.i(
+            "OfferCaptureMetrics",
+            "outcomes platform=${summary.platform} source=${summary.source} " +
+                "samples=${summary.count} counts=${summary.outcomes}"
+        )
     }
 
     private fun detectRideCategory(text: String, platform: String): String {
