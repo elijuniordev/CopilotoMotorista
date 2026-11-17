@@ -41,6 +41,7 @@ class AccessibilityReaderService : AccessibilityService() {
     private val offerScreenClassifier = OfferScreenClassifier()
     private val radarOfferExtractor = RadarOfferExtractor()
     private val captureLatencyMetrics = OfferCaptureLatencyMetrics()
+    private val pipelineStageMetrics = OfferPipelineStageMetrics()
     private val evaluateOfferUseCase = EvaluateOfferUseCase()
     private val resolveTripCostSnapshotUseCase = ResolveTripCostSnapshotUseCase()
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
@@ -142,7 +143,9 @@ class AccessibilityReaderService : AccessibilityService() {
         // O OCR pode ler valores e distâncias de mapas, notificações e telas
         // financeiras. Só encaminhamos ao parser quando a tela tem a estrutura
         // visual/textual típica de uma oferta de corrida.
+        val classificationStartedAt = SystemClock.uptimeMillis()
         val screenClassification = offerScreenClassifier.classify(snapshot.text)
+        recordPipelineStage("screen_classification", platform, snapshot.source.name, classificationStartedAt, true)
         if (screenClassification.kind == OfferScreenClassifier.ScreenKind.RADAR_CANDIDATE) {
             val candidates = radarOfferExtractor.extract(snapshot.text)
             Log.i("OfferCapture", "radar_candidates count=${candidates.size}")
@@ -175,6 +178,7 @@ class AccessibilityReaderService : AccessibilityService() {
         val parseStartedAt = SystemClock.uptimeMillis()
         val parsed = offerTextParser.parse(snapshot.text)
         val parseDurationMillis = SystemClock.uptimeMillis() - parseStartedAt
+        recordPipelineStage("parse", platform, snapshot.source.name, parseStartedAt, parsed.status == OfferTextParseStatus.COMPLETE)
         Log.d(
             "OfferCapture",
             "offer_parse status=${parsed.status} missing=${parsed.missingFields.joinToString(",")} " +
@@ -217,6 +221,7 @@ class AccessibilityReaderService : AccessibilityService() {
         lastOfferShownAt = now
         serviceScope.launch {
             val nowEpochMillis = System.currentTimeMillis()
+            val duplicateLookupStartedAt = SystemClock.uptimeMillis()
             val recentRecord = withContext(Dispatchers.IO) {
                 appContainer.tripRecordRepository.findRecentMatchingOffer(
                     platform, offer.receivedFareCents, offer.pickupDistanceKm, offer.tripDistanceKm,
@@ -224,6 +229,7 @@ class AccessibilityReaderService : AccessibilityService() {
                     nowEpochMillis - DUPLICATE_OFFER_WINDOW_MILLIS
                 )
             }
+            recordPipelineStage("duplicate_lookup", platform, snapshot.source.name, duplicateLookupStartedAt, true)
             if (serviceDestroyed) return@launch
             if (recentRecord?.status == TRIP_STATUS_COMPLETED) {
                 if (generation == captureGeneration) {
@@ -233,9 +239,11 @@ class AccessibilityReaderService : AccessibilityService() {
                 return@launch
             }
             val recordId = recentRecord?.id ?: UUID.randomUUID().toString()
+            val existingLookupStartedAt = SystemClock.uptimeMillis()
             val existingOffer = withContext(Dispatchers.IO) {
                 appContainer.tripRecordRepository.getTrip(recordId)
             }
+            recordPipelineStage("existing_record_lookup", platform, snapshot.source.name, existingLookupStartedAt, true)
 
             // Save a complete offer before vehicle/configuration lookups. Those reads may
             // suspend while the ride app keeps emitting accessibility events.
@@ -278,11 +286,13 @@ class AccessibilityReaderService : AccessibilityService() {
                     vehicleNameSnapshot = null,
                     rawOfferText = snapshot.text
                 )
+                val persistenceStartedAt = SystemClock.uptimeMillis()
                 val saved = runCatching {
                     withContext(Dispatchers.IO) {
                         appContainer.tripRecordRepository.saveTrip(captured)
                     }
                 }
+                recordPipelineStage("persist_capture", platform, snapshot.source.name, persistenceStartedAt, saved.isSuccess)
                 if (saved.isFailure) {
                     Log.e("OfferCapture", "Failed to persist captured offer", saved.exceptionOrNull())
                     return@launch
@@ -297,24 +307,31 @@ class AccessibilityReaderService : AccessibilityService() {
                 captureOfferEvidence(recordId)
             }
 
+            val configurationStartedAt = SystemClock.uptimeMillis()
             val selected = withContext(Dispatchers.IO) {
                 val vehicleId = appContainer.preferences.selectedVehicleId.first()
                 val vehicle = vehicleId?.let { appContainer.vehicleRepository.getVehicle(it) }
                 val targets = appContainer.preferences.financialTargets.first()
                 vehicle?.let { Triple(it, targets, offer) }
             }
+            recordPipelineStage("load_vehicle_configuration", platform, snapshot.source.name, configurationStartedAt, selected != null)
             if (serviceDestroyed || generation != captureGeneration) return@launch
             if (selected == null) {
                 overlayWindowManager.hideOverlay()
                 return@launch
             }
             val (vehicle, targets, currentOffer) = selected
+            val displayPreferencesStartedAt = SystemClock.uptimeMillis()
             val displayPreferences = withContext(Dispatchers.IO) {
                 appContainer.preferences.overlayDisplayPreferences.first()
             }
+            recordPipelineStage("load_overlay_preferences", platform, snapshot.source.name, displayPreferencesStartedAt, true)
+            val analysisStartedAt = SystemClock.uptimeMillis()
             val analysis = runCatching {
                 evaluateOfferUseCase.execute(currentOffer, vehicle, targets)
-            }.getOrNull() ?: return@launch
+            }.getOrNull()
+            recordPipelineStage("evaluate_offer", platform, snapshot.source.name, analysisStartedAt, analysis != null)
+            val validAnalysis = analysis ?: return@launch
 
             // Enrich the already-persisted capture with the vehicle cost snapshot.
             // This update is independent from whether this offer is still the newest
@@ -326,7 +343,7 @@ class AccessibilityReaderService : AccessibilityService() {
                         appContainer.tripRecordRepository.saveTrip(
                             capturedRecord.copy(
                                 vehicleId = vehicle.id,
-                                operatingCostCentsSnapshot = analysis.operatingCostCents,
+                                operatingCostCentsSnapshot = validAnalysis.operatingCostCents,
                                 vehicleNameSnapshot = vehicle.name
                             )
                         )
@@ -337,8 +354,9 @@ class AccessibilityReaderService : AccessibilityService() {
             }
 
             if (serviceDestroyed || generation != captureGeneration) return@launch
+            val overlayStartedAt = SystemClock.uptimeMillis()
             overlayWindowManager.showOverlay(
-                analysisResult = analysis,
+                analysisResult = validAnalysis,
                 grossFare = currentOffer.receivedFareCents / 100.0,
                 isDemo = false,
                 platform = if (platform == "uber") "Uber" else if (platform == "99") "99" else "Aplicativo",
@@ -357,6 +375,8 @@ class AccessibilityReaderService : AccessibilityService() {
                 showCompleteAction = recentRecord?.status == "in_progress"
             )
             val overlayShownAt = SystemClock.uptimeMillis()
+            recordPipelineStage("overlay_show", platform, snapshot.source.name, overlayStartedAt, true)
+            recordPipelineStage("capture_to_overlay", platform, snapshot.source.name, snapshot.capturedAtMillis, true)
             val summary = captureLatencyMetrics.record(
                 platform = platform,
                 source = snapshot.source.name,
@@ -371,6 +391,29 @@ class AccessibilityReaderService : AccessibilityService() {
                 )
             }
         }
+    }
+
+
+    private fun recordPipelineStage(
+        stage: String,
+        platform: String,
+        source: String,
+        startedAtMillis: Long,
+        succeeded: Boolean
+    ) {
+        val summary = pipelineStageMetrics.record(
+            stage = stage,
+            platform = platform,
+            source = source,
+            durationMillis = SystemClock.uptimeMillis() - startedAtMillis,
+            succeeded = succeeded
+        ) ?: return
+        Log.i(
+            "OfferPipelineMetrics",
+            "stage=${summary.stage} platform=${summary.platform} source=${summary.source} " +
+                "outcome=${summary.outcome} samples=${summary.count} " +
+                "p50Ms=${summary.p50Millis} p95Ms=${summary.p95Millis}"
+        )
     }
 
     private fun showRadarCandidates(
