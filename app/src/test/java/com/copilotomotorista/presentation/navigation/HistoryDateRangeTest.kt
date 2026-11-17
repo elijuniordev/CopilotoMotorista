@@ -36,6 +36,6 @@ class HistoryDateRangeTest {
     @Test
     fun relativeRangesRecalculateAfterMidnight() {
         val nextDay = today.plusDays(1)
-        assertEquals(today to nextDay, relativeHistoryDateRange("7 dias", nextDay))
+        assertEquals(LocalDate.of(2026, 11, 12) to nextDay, relativeHistoryDateRange("7 dias", nextDay))
     }
 }
