@@ -289,15 +289,8 @@ class AccessibilityReaderService : AccessibilityService() {
         } ?: "Categoria não identificada"
     }
 
-    private fun extractLabeledAddress(text: String, origin: Boolean): String? {
-        val labels = if (origin) listOf("origem:", "embarque:", "partida:", "buscar em:", "buscar:")
-        else listOf("destino:", "desembarque:", "chegada:", "deixar em:", "levar para:")
-        return text.lineSequence().map { it.trim() }.firstNotNullOfOrNull { line ->
-            val normalized = line.lowercase()
-            val label = labels.firstOrNull { normalized.startsWith(it) }
-            label?.let { line.substring(it.length).trim().takeIf { value -> value.length >= 5 } }
-        }
-    }
+    private fun extractLabeledAddress(text: String, origin: Boolean): String? =
+        OfferAddressExtractor.extract(text, origin)
 
     private fun detectPaymentMethod(text: String): String =
         PaymentMethodDetector.detect(text)
