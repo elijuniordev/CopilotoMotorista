@@ -67,20 +67,20 @@ internal class OfferScreenClassifier {
 
     private companion object {
         val WHITESPACE = Regex("\\s+")
-        val FARE_REGEX = Regex("""r\\$\\s*[0-9]+(?:\\.[0-9]{3})*(?:[,.][0-9]{1,2})?""")
+        val FARE_REGEX = Regex("""r\$\s*[0-9]+(?:\.[0-9]{3})*(?:[,.][0-9]{1,2})?""")
         val ROUTE_SEGMENT_REGEX = Regex(
-            """[0-9]{1,3}\\s*min(?:uto)?s?\\s*(?:[:•·*e-]\\s*|\\(\\s*)[0-9]+(?:[,.][0-9]+)?\\s*(?:km|m)"""
+            """[0-9]{1,3}\s*min(?:uto)?s?\s*(?:[:•·*e-]\s*|\(\s*)[0-9]+(?:[,.][0-9]+)?\s*(?:km|m)"""
         )
-        val DISTANCE_OR_TIME_REGEX = Regex("""[0-9]+(?:[,.][0-9]+)?\\s*km|[0-9]+\\s*min""")
-        val PICKUP_REGEX = Regex("""\\b(embarque|busca|buscar|pickup|coleta)\\b""")
-        val DESTINATION_REGEX = Regex("""\\b(destino|viagem|trajeto)\\b""")
+        val DISTANCE_OR_TIME_REGEX = Regex("""[0-9]+(?:[,.][0-9]+)?\s*km|[0-9]+\s*min""")
+        val PICKUP_REGEX = Regex("""\b(embarque|busca|buscar|pickup|coleta)\b""")
+        val DESTINATION_REGEX = Regex("""\b(destino|viagem|trajeto)\b""")
         val PLATFORM_OFFER_MARKER_REGEX = Regex(
-            """\\b(uberx|uber comfort|uber black|uberx exclusivo|exclusivo|priority|99pop|99plus|99 comfort|pgto\\.? no app|verificado)\\b"""
+            """\b(uberx|uber comfort|uber black|uberx exclusivo|exclusivo|priority|99pop|99plus|99 comfort|pgto\.? no app|verificado)\b"""
         )
         val FARE_RATE_MARKER_REGEX = Regex(
-            """r\\s*/\\s*km|r\\s*/\\s*hora|est\\.?\\s*de\\s*r\\$|tarifa\\s+base|din[aâ]mic[oa]"""
+            """r\s*/\s*km|r\s*/\s*hora|est\.?\s*de\s*r\$|tarifa\s+base|din[aâ]mic[oa]"""
         )
-        val OFFER_ACTION_REGEX = Regex("""\\b(tenho interesse|ver oferta|selecionar oferta)\\b""")
-        val RADAR_LABEL_REGEX = Regex("""radar\\s+(?:de\\s+)?viagens""")
+        val OFFER_ACTION_REGEX = Regex("""\b(tenho interesse|ver oferta|selecionar oferta)\b""")
+        val RADAR_LABEL_REGEX = Regex("""radar\s+(?:de\s+)?viagens""")
     }
 }
