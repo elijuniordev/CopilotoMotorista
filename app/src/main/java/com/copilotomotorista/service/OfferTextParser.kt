@@ -26,10 +26,8 @@ class OfferTextParser {
         // Uber/99 podem mostrar, na mesma tela, valor da oferta, R$/km e
         // componentes da tarifa dinâmica. Só o valor principal é uma tarifa recebida.
         val fareCandidates = lines
-            .filterNot { NON_FARE_AMOUNT_REGEX.containsMatchIn(it) }
-            .flatMap {
-                FARE_REGEX.findAll(it).mapNotNull { match -> parseCents(match.groupValues[1]) }.toList()
-            }.distinct()
+            .flatMap(::extractPrimaryFareCandidates)
+            .distinct()
 
         val pickupLines = lines.filter { PICKUP_KEYWORDS.containsMatchIn(it) }
         val tripLines = lines.filter { TRIP_KEYWORDS.containsMatchIn(it) }
@@ -150,6 +148,18 @@ class OfferTextParser {
         return OfferTextParseResult(OfferTextParseStatus.COMPLETE, offer = offer)
     }
 
+    private fun extractPrimaryFareCandidates(line: String): List<Long> =
+        FARE_REGEX.findAll(line).mapNotNull { match ->
+            val before = line.substring(0, match.range.first).takeLast(48)
+            val after = line.substring(match.range.last + 1).take(48)
+            if (isSecondaryFareAmount(before, after)) null
+            else parseCents(match.groupValues[1])
+        }.toList()
+
+    private fun isSecondaryFareAmount(before: String, after: String): Boolean =
+        SECONDARY_FARE_BEFORE_REGEX.containsMatchIn(before) ||
+            SECONDARY_FARE_AFTER_REGEX.containsMatchIn(after)
+
     private fun extractUniqueNumber(lines: List<String>, regex: Regex): NumberCandidate {
         val values = lines.flatMap { line ->
             regex.findAll(line).mapNotNull { match ->
@@ -181,8 +191,15 @@ class OfferTextParser {
     private companion object {
         val WHITESPACE = Regex("\\s+")
         val FARE_REGEX = Regex("""R\$\s*([0-9.]+(?:,[0-9]{1,2})?|[0-9]+(?:\.[0-9]{1,2})?)""", RegexOption.IGNORE_CASE)
-        val NON_FARE_AMOUNT_REGEX = Regex(
-            """R\$\s*[0-9.,]+\s*/\s*km|tarifa\s+base|din[aâ]mica|inclu[ií]do""",
+        // Classifica cada ocorrência de moeda isoladamente. Filtrar a linha inteira
+        // descartava também o valor principal quando OCR concatenava oferta, R$/km
+        // e componentes secundários na mesma linha.
+        val SECONDARY_FARE_BEFORE_REGEX = Regex(
+            """(?:tarifa\s+base|din[aâ]mica|b[oô]nus|adicional|estimad[oa]|est\.?\s*de)\s*[:：-]?\s*$""",
+            RegexOption.IGNORE_CASE
+        )
+        val SECONDARY_FARE_AFTER_REGEX = Regex(
+            """^\s*(?:/\s*km|por\s*km|km\b|tarifa\s+base|din[aâ]mica|inclu[ií]d[oa]|(?:de\s+)?b[oô]nus|(?:de\s+)?adicional)""",
             RegexOption.IGNORE_CASE
         )
         val DISTANCE_REGEX = Regex("""([0-9]+(?:[,.][0-9]+)?)\s*km\b""", RegexOption.IGNORE_CASE)
