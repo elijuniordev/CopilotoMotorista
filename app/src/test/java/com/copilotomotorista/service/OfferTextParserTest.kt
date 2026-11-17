@@ -206,4 +206,57 @@ class OfferTextParserTest {
         assertEquals(15, offer.tripTimeMinutes)
     }
 
+
+    @Test
+    fun keepsPrimaryFareWhenOcrConcatenatesSecondaryAmountsOnSameLine() {
+        val result = parser.parse(
+            """
+            UberX
+            R$ 19,00 ⚡1,5x R$3,15/km R$1,28 Tarifa base dinâmica incl. +R$2,75 incluído
+            2 min (242 m)
+            19 min (5,8 km)
+            """.trimIndent()
+        )
+
+        assertEquals(OfferTextParseStatus.COMPLETE, result.status)
+        assertEquals(1900L, result.offer?.receivedFareCents)
+        assertEquals(0.242, result.offer?.pickupDistanceKm ?: 0.0, 0.001)
+        assertEquals(5.8, result.offer?.tripDistanceKm ?: 0.0, 0.001)
+    }
+
+    @Test
+    fun ignoresBonusAndDynamicComponentsButKeepsOneUnambiguousOfferAmount() {
+        val result = parser.parse(
+            """
+            99
+            R$ 21,40
+            Bônus R$ 1,50
+            Adicional dinâmico R$ 2,75
+            R$ 3,15/km
+            Tarifa base R$ 1,28
+            3 min (350 m)
+            17 min (6,4 km)
+            """.trimIndent()
+        )
+
+        assertEquals(OfferTextParseStatus.COMPLETE, result.status)
+        assertEquals(2140L, result.offer?.receivedFareCents)
+    }
+
+    @Test
+    fun reportsAmbiguousWhenTwoPrimaryAmountsAreConcatenated() {
+        val result = parser.parse(
+            """
+            UberX
+            R$ 19,00 + R$ 22,00
+            2 min (242 m)
+            19 min (5,8 km)
+            """.trimIndent()
+        )
+
+        assertEquals(OfferTextParseStatus.AMBIGUOUS, result.status)
+        assertNull(result.offer)
+        assertEquals(setOf("valor recebido"), result.ambiguousFields)
+    }
+
 }
