@@ -37,6 +37,8 @@ class MediaProjectionCaptureService : Service() {
     private var captureThread: HandlerThread? = null
     private var captureHandler: Handler? = null
     private var pendingCallback: ((Bitmap?) -> Unit)? = null
+    private var nextCaptureRequestId = 0L
+    private var pendingCaptureRequestId: Long? = null
     private var displayManager: DisplayManager? = null
     private var displayWidth = 0
     private var displayHeight = 0
@@ -141,6 +143,10 @@ class MediaProjectionCaptureService : Service() {
     }
 
     private fun onImageAvailable(reader: ImageReader) {
+        if (reader !== imageReader) {
+            runCatching { reader.acquireLatestImage()?.close() }
+            return
+        }
         val image = try {
             reader.acquireLatestImage()
         } catch (error: Exception) {
@@ -150,6 +156,7 @@ class MediaProjectionCaptureService : Service() {
         val callback = synchronized(lock) {
             val current = pendingCallback
             pendingCallback = null
+            pendingCaptureRequestId = null
             current
         }
         if (callback == null) {
@@ -340,17 +347,36 @@ class MediaProjectionCaptureService : Service() {
         /** Returns false when the user has not enabled the capture session. */
         fun requestScreenshot(callback: (Bitmap?) -> Unit): Boolean {
             val service = instance ?: return false
-            synchronized(lock) {
+            val handler = service.captureHandler ?: return false
+            val requestId = synchronized(lock) {
                 if (service.pendingCallback != null || service.imageReader == null) return false
+                val nextId = ++service.nextCaptureRequestId
                 service.pendingCallback = callback
+                service.pendingCaptureRequestId = nextId
+                nextId
             }
-            service.captureHandler?.postDelayed({
-                synchronized(lock) {
-                    val pending = service.pendingCallback ?: return@postDelayed
-                    service.pendingCallback = null
-                    pending(null)
+            val timeoutPosted = handler.postDelayed({
+                val expired = synchronized(lock) {
+                    if (service.pendingCaptureRequestId != requestId) {
+                        null
+                    } else {
+                        val pending = service.pendingCallback
+                        service.pendingCallback = null
+                        service.pendingCaptureRequestId = null
+                        pending
+                    }
                 }
+                expired?.invoke(null)
             }, 1_500L)
+            if (!timeoutPosted) {
+                synchronized(lock) {
+                    if (service.pendingCaptureRequestId == requestId) {
+                        service.pendingCallback = null
+                        service.pendingCaptureRequestId = null
+                    }
+                }
+                return false
+            }
             return true
         }
     }
