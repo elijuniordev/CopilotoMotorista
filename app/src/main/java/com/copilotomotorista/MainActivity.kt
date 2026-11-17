@@ -1,12 +1,15 @@
 package com.copilotomotorista
 
 import android.content.ComponentName
+import android.media.projection.MediaProjectionManager
+import android.os.Build
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import android.os.PowerManager
 import android.provider.Settings
 import androidx.activity.ComponentActivity
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -47,6 +50,7 @@ import com.copilotomotorista.domain.model.VehicleOperatingCosts
 import com.copilotomotorista.domain.usecase.EvaluateOfferUseCase
 import com.copilotomotorista.presentation.dashboard.DashboardDataSource
 import com.copilotomotorista.service.AccessibilityReaderService
+import com.copilotomotorista.service.MediaProjectionCaptureService
 import com.copilotomotorista.service.OverlayWindowManager
 import com.copilotomotorista.presentation.navigation.MainNavigationScreen
 import com.copilotomotorista.ui.theme.CopilotoMotoristaTheme
@@ -67,6 +71,25 @@ class MainActivity : ComponentActivity() {
 
     private var permissionStatus by mutableStateOf(PermissionStatus())
     private var showDashboard by mutableStateOf(false)
+    private var legacyCaptureActive by mutableStateOf(false)
+
+    private val screenCaptureLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        val data = result.data
+        if (result.resultCode == RESULT_OK && data != null) {
+            val serviceIntent = Intent(this, MediaProjectionCaptureService::class.java).apply {
+                putExtra(MediaProjectionCaptureService.EXTRA_RESULT_CODE, result.resultCode)
+                putExtra(MediaProjectionCaptureService.EXTRA_RESULT_DATA, data)
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                startForegroundService(serviceIntent)
+            } else {
+                startService(serviceIntent)
+            }
+            legacyCaptureActive = true
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -104,6 +127,9 @@ class MainActivity : ComponentActivity() {
                             onRequestOverlayPermission = ::requestOverlayPermission,
                             onRequestAccessibility = ::openAccessibilitySettings,
                             onRequestBatterySettings = ::openBatterySettings,
+                            onRequestLegacyCapture = ::requestLegacyCapture,
+                            showLegacyCaptureStep = Build.VERSION.SDK_INT < Build.VERSION_CODES.R,
+                            legacyCaptureActive = legacyCaptureActive,
                             onTestOverlay = ::triggerMockOffer,
                             onOpenDashboard = { showDashboard = true }
                         )
@@ -169,6 +195,11 @@ class MainActivity : ComponentActivity() {
         )
     }
 
+    private fun requestLegacyCapture() {
+        val manager = getSystemService(MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
+        screenCaptureLauncher.launch(manager.createScreenCaptureIntent())
+    }
+
     private fun requestOverlayPermission() {
         val intent = Intent(
             Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
@@ -192,6 +223,9 @@ private fun InitialSetupScreen(
     onRequestOverlayPermission: () -> Unit,
     onRequestAccessibility: () -> Unit,
     onRequestBatterySettings: () -> Unit,
+    onRequestLegacyCapture: () -> Unit,
+    showLegacyCaptureStep: Boolean,
+    legacyCaptureActive: Boolean,
     onTestOverlay: () -> Unit,
     onOpenDashboard: () -> Unit
 ) {
@@ -261,6 +295,9 @@ private fun InitialSetupScreen(
         PermissionStepCard("01", "Exibir sobre outros aplicativos", "Permite mostrar a análise flutuante sobre a tela do aplicativo de corridas.", permissions.overlayGranted, "Permissão concedida", "Conceder permissão", onRequestOverlayPermission)
         PermissionStepCard("02", "Serviço de acessibilidade", "Permite ao Copiloto identificar informações exibidas na tela. A leitura depende do conteúdo disponibilizado pelo aplicativo de corridas.", permissions.accessibilityEnabled, "Serviço ativado", "Abrir configurações de acessibilidade", onRequestAccessibility)
         PermissionStepCard("03", "Otimização de bateria", "Confira as restrições de bateria do Android. Alguns fabricantes podem interromper serviços em segundo plano.", permissions.batteryOptimizationDisabled, "Sem restrição de otimização", "Ver configurações de bateria", onRequestBatterySettings)
+        if (showLegacyCaptureStep) {
+            PermissionStepCard("04", "Captura de tela compatível", "No Android 8, 9 e 10, autorize a captura de tela para que o Copiloto leia as ofertas visíveis. A imagem é processada localmente e não é enviada a servidores.", legacyCaptureActive, "Captura autorizada", "Autorizar captura de tela", onRequestLegacyCapture)
+        }
 
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Button(
