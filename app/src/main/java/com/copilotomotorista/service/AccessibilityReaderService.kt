@@ -8,13 +8,14 @@ import android.os.SystemClock
 import android.util.Log
 import android.view.Display
 import android.view.accessibility.AccessibilityEvent
-import android.view.accessibility.AccessibilityNodeInfo
 import androidx.core.content.ContextCompat
 import com.copilotomotorista.data.AppContainer
+import com.copilotomotorista.service.MediaProjectionCaptureService
 import com.copilotomotorista.domain.model.OfferInput
 import com.copilotomotorista.domain.model.TripRecord
 import com.copilotomotorista.domain.usecase.EvaluateOfferUseCase
 import com.copilotomotorista.domain.usecase.ResolveTripCostSnapshotUseCase
+import com.copilotomotorista.presentation.overlay.RadarOfferDisplay
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -35,9 +36,10 @@ class AccessibilityReaderService : AccessibilityService() {
     private lateinit var appContainer: AppContainer
     private lateinit var shiftSessionStore: ShiftSessionStore
     private lateinit var floatingControlWindowManager: FloatingControlWindowManager
-    private val eventGate = AccessibilityEventGate()
-    private val nodeTextReader = AccessibilityNodeTextReader()
+    private val eventGate = AccessibilityEventGate(supportedPackages = SupportedRideApps.packages)
     private val offerTextParser = OfferTextParser()
+    private val offerScreenClassifier = OfferScreenClassifier()
+    private val radarOfferExtractor = RadarOfferExtractor()
     private val captureLatencyMetrics = OfferCaptureLatencyMetrics()
     private val evaluateOfferUseCase = EvaluateOfferUseCase()
     private val resolveTripCostSnapshotUseCase = ResolveTripCostSnapshotUseCase()
@@ -66,7 +68,7 @@ class AccessibilityReaderService : AccessibilityService() {
     override fun onServiceConnected() {
         super.onServiceConnected()
         serviceInfo = serviceInfo.apply {
-            packageNames = SupportedRideApps.packages.toTypedArray()
+            // A origem do evento é apenas um gatilho; não restringir por pacote.
             eventTypes = AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED or
                 AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED
             feedbackType = AccessibilityServiceInfo.FEEDBACK_GENERIC
@@ -105,6 +107,10 @@ class AccessibilityReaderService : AccessibilityService() {
             return
         }
         val packageName = event.packageName?.toString()
+        if (packageName == null || packageName == applicationContext.packageName) return
+        // Package ID is used only to avoid capturing unrelated apps. Offer content
+        // still comes exclusively from the visible screenshot + local OCR.
+        if (!SupportedRideApps.contains(packageName)) return
         val accepted = eventGate.shouldAccept(
             packageName = packageName,
             eventType = event.eventType,
@@ -112,19 +118,18 @@ class AccessibilityReaderService : AccessibilityService() {
         )
         if (!accepted) return
 
-        val platform = when (packageName) {
+        // Package name is only an optional platform hint, never an allow-list.
+        val platformHint = when (packageName) {
             SupportedRideApps.UBER_DRIVER -> "uber"
             SupportedRideApps.NINETY_NINE_DRIVER -> "99"
             else -> "unknown"
         }
         val generation = ++captureGeneration
         val capturedAt = SystemClock.uptimeMillis()
-        val snapshot = nodeTextReader.read(rootInActiveWindow, capturedAt)
-        if (snapshot.hasUsableText) {
-            processSnapshot(snapshot, platform, generation)
-        } else {
-            requestLocalOcr(capturedAt, platform, generation)
-        }
+        Log.d("OfferCapture", "screen_event type=${event.eventType} source=$packageName")
+        // Visual screenshot + local OCR is the primary reader. Accessibility text
+        // cannot prevent a screenshot or determine whether a ride offer exists.
+        requestLocalOcr(capturedAt, platformHint, generation)
     }
 
     private fun processSnapshot(
@@ -132,11 +137,51 @@ class AccessibilityReaderService : AccessibilityService() {
         platform: String,
         generation: Long
     ) {
-        if (serviceDestroyed || generation != captureGeneration) return
+        if (serviceDestroyed) return
+
+        // O OCR pode ler valores e distâncias de mapas, notificações e telas
+        // financeiras. Só encaminhamos ao parser quando a tela tem a estrutura
+        // visual/textual típica de uma oferta de corrida.
+        val screenClassification = offerScreenClassifier.classify(snapshot.text)
+        if (screenClassification.kind == OfferScreenClassifier.ScreenKind.RADAR_CANDIDATE) {
+            val candidates = radarOfferExtractor.extract(snapshot.text)
+            Log.i("OfferCapture", "radar_candidates count=${candidates.size}")
+            if (candidates.size >= 2) {
+                showRadarCandidates(candidates, platform, generation)
+            } else if (generation == captureGeneration) {
+                overlayWindowManager.hideOverlay()
+                lastOfferFingerprint = null
+                currentOfferRecordId = null
+            }
+            return
+        }
+        if (screenClassification.kind != OfferScreenClassifier.ScreenKind.SINGLE_OFFER) {
+            Log.d(
+                "OfferCapture",
+                "screen_rejected kind=${screenClassification.kind} evidence=${screenClassification.evidence}"
+            )
+            if (generation == captureGeneration) {
+                overlayWindowManager.hideOverlay()
+                lastOfferFingerprint = null
+                currentOfferRecordId = null
+            }
+            return
+        }
+        Log.d(
+            "OfferCapture",
+            "screen_accepted evidence=${screenClassification.evidence}"
+        )
+
         val parseStartedAt = SystemClock.uptimeMillis()
         val parsed = offerTextParser.parse(snapshot.text)
         val parseDurationMillis = SystemClock.uptimeMillis() - parseStartedAt
+        Log.d(
+            "OfferCapture",
+            "offer_parse status=${parsed.status} missing=${parsed.missingFields.joinToString(",")} " +
+                "ambiguous=${parsed.ambiguousFields.joinToString(",")} chars=${snapshot.text.length}"
+        )
         if (parsed.status != OfferTextParseStatus.COMPLETE || parsed.offer == null) {
+            if (generation != captureGeneration) return
             overlayWindowManager.hideOverlay()
             when (parsed.status) {
                 OfferTextParseStatus.NOT_OFFER -> {
@@ -179,29 +224,21 @@ class AccessibilityReaderService : AccessibilityService() {
                     nowEpochMillis - DUPLICATE_OFFER_WINDOW_MILLIS
                 )
             }
-            if (serviceDestroyed || generation != captureGeneration) return@launch
+            if (serviceDestroyed) return@launch
             if (recentRecord?.status == TRIP_STATUS_COMPLETED) {
-                currentOfferRecordId = null
-                overlayWindowManager.hideOverlay()
+                if (generation == captureGeneration) {
+                    currentOfferRecordId = null
+                    overlayWindowManager.hideOverlay()
+                }
                 return@launch
             }
             val recordId = recentRecord?.id ?: UUID.randomUUID().toString()
-            currentOfferRecordId = recordId
-            if (recentRecord?.evidenceUri == null && evidenceCaptureRequested.add(recordId)) {
-                captureOfferEvidence(recordId)
-            }
-            val selected = withContext(Dispatchers.IO) {
-                val vehicleId = appContainer.preferences.selectedVehicleId.first()
-                val vehicle = vehicleId?.let { appContainer.vehicleRepository.getVehicle(it) }
-                val targets = appContainer.preferences.financialTargets.first()
-                vehicle?.let { Triple(it, targets, offer) }
-            }
-            if (serviceDestroyed || generation != captureGeneration) return@launch
-
-            // Persist every fully parsed offer immediately, including offers the driver ignores.
             val existingOffer = withContext(Dispatchers.IO) {
                 appContainer.tripRecordRepository.getTrip(recordId)
             }
+
+            // Save a complete offer before vehicle/configuration lookups. Those reads may
+            // suspend while the ride app keeps emitting accessibility events.
             if (existingOffer != null && existingOffer.rawOfferText.isNullOrBlank()) {
                 runCatching {
                     withContext(Dispatchers.IO) {
@@ -213,13 +250,11 @@ class AccessibilityReaderService : AccessibilityService() {
                             )
                         )
                     }
+                }.onFailure { error ->
+                    Log.e("OfferCapture", "Failed to enrich captured offer record", error)
                 }
             }
             if (existingOffer == null) {
-                val costSnapshot = selected?.let { (vehicle, targets, currentOffer) ->
-                    runCatching { evaluateOfferUseCase.execute(currentOffer, vehicle, targets) }
-                        .getOrNull()?.let { Triple(vehicle.id, it.operatingCostCents, vehicle.name) }
-                }
                 val captured = TripRecord(
                     id = recordId,
                     platform = platform,
@@ -235,18 +270,40 @@ class AccessibilityReaderService : AccessibilityService() {
                     paymentMethod = detectPaymentMethod(snapshot.text).takeUnless { it == "Pagamento não identificado" },
                     startedAtEpochMillis = null,
                     completedAtEpochMillis = null,
-                    vehicleId = costSnapshot?.first,
+                    vehicleId = null,
                     evidenceUri = pendingEvidenceByRecordId[recordId],
                     notes = "Oferta capturada automaticamente.",
                     createdAtEpochMillis = nowEpochMillis,
-                    operatingCostCentsSnapshot = costSnapshot?.second,
-                    vehicleNameSnapshot = costSnapshot?.third,
+                    operatingCostCentsSnapshot = null,
+                    vehicleNameSnapshot = null,
                     rawOfferText = snapshot.text
                 )
-                runCatching {
-                    withContext(Dispatchers.IO) { appContainer.tripRecordRepository.saveTrip(captured) }
+                val saved = runCatching {
+                    withContext(Dispatchers.IO) {
+                        appContainer.tripRecordRepository.saveTrip(captured)
+                    }
+                }
+                if (saved.isFailure) {
+                    Log.e("OfferCapture", "Failed to persist captured offer", saved.exceptionOrNull())
+                    return@launch
                 }
             }
+
+            if (serviceDestroyed) return@launch
+            if (generation == captureGeneration) {
+                currentOfferRecordId = recordId
+            }
+            if (recentRecord?.evidenceUri == null && evidenceCaptureRequested.add(recordId)) {
+                captureOfferEvidence(recordId)
+            }
+
+            val selected = withContext(Dispatchers.IO) {
+                val vehicleId = appContainer.preferences.selectedVehicleId.first()
+                val vehicle = vehicleId?.let { appContainer.vehicleRepository.getVehicle(it) }
+                val targets = appContainer.preferences.financialTargets.first()
+                vehicle?.let { Triple(it, targets, offer) }
+            }
+            if (serviceDestroyed || generation != captureGeneration) return@launch
             if (selected == null) {
                 overlayWindowManager.hideOverlay()
                 return@launch
@@ -258,6 +315,27 @@ class AccessibilityReaderService : AccessibilityService() {
             val analysis = runCatching {
                 evaluateOfferUseCase.execute(currentOffer, vehicle, targets)
             }.getOrNull() ?: return@launch
+
+            // Enrich the already-persisted capture with the vehicle cost snapshot.
+            // This update is independent from whether this offer is still the newest
+            // screen generation; only overlay presentation is generation-sensitive.
+            runCatching {
+                withContext(Dispatchers.IO) {
+                    val capturedRecord = appContainer.tripRecordRepository.getTrip(recordId)
+                    if (capturedRecord != null && capturedRecord.status == TRIP_STATUS_CAPTURED) {
+                        appContainer.tripRecordRepository.saveTrip(
+                            capturedRecord.copy(
+                                vehicleId = vehicle.id,
+                                operatingCostCentsSnapshot = analysis.operatingCostCents,
+                                vehicleNameSnapshot = vehicle.name
+                            )
+                        )
+                    }
+                }
+            }.onFailure { error ->
+                Log.e("OfferCapture", "Failed to update captured offer cost snapshot", error)
+            }
+
             if (serviceDestroyed || generation != captureGeneration) return@launch
             overlayWindowManager.showOverlay(
                 analysisResult = analysis,
@@ -292,6 +370,49 @@ class AccessibilityReaderService : AccessibilityService() {
                         "p95Ms=${summary.p95Millis} parseMs=$parseDurationMillis"
                 )
             }
+        }
+    }
+
+    private fun showRadarCandidates(
+        candidates: List<RadarOfferExtractor.Candidate>,
+        platform: String,
+        generation: Long
+    ) {
+        serviceScope.launch {
+            val selected = withContext(Dispatchers.IO) {
+                val vehicleId = appContainer.preferences.selectedVehicleId.first()
+                val vehicle = vehicleId?.let { appContainer.vehicleRepository.getVehicle(it) }
+                val targets = appContainer.preferences.financialTargets.first()
+                vehicle?.let { it to targets }
+            }
+            if (serviceDestroyed || generation != captureGeneration) return@launch
+            if (selected == null) {
+                overlayWindowManager.hideOverlay()
+                Log.w("OfferCapture", "radar_overlay_skipped reason=no_selected_vehicle")
+                return@launch
+            }
+            val (vehicle, targets) = selected
+            val analyzed = candidates.mapNotNull { candidate ->
+                val result = runCatching {
+                    evaluateOfferUseCase.execute(candidate.offer, vehicle, targets)
+                }.getOrNull() ?: return@mapNotNull null
+                RadarOfferDisplay(
+                    position = candidate.position,
+                    grossFare = candidate.offer.receivedFareCents / 100.0,
+                    analysisResult = result
+                )
+            }
+            if (analyzed.size < 2 || serviceDestroyed || generation != captureGeneration) {
+                if (generation == captureGeneration) overlayWindowManager.hideOverlay()
+                Log.w("OfferCapture", "radar_overlay_skipped reason=insufficient_analyzed_candidates count=${analyzed.size}")
+                return@launch
+            }
+            overlayWindowManager.showRadarOverlay(
+                offers = analyzed,
+                platform = if (platform == "uber") "Uber" else if (platform == "99") "99" else "Aplicativo",
+                onDismiss = {}
+            )
+            Log.i("OfferCapture", "radar_overlay_shown offers=${analyzed.size}")
         }
     }
 
@@ -465,17 +586,108 @@ class AccessibilityReaderService : AccessibilityService() {
         }
     }
 
+    private fun processCapturedBitmap(
+        bitmap: Bitmap,
+        requestedAtMillis: Long,
+        platform: String,
+        generation: Long
+    ) {
+        val recognizer = ocrRecognizer
+        if (recognizer == null) {
+            bitmap.recycle()
+            drainPendingScreenshotWork()
+            return
+        }
+        recognizer.recognize(bitmap) { recognizedText ->
+            ContextCompat.getMainExecutor(this).execute {
+                val resultAge = SystemClock.uptimeMillis() - requestedAtMillis
+                if (!serviceDestroyed &&
+                    generation == captureGeneration &&
+                    resultAge in 0..OCR_MAX_RESULT_AGE_MILLIS &&
+                    recognizedText.isNotBlank()
+                ) {
+                    val normalizedText = ScreenTextSnapshot.normalize(recognizedText)
+                    val detectedPlatform = when {
+                        Regex("\\buber\\b", RegexOption.IGNORE_CASE).containsMatchIn(normalizedText) -> "uber"
+                        Regex("\\b99(?:pop|plus|comfort|moto|entrega|taxi)\\b", RegexOption.IGNORE_CASE).containsMatchIn(normalizedText) -> "99"
+                        else -> platform
+                    }
+                    Log.d("OfferCapture", "ocr_result chars=${normalizedText.length} platform=$detectedPlatform ageMs=$resultAge")
+                    processSnapshot(
+                        ScreenTextSnapshot(
+                            text = normalizedText,
+                            source = ScreenTextSource.OCR,
+                            capturedAtMillis = requestedAtMillis
+                        ),
+                        detectedPlatform,
+                        generation
+                    )
+                } else if (!serviceDestroyed && resultAge in 0..OCR_MAX_RESULT_AGE_MILLIS) {
+                    Log.d("OfferCapture", "ocr_result_empty ageMs=$resultAge")
+                }
+                drainPendingScreenshotWork()
+            }
+        }
+    }
+
     private fun requestLocalOcr(
         requestedAtMillis: Long,
         platform: String,
         generation: Long
     ) {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return
         if (serviceDestroyed || generation != captureGeneration) return
-        if (requestedAtMillis - lastScreenshotRequestAt < SCREENSHOT_DEBOUNCE_MILLIS) return
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
+            if (screenshotInProgress) {
+                pendingScreenshotWork.enqueueOcr(PendingOcrRequest(requestedAtMillis, platform, generation))
+                return
+            }
+            val elapsedSinceLastCapture = requestedAtMillis - lastScreenshotRequestAt
+            if (lastScreenshotRequestAt > 0L && elapsedSinceLastCapture < SCREENSHOT_DEBOUNCE_MILLIS) {
+                val waitMillis = SCREENSHOT_DEBOUNCE_MILLIS - elapsedSinceLastCapture
+                serviceScope.launch {
+                    delay(waitMillis)
+                    if (!serviceDestroyed && generation == captureGeneration) {
+                        requestLocalOcr(SystemClock.uptimeMillis(), platform, generation)
+                    }
+                }
+                return
+            }
+            screenshotInProgress = true
+            lastScreenshotRequestAt = requestedAtMillis
+            val accepted = MediaProjectionCaptureService.requestScreenshot { bitmap ->
+                if (serviceDestroyed) {
+                    bitmap?.recycle()
+                    screenshotInProgress = false
+                    return@requestScreenshot
+                }
+                screenshotInProgress = false
+                if (bitmap == null) {
+                    Log.w("OfferCapture", "legacy_visual_screenshot_unavailable")
+                    drainPendingScreenshotWork()
+                } else {
+                    processCapturedBitmap(bitmap, requestedAtMillis, platform, generation)
+                }
+            }
+            if (!accepted) {
+                screenshotInProgress = false
+                Log.w("OfferCapture", "legacy_capture_not_authorized_or_busy")
+                drainPendingScreenshotWork()
+            }
+            return
+        }
         if (screenshotInProgress) {
-            // Keep the most recent OCR request instead of silently dropping its fallback.
             pendingScreenshotWork.enqueueOcr(PendingOcrRequest(requestedAtMillis, platform, generation))
+            return
+        }
+        val elapsedSinceLastCapture = requestedAtMillis - lastScreenshotRequestAt
+        if (lastScreenshotRequestAt > 0L && elapsedSinceLastCapture < SCREENSHOT_DEBOUNCE_MILLIS) {
+            val waitMillis = SCREENSHOT_DEBOUNCE_MILLIS - elapsedSinceLastCapture
+            serviceScope.launch {
+                delay(waitMillis)
+                if (!serviceDestroyed && generation == captureGeneration) {
+                    requestLocalOcr(SystemClock.uptimeMillis(), platform, generation)
+                }
+            }
             return
         }
 
@@ -497,9 +709,19 @@ class AccessibilityReaderService : AccessibilityService() {
                             screenshot.colorSpace
                         )
                         screenshot.hardwareBuffer.close()
-                        val softwareBitmap = hardwareBitmap?.copy(Bitmap.Config.ARGB_8888, false)
-                        hardwareBitmap?.recycle()
+                        if (hardwareBitmap == null) {
+                            Log.w("OfferCapture", "visual_screenshot_bitmap_unavailable")
+                            drainPendingScreenshotWork()
+                            return
+                        }
+                        Log.d(
+                            "OfferCapture",
+                            "visual_screenshot_success width=${hardwareBitmap.width} height=${hardwareBitmap.height}"
+                        )
+                        val softwareBitmap = hardwareBitmap.copy(Bitmap.Config.ARGB_8888, false)
+                        hardwareBitmap.recycle()
                         if (softwareBitmap == null) {
+                            Log.w("OfferCapture", "visual_screenshot_software_bitmap_unavailable")
                             drainPendingScreenshotWork()
                             return
                         }
@@ -507,20 +729,30 @@ class AccessibilityReaderService : AccessibilityService() {
                         ocrRecognizer?.recognize(softwareBitmap) { recognizedText ->
                             val resultAge = SystemClock.uptimeMillis() - requestedAtMillis
                             if (!serviceDestroyed &&
-                                generation == captureGeneration &&
                                 resultAge in 0..OCR_MAX_RESULT_AGE_MILLIS &&
                                 recognizedText.isNotBlank()
                             ) {
+                                val normalizedText = ScreenTextSnapshot.normalize(recognizedText)
+                                val detectedPlatform = when {
+                                    Regex("\\buber\\b", RegexOption.IGNORE_CASE).containsMatchIn(normalizedText) -> "uber"
+                                    Regex("\\b99(?:pop|plus|comfort|moto|entrega|taxi)\\b", RegexOption.IGNORE_CASE).containsMatchIn(normalizedText) -> "99"
+                                    else -> platform
+                                }
+                                Log.d(
+                                    "OfferCapture",
+                                    "ocr_result chars=${normalizedText.length} platform=$detectedPlatform ageMs=$resultAge"
+                                )
                                 processSnapshot(
                                     ScreenTextSnapshot(
-                                        text = ScreenTextSnapshot.normalize(recognizedText),
+                                        text = normalizedText,
                                         source = ScreenTextSource.OCR,
-                                        // Preserve the original request time so OCR latency includes screenshot and recognition.
                                         capturedAtMillis = requestedAtMillis
                                     ),
-                                    platform,
+                                    detectedPlatform,
                                     generation
                                 )
+                            } else if (!serviceDestroyed && resultAge in 0..OCR_MAX_RESULT_AGE_MILLIS) {
+                                Log.d("OfferCapture", "ocr_result_empty ageMs=$resultAge")
                             }
                             drainPendingScreenshotWork()
                         } ?: run {
@@ -530,15 +762,18 @@ class AccessibilityReaderService : AccessibilityService() {
                     }
 
                     override fun onFailure(errorCode: Int) {
+                        Log.w("OfferCapture", "visual_screenshot_failed code=$errorCode")
                         screenshotInProgress = false
                         drainPendingScreenshotWork()
                     }
                 }
             )
-        } catch (_: SecurityException) {
+        } catch (error: SecurityException) {
+            Log.e("OfferCapture", "visual_screenshot_security_failure", error)
             screenshotInProgress = false
             drainPendingScreenshotWork()
-        } catch (_: IllegalStateException) {
+        } catch (error: IllegalStateException) {
+            Log.e("OfferCapture", "visual_screenshot_state_failure", error)
             screenshotInProgress = false
             drainPendingScreenshotWork()
         }
