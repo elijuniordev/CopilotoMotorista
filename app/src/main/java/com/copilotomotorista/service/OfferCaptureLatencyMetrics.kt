@@ -15,8 +15,17 @@ internal class OfferCaptureLatencyMetrics(
         val p95Millis: Long
     )
 
+    data class OutcomeSummary(
+        val platform: String,
+        val source: String,
+        val count: Int,
+        val outcomes: Map<String, Int>
+    )
+
     private val samples = mutableMapOf<String, ArrayDeque<Long>>()
     private val counts = mutableMapOf<String, Int>()
+    private val outcomeCounts = mutableMapOf<String, MutableMap<String, Int>>()
+    private val outcomeTotals = mutableMapOf<String, Int>()
 
     @Synchronized
     fun record(platform: String, source: String, durationMillis: Long): Summary? {
@@ -35,6 +44,26 @@ internal class OfferCaptureLatencyMetrics(
             count = count,
             p50Millis = percentile(sorted, 0.50),
             p95Millis = percentile(sorted, 0.95)
+        )
+    }
+
+    /**
+     * Counts coarse capture outcomes only; callers must pass fixed labels, never offer text.
+     */
+    @Synchronized
+    fun recordOutcome(platform: String, source: String, outcome: String): OutcomeSummary? {
+        if (!outcome.matches(Regex("[a-z_]{1,40}"))) return null
+        val key = "${platform.lowercase()}|${source.lowercase()}"
+        val routeOutcomes = outcomeCounts.getOrPut(key) { mutableMapOf() }
+        routeOutcomes[outcome] = (routeOutcomes[outcome] ?: 0) + 1
+        val count = (outcomeTotals[key] ?: 0) + 1
+        outcomeTotals[key] = count
+        if (count % reportEvery != 0) return null
+        return OutcomeSummary(
+            platform = platform,
+            source = source,
+            count = count,
+            outcomes = routeOutcomes.toMap()
         )
     }
 
