@@ -55,7 +55,7 @@ class AccessibilityEventGateTest {
             1_200L
         )
         val afterDebounce = gate.shouldAccept(
-            "com.example.ride.app",
+            SupportedRideApps.UBER_DRIVER,
             AccessibilityEventGate.TYPE_WINDOW_CONTENT_CHANGED,
             1_350L
         )
