@@ -43,12 +43,14 @@ class AccessibilityReaderService : AccessibilityService() {
     private var ocrRecognizer: LocalOcrTextRecognizer? = null
     private var screenshotInProgress = false
     private var lastScreenshotRequestAt = 0L
+    private var pendingOcrRequest: PendingOcrRequest? = null
     private var serviceDestroyed = false
     private var lastOfferFingerprint: String? = null
     private var lastOfferShownAt = 0L
     private var currentOfferRecordId: String? = null
     private var captureGeneration: Long = 0L
     private val evidenceCaptureRequested = mutableSetOf<String>()
+    private val pendingEvidenceCaptureQueue = PendingEvidenceCaptureQueue()
     private val pendingEvidenceByRecordId = mutableMapOf<String, String>()
 
     override fun onCreate() {
@@ -369,7 +371,14 @@ class AccessibilityReaderService : AccessibilityService() {
     }
 
     private fun captureOfferEvidence(recordId: String) {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R || screenshotInProgress || serviceDestroyed) return
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R || serviceDestroyed) return
+        if (screenshotInProgress) {
+            // OCR and evidence share Android's screenshot API. Never lose an evidence
+            // request just because the OCR screenshot currently owns the capture slot.
+            pendingEvidenceCaptureQueue.enqueue(recordId)
+            return
+        }
+
         screenshotInProgress = true
         try {
             takeScreenshot(
@@ -386,34 +395,69 @@ class AccessibilityReaderService : AccessibilityService() {
                         screenshot.hardwareBuffer.close()
                         val bitmap = hardware?.copy(Bitmap.Config.ARGB_8888, false)
                         hardware?.recycle()
-                        if (bitmap == null) return
+                        if (bitmap == null) {
+                            evidenceCaptureRequested.remove(recordId)
+                            drainPendingScreenshotWork()
+                            return
+                        }
                         serviceScope.launch {
-                            val path = withContext(Dispatchers.IO) {
-                                OfferEvidenceStorage.save(this@AccessibilityReaderService, bitmap)
-                            }
-                            bitmap.recycle()
-                            if (path != null && !serviceDestroyed) {
-                                pendingEvidenceByRecordId[recordId] = path
-                                withContext(Dispatchers.IO) {
-                                    val existing = appContainer.tripRecordRepository.getTrip(recordId)
-                                    if (existing != null && existing.evidenceUri == null) {
-                                        appContainer.tripRecordRepository.saveTrip(existing.copy(evidenceUri = path))
-                                    }
+                            var evidenceSaved = false
+                            try {
+                                val path = withContext(Dispatchers.IO) {
+                                    OfferEvidenceStorage.save(this@AccessibilityReaderService, bitmap)
                                 }
+                                if (path != null && !serviceDestroyed) {
+                                    pendingEvidenceByRecordId[recordId] = path
+                                    withContext(Dispatchers.IO) {
+                                        val existing = appContainer.tripRecordRepository.getTrip(recordId)
+                                        if (existing != null && existing.evidenceUri == null) {
+                                            appContainer.tripRecordRepository.saveTrip(existing.copy(evidenceUri = path))
+                                        }
+                                    }
+                                    evidenceSaved = true
+                                }
+                            } catch (_: Exception) {
+                                // Keep the offer eligible for a later retry.
+                            } finally {
+                                if (!evidenceSaved) evidenceCaptureRequested.remove(recordId)
+                                bitmap.recycle()
+                                drainPendingScreenshotWork()
                             }
                         }
                     }
 
                     override fun onFailure(errorCode: Int) {
                         screenshotInProgress = false
+                        evidenceCaptureRequested.remove(recordId)
+                        drainPendingScreenshotWork()
                     }
                 }
             )
         } catch (_: SecurityException) {
             screenshotInProgress = false
+            evidenceCaptureRequested.remove(recordId)
+            drainPendingScreenshotWork()
         } catch (_: IllegalStateException) {
             screenshotInProgress = false
+            evidenceCaptureRequested.remove(recordId)
+            drainPendingScreenshotWork()
         }
+    }
+
+    private fun drainPendingScreenshotWork() {
+        if (screenshotInProgress || serviceDestroyed) return
+
+        val ocrRequest = pendingOcrRequest
+        if (ocrRequest != null) {
+            pendingOcrRequest = null
+            if (SystemClock.uptimeMillis() - ocrRequest.requestedAtMillis <= OCR_MAX_RESULT_AGE_MILLIS) {
+                requestLocalOcr(ocrRequest.requestedAtMillis, ocrRequest.platform, ocrRequest.generation)
+                if (screenshotInProgress) return
+            }
+        }
+
+        val nextRecordId = pendingEvidenceCaptureQueue.pollNext() ?: return
+        captureOfferEvidence(nextRecordId)
     }
 
     private fun requestLocalOcr(
@@ -422,8 +466,13 @@ class AccessibilityReaderService : AccessibilityService() {
         generation: Long
     ) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return
-        if (screenshotInProgress || serviceDestroyed || generation != captureGeneration) return
+        if (serviceDestroyed || generation != captureGeneration) return
         if (requestedAtMillis - lastScreenshotRequestAt < SCREENSHOT_DEBOUNCE_MILLIS) return
+        if (screenshotInProgress) {
+            // Keep the most recent OCR request instead of silently dropping its fallback.
+            pendingOcrRequest = PendingOcrRequest(requestedAtMillis, platform, generation)
+            return
+        }
 
         screenshotInProgress = true
         lastScreenshotRequestAt = requestedAtMillis
@@ -445,7 +494,10 @@ class AccessibilityReaderService : AccessibilityService() {
                         screenshot.hardwareBuffer.close()
                         val softwareBitmap = hardwareBitmap?.copy(Bitmap.Config.ARGB_8888, false)
                         hardwareBitmap?.recycle()
-                        if (softwareBitmap == null) return
+                        if (softwareBitmap == null) {
+                            drainPendingScreenshotWork()
+                            return
+                        }
 
                         ocrRecognizer?.recognize(softwareBitmap) { recognizedText ->
                             val resultAge = SystemClock.uptimeMillis() - requestedAtMillis
@@ -464,18 +516,25 @@ class AccessibilityReaderService : AccessibilityService() {
                                     generation
                                 )
                             }
-                        } ?: softwareBitmap.recycle()
+                            drainPendingScreenshotWork()
+                        } ?: run {
+                            softwareBitmap.recycle()
+                            drainPendingScreenshotWork()
+                        }
                     }
 
                     override fun onFailure(errorCode: Int) {
                         screenshotInProgress = false
+                        drainPendingScreenshotWork()
                     }
                 }
             )
         } catch (_: SecurityException) {
             screenshotInProgress = false
+            drainPendingScreenshotWork()
         } catch (_: IllegalStateException) {
             screenshotInProgress = false
+            drainPendingScreenshotWork()
         }
     }
 
@@ -488,6 +547,8 @@ class AccessibilityReaderService : AccessibilityService() {
         serviceDestroyed = true
         captureGeneration++
         screenshotInProgress = false
+        pendingEvidenceCaptureQueue.clear()
+        pendingOcrRequest = null
         serviceScope.cancel()
         ocrRecognizer?.close()
         ocrRecognizer = null
@@ -496,6 +557,12 @@ class AccessibilityReaderService : AccessibilityService() {
         if (::shiftSessionStore.isInitialized) shiftSessionStore.setMonitoringConnected(false)
         super.onDestroy()
     }
+
+    private data class PendingOcrRequest(
+        val requestedAtMillis: Long,
+        val platform: String,
+        val generation: Long
+    )
 
     private companion object {
         const val SCREENSHOT_DEBOUNCE_MILLIS = 1_500L
