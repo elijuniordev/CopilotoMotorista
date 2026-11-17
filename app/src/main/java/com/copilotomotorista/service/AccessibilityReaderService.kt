@@ -36,6 +36,7 @@ class AccessibilityReaderService : AccessibilityService() {
     private lateinit var floatingControlWindowManager: FloatingControlWindowManager
     private val eventGate = AccessibilityEventGate()
     private val offerTextParser = OfferTextParser()
+    private val offerScreenClassifier = OfferScreenClassifier()
     private val captureLatencyMetrics = OfferCaptureLatencyMetrics()
     private val evaluateOfferUseCase = EvaluateOfferUseCase()
     private val resolveTripCostSnapshotUseCase = ResolveTripCostSnapshotUseCase()
@@ -131,6 +132,28 @@ class AccessibilityReaderService : AccessibilityService() {
         generation: Long
     ) {
         if (serviceDestroyed) return
+
+        // O OCR pode ler valores e distâncias de mapas, notificações e telas
+        // financeiras. Só encaminhamos ao parser quando a tela tem a estrutura
+        // visual/textual típica de uma oferta de corrida.
+        val screenClassification = offerScreenClassifier.classify(snapshot.text)
+        if (screenClassification.kind != OfferScreenClassifier.ScreenKind.SINGLE_OFFER) {
+            Log.d(
+                "OfferCapture",
+                "screen_rejected kind=${screenClassification.kind} evidence=${screenClassification.evidence}"
+            )
+            if (generation == captureGeneration) {
+                overlayWindowManager.hideOverlay()
+                lastOfferFingerprint = null
+                currentOfferRecordId = null
+            }
+            return
+        }
+        Log.d(
+            "OfferCapture",
+            "screen_accepted evidence=${screenClassification.evidence}"
+        )
+
         val parseStartedAt = SystemClock.uptimeMillis()
         val parsed = offerTextParser.parse(snapshot.text)
         val parseDurationMillis = SystemClock.uptimeMillis() - parseStartedAt
