@@ -139,6 +139,7 @@ class AccessibilityReaderService : AccessibilityService() {
         generation: Long
     ) {
         if (serviceDestroyed) return
+        recordPipelineStage("capture_to_snapshot_ready", platform, snapshot.source.name, snapshot.capturedAtMillis, true)
 
         // O OCR pode ler valores e distâncias de mapas, notificações e telas
         // financeiras. Só encaminhamos ao parser quando a tela tem a estrutura
