@@ -66,7 +66,7 @@ class AccessibilityReaderService : AccessibilityService() {
     override fun onServiceConnected() {
         super.onServiceConnected()
         serviceInfo = serviceInfo.apply {
-            packageNames = SupportedRideApps.packages.toTypedArray()
+            // A origem do evento é apenas um gatilho; não restringir por pacote.
             eventTypes = AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED or
                 AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED
             feedbackType = AccessibilityServiceInfo.FEEDBACK_GENERIC
@@ -105,6 +105,7 @@ class AccessibilityReaderService : AccessibilityService() {
             return
         }
         val packageName = event.packageName?.toString()
+        if (packageName == null || packageName == applicationContext.packageName) return
         val accepted = eventGate.shouldAccept(
             packageName = packageName,
             eventType = event.eventType,
@@ -112,19 +113,18 @@ class AccessibilityReaderService : AccessibilityService() {
         )
         if (!accepted) return
 
-        val platform = when (packageName) {
+        // Package name is only an optional platform hint, never an allow-list.
+        val platformHint = when (packageName) {
             SupportedRideApps.UBER_DRIVER -> "uber"
             SupportedRideApps.NINETY_NINE_DRIVER -> "99"
             else -> "unknown"
         }
         val generation = ++captureGeneration
         val capturedAt = SystemClock.uptimeMillis()
-        val snapshot = nodeTextReader.read(rootInActiveWindow, capturedAt)
-        if (snapshot.hasUsableText) {
-            processSnapshot(snapshot, platform, generation)
-        } else {
-            requestLocalOcr(capturedAt, platform, generation)
-        }
+        Log.d("OfferCapture", "screen_event type=${event.eventType} source=$packageName")
+        // Visual screenshot + local OCR is the primary reader. Accessibility text
+        // cannot prevent a screenshot or determine whether a ride offer exists.
+        requestLocalOcr(capturedAt, platformHint, generation)
     }
 
     private fun processSnapshot(
@@ -504,12 +504,24 @@ class AccessibilityReaderService : AccessibilityService() {
         platform: String,
         generation: Long
     ) {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
+            Log.w("OfferCapture", "visual_ocr_unavailable api=${Build.VERSION.SDK_INT}; Accessibility screenshot requires API 30+")
+            return
+        }
         if (serviceDestroyed || generation != captureGeneration) return
-        if (requestedAtMillis - lastScreenshotRequestAt < SCREENSHOT_DEBOUNCE_MILLIS) return
         if (screenshotInProgress) {
-            // Keep the most recent OCR request instead of silently dropping its fallback.
             pendingScreenshotWork.enqueueOcr(PendingOcrRequest(requestedAtMillis, platform, generation))
+            return
+        }
+        val elapsedSinceLastCapture = requestedAtMillis - lastScreenshotRequestAt
+        if (lastScreenshotRequestAt > 0L && elapsedSinceLastCapture < SCREENSHOT_DEBOUNCE_MILLIS) {
+            val waitMillis = SCREENSHOT_DEBOUNCE_MILLIS - elapsedSinceLastCapture
+            serviceScope.launch {
+                delay(waitMillis)
+                if (!serviceDestroyed && generation == captureGeneration) {
+                    requestLocalOcr(SystemClock.uptimeMillis(), platform, generation)
+                }
+            }
             return
         }
 
@@ -563,15 +575,18 @@ class AccessibilityReaderService : AccessibilityService() {
                     }
 
                     override fun onFailure(errorCode: Int) {
+                        Log.w("OfferCapture", "visual_screenshot_failed code=$errorCode")
                         screenshotInProgress = false
                         drainPendingScreenshotWork()
                     }
                 }
             )
-        } catch (_: SecurityException) {
+        } catch (error: SecurityException) {
+            Log.e("OfferCapture", "visual_screenshot_security_failure", error)
             screenshotInProgress = false
             drainPendingScreenshotWork()
-        } catch (_: IllegalStateException) {
+        } catch (error: IllegalStateException) {
+            Log.e("OfferCapture", "visual_screenshot_state_failure", error)
             screenshotInProgress = false
             drainPendingScreenshotWork()
         }
