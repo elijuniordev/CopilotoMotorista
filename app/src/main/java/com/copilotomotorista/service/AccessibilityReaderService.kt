@@ -356,7 +356,7 @@ class AccessibilityReaderService : AccessibilityService() {
 
             if (serviceDestroyed || generation != captureGeneration) return@launch
             val overlayStartedAt = SystemClock.uptimeMillis()
-            overlayWindowManager.showOverlay(
+            val overlayDisplayed = overlayWindowManager.showOverlay(
                 analysisResult = validAnalysis,
                 grossFare = currentOffer.receivedFareCents / 100.0,
                 isDemo = false,
@@ -376,8 +376,12 @@ class AccessibilityReaderService : AccessibilityService() {
                 showCompleteAction = recentRecord?.status == "in_progress"
             )
             val overlayShownAt = SystemClock.uptimeMillis()
-            recordPipelineStage("overlay_show", platform, snapshot.source.name, overlayStartedAt, true)
-            recordPipelineStage("capture_to_overlay", platform, snapshot.source.name, snapshot.capturedAtMillis, true)
+            recordPipelineStage("overlay_show", platform, snapshot.source.name, overlayStartedAt, overlayDisplayed)
+            recordPipelineStage("capture_to_overlay", platform, snapshot.source.name, snapshot.capturedAtMillis, overlayDisplayed)
+            if (!overlayDisplayed) {
+                Log.w("OfferCapture", "offer_overlay_not_displayed platform=$platform")
+                return@launch
+            }
             val summary = captureLatencyMetrics.record(
                 platform = platform,
                 source = snapshot.source.name,
