@@ -556,16 +556,27 @@ class AccessibilityReaderService : AccessibilityService() {
                                 resultAge in 0..OCR_MAX_RESULT_AGE_MILLIS &&
                                 recognizedText.isNotBlank()
                             ) {
+                                val normalizedText = ScreenTextSnapshot.normalize(recognizedText)
+                                val detectedPlatform = when {
+                                    Regex("\\buber\\b", RegexOption.IGNORE_CASE).containsMatchIn(normalizedText) -> "uber"
+                                    Regex("\\b99(?:pop|plus|comfort|moto|entrega|taxi)\\b", RegexOption.IGNORE_CASE).containsMatchIn(normalizedText) -> "99"
+                                    else -> platform
+                                }
+                                Log.d(
+                                    "OfferCapture",
+                                    "ocr_result chars=${normalizedText.length} platform=$detectedPlatform ageMs=$resultAge"
+                                )
                                 processSnapshot(
                                     ScreenTextSnapshot(
-                                        text = ScreenTextSnapshot.normalize(recognizedText),
+                                        text = normalizedText,
                                         source = ScreenTextSource.OCR,
-                                        // Preserve the original request time so OCR latency includes screenshot and recognition.
                                         capturedAtMillis = requestedAtMillis
                                     ),
-                                    platform,
+                                    detectedPlatform,
                                     generation
                                 )
+                            } else if (!serviceDestroyed && resultAge in 0..OCR_MAX_RESULT_AGE_MILLIS) {
+                                Log.d("OfferCapture", "ocr_result_empty ageMs=$resultAge")
                             }
                             drainPendingScreenshotWork()
                         } ?: run {
@@ -612,7 +623,7 @@ class AccessibilityReaderService : AccessibilityService() {
     }
 
     private companion object {
-        const val SCREENSHOT_DEBOUNCE_MILLIS = 1_500L
+        const val SCREENSHOT_DEBOUNCE_MILLIS = 350L
         const val OCR_MAX_RESULT_AGE_MILLIS = 5_000L
         const val OFFER_REPEAT_SUPPRESSION_MILLIS = 15_000L
         const val DUPLICATE_OFFER_WINDOW_MILLIS = 120_000L
