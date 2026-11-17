@@ -19,6 +19,8 @@ import androidx.savedstate.SavedStateRegistryController
 import androidx.savedstate.SavedStateRegistryOwner
 import com.copilotomotorista.domain.usecase.OfferAnalysisResult
 import com.copilotomotorista.presentation.overlay.OfferOverlayUi
+import com.copilotomotorista.presentation.overlay.RadarOfferDisplay
+import com.copilotomotorista.presentation.overlay.RadarOfferOverlayUi
 import com.copilotomotorista.ui.theme.CopilotoMotoristaTheme
 
 /**
@@ -136,6 +138,75 @@ class OverlayWindowManager(private val context: Context) {
             }
         }
 
+        try {
+            windowManager.addView(view, params)
+            owner.moveToResumed()
+            overlayView = view
+            overlayOwner = owner
+        } catch (_: SecurityException) {
+            view.disposeComposition()
+            owner.destroy()
+            overlayView = null
+            overlayOwner = null
+        } catch (_: WindowManager.BadTokenException) {
+            view.disposeComposition()
+            owner.destroy()
+            overlayView = null
+            overlayOwner = null
+        } catch (exception: RuntimeException) {
+            view.disposeComposition()
+            owner.destroy()
+            overlayView = null
+            overlayOwner = null
+            throw exception
+        }
+    }
+
+    fun showRadarOverlay(
+        offers: List<RadarOfferDisplay>,
+        platform: String,
+        onDismiss: () -> Unit
+    ) {
+        hideOverlay()
+        if (offers.size < 2) return
+
+        val type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+        } else {
+            WindowManager.LayoutParams.TYPE_PHONE
+        }
+        val params = WindowManager.LayoutParams(
+            WindowManager.LayoutParams.MATCH_PARENT,
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            type,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+                WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
+            PixelFormat.TRANSLUCENT
+        ).apply {
+            gravity = Gravity.TOP
+            x = 0
+            y = 72
+        }
+
+        val owner = OverlayViewTreeOwner()
+        val view = ComposeView(context).apply {
+            setViewTreeLifecycleOwner(owner)
+            setViewTreeSavedStateRegistryOwner(owner)
+            setViewTreeViewModelStoreOwner(owner)
+            setContent {
+                CopilotoMotoristaTheme {
+                    RadarOfferOverlayUi(
+                        offers = offers,
+                        platform = platform,
+                        onDismiss = {
+                            hideOverlay()
+                            onDismiss()
+                        }
+                    )
+                }
+            }
+        }
         try {
             windowManager.addView(view, params)
             owner.moveToResumed()
