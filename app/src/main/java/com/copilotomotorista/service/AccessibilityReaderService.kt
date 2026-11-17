@@ -515,7 +515,8 @@ class AccessibilityReaderService : AccessibilityService() {
                                     ScreenTextSnapshot(
                                         text = ScreenTextSnapshot.normalize(recognizedText),
                                         source = ScreenTextSource.OCR,
-                                        capturedAtMillis = SystemClock.uptimeMillis()
+                                        // Preserve the original request time so OCR latency includes screenshot and recognition.
+                                        capturedAtMillis = requestedAtMillis
                                     ),
                                     platform,
                                     generation
