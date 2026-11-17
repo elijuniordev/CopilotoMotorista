@@ -14,6 +14,7 @@ import com.copilotomotorista.domain.model.OfferInput
 import com.copilotomotorista.domain.model.TripRecord
 import com.copilotomotorista.domain.usecase.EvaluateOfferUseCase
 import com.copilotomotorista.domain.usecase.ResolveTripCostSnapshotUseCase
+import com.copilotomotorista.presentation.overlay.RadarOfferDisplay
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -37,6 +38,7 @@ class AccessibilityReaderService : AccessibilityService() {
     private val eventGate = AccessibilityEventGate(supportedPackages = SupportedRideApps.packages)
     private val offerTextParser = OfferTextParser()
     private val offerScreenClassifier = OfferScreenClassifier()
+    private val radarOfferExtractor = RadarOfferExtractor()
     private val captureLatencyMetrics = OfferCaptureLatencyMetrics()
     private val evaluateOfferUseCase = EvaluateOfferUseCase()
     private val resolveTripCostSnapshotUseCase = ResolveTripCostSnapshotUseCase()
@@ -140,6 +142,18 @@ class AccessibilityReaderService : AccessibilityService() {
         // financeiras. Só encaminhamos ao parser quando a tela tem a estrutura
         // visual/textual típica de uma oferta de corrida.
         val screenClassification = offerScreenClassifier.classify(snapshot.text)
+        if (screenClassification.kind == OfferScreenClassifier.ScreenKind.RADAR_CANDIDATE) {
+            val candidates = radarOfferExtractor.extract(snapshot.text)
+            Log.i("OfferCapture", "radar_candidates count=${candidates.size}")
+            if (candidates.size >= 2) {
+                showRadarCandidates(candidates, platform, generation)
+            } else if (generation == captureGeneration) {
+                overlayWindowManager.hideOverlay()
+                lastOfferFingerprint = null
+                currentOfferRecordId = null
+            }
+            return
+        }
         if (screenClassification.kind != OfferScreenClassifier.ScreenKind.SINGLE_OFFER) {
             Log.d(
                 "OfferCapture",
@@ -355,6 +369,49 @@ class AccessibilityReaderService : AccessibilityService() {
                         "p95Ms=${summary.p95Millis} parseMs=$parseDurationMillis"
                 )
             }
+        }
+    }
+
+    private fun showRadarCandidates(
+        candidates: List<RadarOfferExtractor.Candidate>,
+        platform: String,
+        generation: Long
+    ) {
+        serviceScope.launch {
+            val selected = withContext(Dispatchers.IO) {
+                val vehicleId = appContainer.preferences.selectedVehicleId.first()
+                val vehicle = vehicleId?.let { appContainer.vehicleRepository.getVehicle(it) }
+                val targets = appContainer.preferences.financialTargets.first()
+                vehicle?.let { it to targets }
+            }
+            if (serviceDestroyed || generation != captureGeneration) return@launch
+            if (selected == null) {
+                overlayWindowManager.hideOverlay()
+                Log.w("OfferCapture", "radar_overlay_skipped reason=no_selected_vehicle")
+                return@launch
+            }
+            val (vehicle, targets) = selected
+            val analyzed = candidates.mapNotNull { candidate ->
+                val result = runCatching {
+                    evaluateOfferUseCase.execute(candidate.offer, vehicle, targets)
+                }.getOrNull() ?: return@mapNotNull null
+                RadarOfferDisplay(
+                    position = candidate.position,
+                    grossFare = candidate.offer.receivedFareCents / 100.0,
+                    analysisResult = result
+                )
+            }
+            if (analyzed.size < 2 || serviceDestroyed || generation != captureGeneration) {
+                if (generation == captureGeneration) overlayWindowManager.hideOverlay()
+                Log.w("OfferCapture", "radar_overlay_skipped reason=insufficient_analyzed_candidates count=${analyzed.size}")
+                return@launch
+            }
+            overlayWindowManager.showRadarOverlay(
+                offers = analyzed,
+                platform = if (platform == "uber") "Uber" else if (platform == "99") "99" else "Aplicativo",
+                onDismiss = {}
+            )
+            Log.i("OfferCapture", "radar_overlay_shown offers=${analyzed.size}")
         }
     }
 
