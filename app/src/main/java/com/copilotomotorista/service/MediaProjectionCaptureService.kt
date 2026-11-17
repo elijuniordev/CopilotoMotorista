@@ -27,8 +27,8 @@ import java.nio.ByteBuffer
 
 /**
  * User-consented screenshot fallback for Android 8–10.
- * One MediaProjection token creates exactly one VirtualDisplay; the same display
- * and ImageReader are reused for individual screenshots until the session stops.
+ * One MediaProjection token creates exactly one VirtualDisplay. Its ImageReader
+ * is reused for screenshots and replaced only when the display dimensions change.
  */
 class MediaProjectionCaptureService : Service() {
     private var projection: MediaProjection? = null
