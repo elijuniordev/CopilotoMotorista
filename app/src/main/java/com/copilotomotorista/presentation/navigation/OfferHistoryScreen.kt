@@ -24,6 +24,8 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -31,6 +33,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -38,13 +43,16 @@ import androidx.compose.ui.unit.sp
 import com.copilotomotorista.data.repository.TripRecordRepository
 import com.copilotomotorista.domain.model.TripRecord
 import com.copilotomotorista.domain.usecase.UpdateTripRecordUseCase
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.text.Normalizer
 import java.text.NumberFormat
+import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.ZoneOffset
+import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
@@ -58,17 +66,40 @@ fun OfferHistoryScreen(repository: TripRecordRepository) {
     var selectedPlatform by rememberSaveable { mutableStateOf("Todas") }
     var selectedStatus by rememberSaveable { mutableStateOf("Todas") }
     var selectedPeriod by rememberSaveable { mutableStateOf("Hoje") }
-    val today = remember { LocalDate.now() }
+    var today by remember { mutableStateOf(LocalDate.now()) }
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) today = LocalDate.now()
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+    LaunchedEffect(Unit) {
+        while (true) {
+            val now = ZonedDateTime.now()
+            val nextMidnight = now.toLocalDate().plusDays(1).atStartOfDay(now.zone)
+            val waitMillis = Duration.between(now, nextMidnight).toMillis().coerceAtLeast(1L)
+            delay(waitMillis)
+            today = LocalDate.now()
+        }
+    }
     var rangeStart by remember { mutableStateOf(today) }
     var rangeEnd by remember { mutableStateOf(today) }
+    LaunchedEffect(today, selectedPeriod) {
+        relativeHistoryDateRange(selectedPeriod, today)?.let { (start, end) ->
+            rangeStart = start
+            rangeEnd = end
+        }
+    }
     var showStartPicker by remember { mutableStateOf(false) }
     var showEndPicker by remember { mutableStateOf(false) }
-    val zone = remember { ZoneId.systemDefault() }
+    val zone = ZoneId.systemDefault()
     val currency = remember { NumberFormat.getCurrencyInstance(Locale.forLanguageTag("pt-BR")) }
     val dateTimeFormatter = remember { DateTimeFormatter.ofPattern("dd/MM/yyyy 'às' HH:mm", Locale("pt", "BR")) }
     val dateFormatter = remember { DateTimeFormatter.ofPattern("dd/MM/yyyy", Locale("pt", "BR")) }
 
-    val filtered = remember(trips, searchQuery, selectedPlatform, selectedStatus, selectedPeriod, rangeStart, rangeEnd, zone) {
+    val filtered = remember(trips, searchQuery, selectedPlatform, selectedStatus, selectedPeriod, rangeStart, rangeEnd, zone, today) {
         val query = normalizeSearch(searchQuery.trim())
         trips.filter { trip ->
             val tripDate = Instant.ofEpochMilli(trip.createdAtEpochMillis).atZone(zone).toLocalDate()
@@ -127,13 +158,11 @@ fun OfferHistoryScreen(repository: TripRecordRepository) {
                         selected = selectedPeriod == period,
                         onClick = {
                             selectedPeriod = period
-                            when (period) {
-                                "Hoje" -> { rangeStart = today; rangeEnd = today }
-                                "Ontem" -> { rangeStart = today.minusDays(1); rangeEnd = today.minusDays(1) }
-                                "7 dias" -> { rangeStart = today.minusDays(6); rangeEnd = today }
-                                "30 dias" -> { rangeStart = today.minusDays(29); rangeEnd = today }
-                                "Personalizado" -> showStartPicker = true
+                            relativeHistoryDateRange(period, today)?.let { (start, end) ->
+                                rangeStart = start
+                                rangeEnd = end
                             }
+                            if (period == "Personalizado") showStartPicker = true
                         },
                         label = { Text(period) }
                     )
