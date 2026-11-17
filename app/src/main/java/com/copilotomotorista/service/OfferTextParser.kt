@@ -195,11 +195,11 @@ class OfferTextParser {
         // descartava também o valor principal quando OCR concatenava oferta, R$/km
         // e componentes secundários na mesma linha.
         val SECONDARY_FARE_BEFORE_REGEX = Regex(
-            """(?:tarifa\s+base|din[aâ]mica|b[oô]nus|adicional|estimad[oa]|est\.?\s*de)\s*[:：-]?\s*$""",
+            """(?:tarifa\s+base|din[aâ]mic[oa]|b[oô]nus|adicional|estimad[oa]|est\.?\s*de)\s*[:：-]?\s*$""",
             RegexOption.IGNORE_CASE
         )
         val SECONDARY_FARE_AFTER_REGEX = Regex(
-            """^\s*(?:/\s*km|por\s*km|km\b|tarifa\s+base|din[aâ]mica|inclu[ií]d[oa]|(?:de\s+)?b[oô]nus|(?:de\s+)?adicional)""",
+            """^\s*(?:/\s*km|por\s*km|km\b|tarifa\s+base|din[aâ]mic[oa]|inclu[ií]d[oa]|(?:de\s+)?b[oô]nus|(?:de\s+)?adicional)""",
             RegexOption.IGNORE_CASE
         )
         val DISTANCE_REGEX = Regex("""([0-9]+(?:[,.][0-9]+)?)\s*km\b""", RegexOption.IGNORE_CASE)
