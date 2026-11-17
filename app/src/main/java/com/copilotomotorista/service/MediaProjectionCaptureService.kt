@@ -195,11 +195,18 @@ class MediaProjectionCaptureService : Service() {
         @Suppress("DEPRECATION")
         (getSystemService(Context.WINDOW_SERVICE) as WindowManager)
             .defaultDisplay.getRealMetrics(metrics)
-        val width = metrics.widthPixels
-        val height = metrics.heightPixels
-        val densityDpi = metrics.densityDpi
-        if (width <= 0 || height <= 0) return
-        if (width == displayWidth && height == displayHeight && densityDpi == displayDensityDpi) return
+        val configuration = CaptureDisplayConfiguration(
+            width = metrics.widthPixels,
+            height = metrics.heightPixels,
+            densityDpi = metrics.densityDpi
+        )
+        if (!configuration.isValid || !configuration.requiresUpdateFrom(
+                CaptureDisplayConfiguration(displayWidth, displayHeight, displayDensityDpi)
+            )
+        ) return
+        val width = configuration.width
+        val height = configuration.height
+        val densityDpi = configuration.densityDpi
 
         val replacementReader = try {
             ImageReader.newInstance(width, height, PixelFormat.RGBA_8888, 2)
