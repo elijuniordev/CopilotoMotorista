@@ -79,7 +79,7 @@ internal class OfferScreenClassifier {
             """\b(uberx|uber comfort|uber black|uberx exclusivo|exclusivo|priority|99pop|99plus|99 comfort|pgto\.? no app|verificado)\b"""
         )
         val FARE_RATE_MARKER_REGEX = Regex(
-            """r\s*/\s*km|r\s*/\s*hora|est\.?\s*de\s*r\$|tarifa\s+base|din[aâ]mic[oa]"""
+            """r\$?\s*/\s*km|r\$?\s*/\s*hora|est\.?\s*de\s*r\$|tarifa\s+base|din[aâ]mic[oa]"""
         )
         val OFFER_ACTION_REGEX = Regex("""\b(tenho interesse|ver oferta|selecionar oferta)\b""")
         val RADAR_LABEL_REGEX = Regex("""radar\s+(?:de\s+)?viagens""")
