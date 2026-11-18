@@ -18,9 +18,11 @@
 - [x] Criar identidade vetorial Copiloto Pro, ícone adaptativo Android e splash screen (Bloco 12).
 - [x] Refinar navegação inferior, cabeçalho e espaçamento das áreas seguras (Bloco 12).
 - [ ] Produzir screenshots finais, descrição, classificação etária e ficha da loja.
-- [ ] Configurar assinatura de release com chave protegida fora do repositório e gerar AAB assinado.
-- [ ] Validar instalação/atualização do artefato assinado e estratégia de versionamento.
-- [ ] Fazer revisão final de segurança, dependências, licenças e dados pessoais.
+- [x] Configurar assinatura de release via secrets do CI, sem armazenar keystore/senhas no repositório; CI verificou a assinatura do APK Release (esquema v2).
+- [ ] Gerar AAB assinado para distribuição e validar instalação/atualização do artefato, além da estratégia de versionamento.
+- [x] Adicionar auditoria estática de dependências Release e referências a APIs de rede; no commit `251afeb`, a verificação CI passou sem candidatos conhecidos.
+- [x] Verificar no CI o manifesto Release mesclado: sem permissão INTERNET, backup desativado e regras de extração explícitas.
+- [ ] Fazer revisão final de segurança, dependências, licenças, tráfego em tempo de execução e dados pessoais; a auditoria estática não prova ausência de tráfego.
 
 ## Validações técnicas já automatizadas
 
@@ -32,4 +34,4 @@
 
 ## Restrições de release
 
-O artefato Release compilado pelo CI ainda não está assinado para distribuição. Não publicar nem declarar o aplicativo pronto para produção enquanto os bloqueadores acima permanecerem.
+O APK Release de validação é assinado no CI e sua assinatura é verificada automaticamente; isso ainda não equivale a um AAB assinado pronto para Play Store, nem à validação de instalação/atualização em aparelho. Não publicar nem declarar o aplicativo pronto para produção enquanto os bloqueadores acima permanecerem.
