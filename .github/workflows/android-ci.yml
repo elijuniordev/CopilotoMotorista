@@ -57,6 +57,53 @@ jobs:
           echo "ANDROID_KEYSTORE_PATH=$KEYSTORE_PATH" >> "$GITHUB_ENV"
       - name: Run unit tests and build APKs
         run: ./gradlew --no-daemon testDebugUnitTest assembleDebug assembleRelease
+      - name: Audit release dependencies and application network APIs
+        if: matrix.api-level == 35
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./gradlew --no-daemon :app:dependencies --configuration releaseRuntimeClasspath --console=plain > "$RUNNER_TEMP/release-dependencies.txt"
+          python3 - "$RUNNER_TEMP/release-dependencies.txt" app/src/main/java <<'PY'
+          import pathlib
+          import re
+          import sys
+
+          dependency_report = pathlib.Path(sys.argv[1]).read_text(errors="replace")
+          source_root = pathlib.Path(sys.argv[2])
+          forbidden_dependencies = re.compile(
+              r"(?i)(?:okhttp|retrofit|ktor-client|firebase|sentry|"
+              r"amplitude|mixpanel|bugsnag|appcenter|volley|cronet|"
+              r"play-services-ads)"
+          )
+          dependency_hits = sorted({
+              line.strip()
+              for line in dependency_report.splitlines()
+              if forbidden_dependencies.search(line)
+          })
+          network_api = re.compile(
+              r"(?i)(?:java\\.net\\.(?:URL|URLConnection|HttpURLConnection|"
+              r"HttpsURLConnection|Socket|DatagramSocket)|"
+              r"okhttp3\\.|retrofit2\\.|io\\.ktor\\.client|"
+              r"android\\.webkit\\.WebView|"
+              r"Firebase(?:Analytics|Crashlytics)?|"
+              r"io\\.sentry|com\\.amplitude|com\\.mixpanel)"
+          )
+          source_hits = []
+          for path in source_root.rglob("*.kt"):
+              for number, line in enumerate(path.read_text(errors="replace").splitlines(), 1):
+                  if network_api.search(line):
+                      source_hits.append(f"{path}:{number}: {line.strip()}")
+          if dependency_hits or source_hits:
+              if dependency_hits:
+                  print("Review network-capable/transmission dependency candidates:")
+                  print("\\n".join(dependency_hits))
+              if source_hits:
+                  print("Review application network API references:")
+                  print("\\n".join(source_hits))
+              raise SystemExit("Release network-surface audit requires manual review.")
+          print("Release dependency and application-source network-surface checks passed.")
+          print("This static check does not prove absence of runtime network traffic.")
+          PY
       - name: Verify Release APK manifest privacy settings
         if: matrix.api-level == 35
         shell: bash
