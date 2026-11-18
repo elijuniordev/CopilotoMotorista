@@ -8,6 +8,11 @@ internal class OfferPipelineStageMetrics(
     private val reportEvery: Int = 20,
     private val maxSamplesPerRoute: Int = 200
 ) {
+    init {
+        require(reportEvery > 0) { "reportEvery must be positive" }
+        require(maxSamplesPerRoute > 0) { "maxSamplesPerRoute must be positive" }
+    }
+
     data class Summary(
         val stage: String,
         val platform: String,

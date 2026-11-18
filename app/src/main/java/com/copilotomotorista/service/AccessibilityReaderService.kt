@@ -455,12 +455,16 @@ class AccessibilityReaderService : AccessibilityService() {
                 Log.w("OfferCapture", "radar_overlay_skipped reason=insufficient_analyzed_candidates count=${analyzed.size}")
                 return@launch
             }
-            overlayWindowManager.showRadarOverlay(
+            val overlayDisplayed = overlayWindowManager.showRadarOverlay(
                 offers = analyzed,
                 platform = if (platform == "uber") "Uber" else if (platform == "99") "99" else "Aplicativo",
                 onDismiss = {}
             )
-            Log.i("OfferCapture", "radar_overlay_shown offers=${analyzed.size}")
+            if (overlayDisplayed) {
+                Log.i("OfferCapture", "radar_overlay_shown offers=${analyzed.size}")
+            } else {
+                Log.w("OfferCapture", "radar_overlay_not_displayed offers=${analyzed.size}")
+            }
         }
     }
 

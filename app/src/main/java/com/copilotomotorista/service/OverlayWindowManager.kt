@@ -138,25 +138,22 @@ class OverlayWindowManager(private val context: Context) {
             }
         }
 
-        try {
-            windowManager.addView(view, params)
-            owner.moveToResumed()
-            overlayView = view
-            overlayOwner = owner
-            return true
-        } catch (exception: SecurityException) {
-            cleanupFailedOverlay(view, owner)
-            android.util.Log.w("OverlayWindowManager", "Unable to show offer overlay: security", exception)
-            return false
-        } catch (exception: WindowManager.BadTokenException) {
-            cleanupFailedOverlay(view, owner)
-            android.util.Log.w("OverlayWindowManager", "Unable to show offer overlay: bad token", exception)
-            return false
-        } catch (exception: RuntimeException) {
-            cleanupFailedOverlay(view, owner)
-            android.util.Log.e("OverlayWindowManager", "Unable to show offer overlay", exception)
-            return false
-        }
+        return OverlayDisplayAttempt.execute(
+            attach = { windowManager.addView(view, params) },
+            activate = { owner.moveToResumed() },
+            cleanup = { cleanupFailedOverlay(view, owner) },
+            onFailure = { exception ->
+                when (exception) {
+                    is SecurityException -> android.util.Log.w(
+                        "OverlayWindowManager", "Unable to show offer overlay: security", exception
+                    )
+                    is WindowManager.BadTokenException -> android.util.Log.w(
+                        "OverlayWindowManager", "Unable to show offer overlay: bad token", exception
+                    )
+                    else -> android.util.Log.e("OverlayWindowManager", "Unable to show offer overlay", exception)
+                }
+            }
+        )
     }
 
     fun showRadarOverlay(
@@ -204,25 +201,22 @@ class OverlayWindowManager(private val context: Context) {
                 }
             }
         }
-        try {
-            windowManager.addView(view, params)
-            owner.moveToResumed()
-            overlayView = view
-            overlayOwner = owner
-            return true
-        } catch (exception: SecurityException) {
-            cleanupFailedOverlay(view, owner)
-            android.util.Log.w("OverlayWindowManager", "Unable to show radar overlay: security", exception)
-            return false
-        } catch (exception: WindowManager.BadTokenException) {
-            cleanupFailedOverlay(view, owner)
-            android.util.Log.w("OverlayWindowManager", "Unable to show radar overlay: bad token", exception)
-            return false
-        } catch (exception: RuntimeException) {
-            cleanupFailedOverlay(view, owner)
-            android.util.Log.e("OverlayWindowManager", "Unable to show radar overlay", exception)
-            return false
-        }
+        return OverlayDisplayAttempt.execute(
+            attach = { windowManager.addView(view, params) },
+            activate = { owner.moveToResumed() },
+            cleanup = { cleanupFailedOverlay(view, owner) },
+            onFailure = { exception ->
+                when (exception) {
+                    is SecurityException -> android.util.Log.w(
+                        "OverlayWindowManager", "Unable to show radar overlay: security", exception
+                    )
+                    is WindowManager.BadTokenException -> android.util.Log.w(
+                        "OverlayWindowManager", "Unable to show radar overlay: bad token", exception
+                    )
+                    else -> android.util.Log.e("OverlayWindowManager", "Unable to show radar overlay", exception)
+                }
+            }
+        )
     }
 
     private fun cleanupFailedOverlay(view: ComposeView, owner: OverlayViewTreeOwner) {

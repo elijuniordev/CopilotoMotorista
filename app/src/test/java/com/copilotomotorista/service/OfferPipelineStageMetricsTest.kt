@@ -45,3 +45,14 @@ class OfferPipelineStageMetricsTest {
         assertNull(metrics.record(" ", "uber", "ocr", 10, true))
     }
 }
+
+
+    @Test(expected = IllegalArgumentException::class)
+    fun rejectsNonPositiveReportInterval() {
+        OfferPipelineStageMetrics(reportEvery = 0)
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun rejectsNonPositiveSampleCapacity() {
+        OfferPipelineStageMetrics(maxSamplesPerRoute = 0)
+    }
