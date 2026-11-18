@@ -9,8 +9,8 @@
 - [x] Implementar agenda particular com cadastro/edição, clientes, estados do compromisso e controle de pagamentos (Bloco 10).\n- [x] Integrar despesas registradas ao Dashboard e relatórios com limites financeiros claramente identificados (Bloco 11).
 - [x] Finalizar despesas e relatórios funcionais (Bloco 11); histórico, veículos, agenda e despesas ainda precisam de validação em aparelho real.
 - [x] Implementar edição de corrida, transição aceita → concluída e deduplicação persistente de ofertas confirmadas recentes (Bloco 8).
-- [ ] Definir política de retenção, exclusão e exportação dos dados locais.
-- [ ] Publicar política de privacidade acessível ao usuário e revisar declarações de dados/permissões da Play Store.
+- [ ] Definir política de retenção e implementar exclusão pelo usuário dos registros locais e dos arquivos de evidência associados; avaliar exportação.
+- [ ] Publicar política de privacidade acessível ao usuário, informando que texto OCR, origem/destino e capturas de evidência podem ser armazenados localmente; revisar declarações de dados/permissões da Play Store.
 - [ ] Revisar as políticas do Google Play para AccessibilityService e overlays, incluindo divulgação destacada e consentimento.
 - [x] Criar identidade vetorial Copiloto Pro, ícone adaptativo Android e splash screen (Bloco 12).
 - [x] Refinar navegação inferior, cabeçalho e espaçamento das áreas seguras (Bloco 12).
