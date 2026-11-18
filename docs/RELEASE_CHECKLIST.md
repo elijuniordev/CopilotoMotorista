@@ -6,7 +6,8 @@
 - [ ] Validar compatibilidade nos aparelhos/versões Android que serão declarados suportados.
 - [ ] Resolver todos os defeitos críticos de captura, OCR, overlay, ciclo de vida e persistência.
 - [x] Implementar cadastro/edição/exclusão de veículos, custos operacionais, seleção do veículo ativo e metas financeiras (Bloco 9).
-- [x] Implementar agenda particular com cadastro/edição, clientes, estados do compromisso e controle de pagamentos (Bloco 10).\n- [x] Integrar despesas registradas ao Dashboard e relatórios com limites financeiros claramente identificados (Bloco 11).
+- [x] Implementar agenda particular com cadastro/edição, clientes, estados do compromisso e controle de pagamentos (Bloco 10).
+- [x] Integrar despesas registradas ao Dashboard e relatórios com limites financeiros claramente identificados (Bloco 11).
 - [x] Finalizar despesas e relatórios funcionais (Bloco 11); histórico, veículos, agenda e despesas ainda precisam de validação em aparelho real.
 - [x] Implementar edição de corrida, transição aceita → concluída e deduplicação persistente de ofertas confirmadas recentes (Bloco 8).
 - [ ] Definir política de retenção dos dados locais e avaliar exportação.
