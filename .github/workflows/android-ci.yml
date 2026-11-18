@@ -81,12 +81,12 @@ jobs:
               if forbidden_dependencies.search(line)
           })
           network_api = re.compile(
-              r"(?i)(?:java\\.net\\.(?:URL|URLConnection|HttpURLConnection|"
+              r"(?i)(?:java\.net\.(?:URL|URLConnection|HttpURLConnection|"
               r"HttpsURLConnection|Socket|DatagramSocket)|"
-              r"okhttp3\\.|retrofit2\\.|io\\.ktor\\.client|"
-              r"android\\.webkit\\.WebView|"
+              r"okhttp3\.|retrofit2\.|io\.ktor\.client|"
+              r"android\.webkit\.WebView|"
               r"Firebase(?:Analytics|Crashlytics)?|"
-              r"io\\.sentry|com\\.amplitude|com\\.mixpanel)"
+              r"io\.sentry|com\.amplitude|com\.mixpanel)"
           )
           source_hits = []
           for path in source_root.rglob("*.kt"):
@@ -96,10 +96,10 @@ jobs:
           if dependency_hits or source_hits:
               if dependency_hits:
                   print("Review network-capable/transmission dependency candidates:")
-                  print("\\n".join(dependency_hits))
+                  print("\n".join(dependency_hits))
               if source_hits:
                   print("Review application network API references:")
-                  print("\\n".join(source_hits))
+                  print("\n".join(source_hits))
               raise SystemExit("Release network-surface audit requires manual review.")
           print("Release dependency and application-source network-surface checks passed.")
           print("This static check does not prove absence of runtime network traffic.")
