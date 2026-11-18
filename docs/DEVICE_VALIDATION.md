@@ -56,12 +56,15 @@ Não há medições físicas anexadas a este repositório; nenhum número de lat
 
 ## Privacidade e segurança
 
-- Verificar no manifesto que não há permissão de Internet e que backup Android está desativado.
-- Confirmar que o OCR não grava screenshots, imagens ou texto capturado em arquivos/logs.
-- Confirmar que eventos de pacotes não permitidos são descartados antes de ler a árvore.
+- O manifesto atual não declara permissão de Internet e desativa o backup Android; confirmar essas propriedades no manifesto mesclado de cada variante de release.
+- O OCR é executado localmente, mas o texto reconhecido de ofertas completas é persistido no Room em `trip_records.rawOfferText`; origem e destino extraídos também podem ser persistidos nos campos próprios. Portanto, não declarar que o texto OCR nunca é armazenado.
+- Capturas de evidência podem ser gravadas em `files/trip_evidence`, no armazenamento privado do app, e associadas ao registro por `evidenceUri`. A imagem pode conter nomes, endereços ou outros dados visíveis na tela, mesmo sem ser exposta à galeria.
+- Os logs atuais registram metadados e contagem de caracteres, não o conteúdo OCR bruto; revisar logs de novas alterações para manter essa regra.
+- Não há envio remoto desses dados implementado no fluxo revisado; confirmar dependências, manifesto mesclado e tráfego de rede antes de cada release.
+- Confirmar que eventos de pacotes não permitidos são descartados antes de iniciar a captura.
 - Verificar que revogar permissões interrompe a captura e remove o overlay.
-- Validar que dados Room/DataStore permanecem locais e que a exclusão do app remove os dados.
-- Não coletar nomes, endereços ou dados de passageiros durante os testes. Se a interface real os mostrar, confirmar que não são persistidos.
+- A política de retenção, a exclusão pelo usuário dos registros e a remoção dos arquivos de evidência associados ainda precisam ser definidas e validadas antes da publicação.
+- Usar dados de teste controlados. Não anexar evidências com dados pessoais; mascarar informações antes de compartilhar qualquer captura fora do aparelho.
 
 ## Evidências a anexar
 
