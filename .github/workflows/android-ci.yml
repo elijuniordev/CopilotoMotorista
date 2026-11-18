@@ -72,7 +72,7 @@ jobs:
           source_root = pathlib.Path(sys.argv[2])
           forbidden_dependencies = re.compile(
               r"(?i)(?:okhttp|retrofit|ktor-client|"
-              r"com\\.google\\.firebase:(?!firebase-(?:components|encoders(?:-json)?|annotations)(?::|$))|"
+              r"com\.google\.firebase:(?!firebase-(?:components|encoders(?:-json)?|annotations)(?::|$))|"
               r"firebase-(?:analytics|crashlytics|performance|messaging|remote-config|"
               r"installations|auth|database|storage|firestore|functions|inappmessaging|appcheck)|"
               r"sentry|amplitude|mixpanel|bugsnag|appcenter|volley|cronet|"
