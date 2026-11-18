@@ -19,10 +19,15 @@
 - [x] Refinar navegação inferior, cabeçalho e espaçamento das áreas seguras (Bloco 12).
 - [ ] Produzir screenshots finais, descrição, classificação etária e ficha da loja.
 - [x] Configurar assinatura de release via secrets do CI, sem armazenar keystore/senhas no repositório; CI verificou a assinatura do APK Release (esquema v2).
-- [ ] Gerar AAB assinado para distribuição e validar instalação/atualização do artefato, além da estratégia de versionamento.
+- [x] Gerar AAB Release assinado e verificar sua assinatura no CI (commit `cfc4954`); artefato temporário publicado junto dos APKs.
+- [ ] Validar instalação/atualização do AAB em aparelho e definir estratégia de versionamento para releases públicas.
 - [x] Adicionar auditoria estática de dependências Release e referências a APIs de rede; no commit `251afeb`, a verificação CI passou sem candidatos conhecidos.
 - [x] Verificar no CI o manifesto Release mesclado: sem permissão INTERNET, backup desativado e regras de extração explícitas.
 - [ ] Fazer revisão final de segurança, dependências, licenças, tráfego em tempo de execução e dados pessoais; a auditoria estática não prova ausência de tráfego.
+
+## Versionamento
+
+A configuração atual inicia em `versionCode = 1` e `versionName = "1.0"`. Antes de cada distribuição, incrementar `versionCode` de forma monotônica; definir `versionName` conforme a versão pública aprovada. Não reutilizar o mesmo versionCode para atualizações.
 
 ## Validações técnicas já automatizadas
 

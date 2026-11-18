@@ -4,7 +4,7 @@
 
 Este documento define a validação de campo necessária antes de liberar o aplicativo para motoristas. Os testes de CI e emulador não comprovam compatibilidade com as interfaces reais do Uber Driver e 99 Motorista.
 
-**Status em 18/11/2026:** testes unitários e builds Debug/Release aprovados no CI para API 26, 30, 35 e 36; testes instrumentados Room aprovados em emuladores API 26 e 35. No commit `251afeb`, a auditoria estática de dependências Release e referências de rede no código-fonte passou; o manifesto Release mesclado foi verificado sem permissão INTERNET, com backup desativado e regras explícitas de extração; e o APK Release teve sua assinatura verificada pelo `apksigner` (esquema APK v2, um assinante). Isso não comprova ausência de tráfego em tempo de execução. APKs Debug/Release foram publicados como artefato temporário do CI, com retenção de 14 dias. Testes físicos continuam pendentes. Não registrar um item como aprovado sem evidência (modelo do aparelho, versão Android, versão do app de transporte, data, resultado e observações).
+**Status em 18/11/2026:** testes unitários e builds Debug/Release aprovados no CI para API 26, 30, 35 e 36; AAB Release também gerado e assinatura verificada com `jarsigner`; testes instrumentados Room aprovados em emuladores API 26 e 35. No commit `251afeb`, a auditoria estática de dependências Release e referências de rede no código-fonte passou; o manifesto Release mesclado foi verificado sem permissão INTERNET, com backup desativado e regras explícitas de extração; e o APK Release teve sua assinatura verificada pelo `apksigner` (esquema APK v2, um assinante). Isso não comprova ausência de tráfego em tempo de execução. APKs Debug/Release e AAB foram publicados como artefato temporário do CI, com retenção de 14 dias (run `44353222785`, commit `cfc4954`). A verificação da assinatura do AAB passou. Isso não comprova instalação ou atualização em aparelho nem validação no Play Console. Testes físicos continuam pendentes. Não registrar um item como aprovado sem evidência (modelo do aparelho, versão Android, versão do app de transporte, data, resultado e observações).
 
 ## Matriz de dispositivos
 
@@ -15,7 +15,7 @@ Este documento define a validação de campo necessária antes de liberar o apli
 | Android API 35 (Android 15) | Compatibilidade recente | Pendente em aparelho físico |
 | Android API 36 (Android 16) | Versão-alvo atual do projeto | Pendente em aparelho físico |
 
-O CI compila e executa testes unitários nas quatro APIs. Os testes instrumentados Room rodam em emuladores API 26 e 35. O workflow publica APKs Debug e Release do build API 35 por 14 dias; o APK Release teve a assinatura verificada automaticamente, mas isso não equivale a validar instalação/atualização em aparelhos nem a gerar um AAB. O teste de campo precisa usar pelo menos um aparelho físico por versão que se pretenda declarar como suportada.
+O CI compila e executa testes unitários nas quatro APIs. Os testes instrumentados Room rodam em emuladores API 26 e 35. O workflow publica APKs Debug/Release e AAB do build API 35 por 14 dias; as assinaturas do APK Release e do AAB foram verificadas automaticamente. Isso não equivale a validar instalação/atualização em aparelhos nem a concluir a ficha ou revisão do Play Console. O teste de campo precisa usar pelo menos um aparelho físico por versão que se pretenda declarar como suportada.
 
 ## Preparação
 
