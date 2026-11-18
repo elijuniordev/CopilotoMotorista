@@ -4,7 +4,7 @@
 
 Este documento define a validação de campo necessária antes de liberar o aplicativo para motoristas. Os testes de CI e emulador não comprovam compatibilidade com as interfaces reais do Uber Driver e 99 Motorista.
 
-**Status em 18/11/2026:** testes unitários e builds Debug/Release aprovados no CI para API 26, 30, 35 e 36; testes instrumentados Room aprovados em emuladores API 26 e 35. A PR #33 também passou nos seis jobs automatizados após implementar exclusão manual de ofertas e limpeza restrita das evidências associadas. APKs Debug/Release são publicados como artefato temporário do CI. Testes físicos continuam pendentes. Não registrar um item como aprovado sem evidência (modelo do aparelho, versão Android, versão do app de transporte, data, resultado e observações).
+**Status em 18/11/2026:** testes unitários e builds Debug/Release aprovados no CI para API 26, 30, 35 e 36; testes instrumentados Room aprovados em emuladores API 26 e 35. No commit `251afeb`, a auditoria estática de dependências Release e referências de rede no código-fonte passou; o manifesto Release mesclado foi verificado sem permissão INTERNET, com backup desativado e regras explícitas de extração; e o APK Release teve sua assinatura verificada pelo `apksigner` (esquema APK v2, um assinante). Isso não comprova ausência de tráfego em tempo de execução. APKs Debug/Release foram publicados como artefato temporário do CI, com retenção de 14 dias. Testes físicos continuam pendentes. Não registrar um item como aprovado sem evidência (modelo do aparelho, versão Android, versão do app de transporte, data, resultado e observações).
 
 ## Matriz de dispositivos
 
@@ -15,7 +15,7 @@ Este documento define a validação de campo necessária antes de liberar o apli
 | Android API 35 (Android 15) | Compatibilidade recente | Pendente em aparelho físico |
 | Android API 36 (Android 16) | Versão-alvo atual do projeto | Pendente em aparelho físico |
 
-O CI compila e executa testes unitários nas quatro APIs. Os testes instrumentados Room rodam em emuladores API 26 e 35. O workflow publica APKs Debug e Release do build API 35 por 14 dias; baixar o artefato na execução aprovada do GitHub Actions. O teste de campo precisa usar pelo menos um aparelho físico por versão que se pretenda declarar como suportada.
+O CI compila e executa testes unitários nas quatro APIs. Os testes instrumentados Room rodam em emuladores API 26 e 35. O workflow publica APKs Debug e Release do build API 35 por 14 dias; o APK Release teve a assinatura verificada automaticamente, mas isso não equivale a validar instalação/atualização em aparelhos nem a gerar um AAB. O teste de campo precisa usar pelo menos um aparelho físico por versão que se pretenda declarar como suportada.
 
 ## Preparação
 
@@ -60,11 +60,11 @@ Não há medições físicas anexadas a este repositório; nenhum número de lat
 - O serviço recebe eventos de acessibilidade do sistema, mas o código descarta eventos de pacotes diferentes dos apps de transporte permitidos antes de solicitar uma captura. A captura de tela não é usada para analisar outros apps.
 - No Android 8–10, além de habilitar o serviço, o usuário precisa conceder a autorização de MediaProjection para a sessão de captura. No Android 11+, o fluxo usa a API de screenshot do AccessibilityService.
 
-- O manifesto atual não declara permissão de Internet e desativa o backup Android; confirmar essas propriedades no manifesto mesclado de cada variante de release.
+- O manifesto Release mesclado do commit `251afeb` foi verificado no CI: sem `INTERNET`, `allowBackup=false` e com `dataExtractionRules` explícitas. Repetir a verificação em cada variante futura de release.
 - O OCR é executado localmente, mas o texto reconhecido de ofertas completas é persistido no Room em `trip_records.rawOfferText`; origem e destino extraídos também podem ser persistidos nos campos próprios. Portanto, não declarar que o texto OCR nunca é armazenado.
 - Capturas de evidência podem ser gravadas em `files/trip_evidence`, no armazenamento privado do app, e associadas ao registro por `evidenceUri`. A imagem pode conter nomes, endereços ou outros dados visíveis na tela, mesmo sem ser exposta à galeria.
 - Os logs atuais registram metadados e contagem de caracteres, não o conteúdo OCR bruto; revisar logs de novas alterações para manter essa regra.
-- Não há envio remoto desses dados implementado no fluxo revisado; confirmar dependências, manifesto mesclado e tráfego de rede antes de cada release.
+- A auditoria estática do CI no commit `251afeb` não encontrou dependências conhecidas de rede/telemetria nem referências às APIs de rede monitoradas no código Kotlin; o manifesto Release mesclado também não declara `INTERNET`. Essas verificações reduzem a superfície conhecida, mas não provam ausência de tráfego em tempo de execução, comportamento de SDKs nativos ou mudanças transitivas futuras. Captura de tráfego em aparelho real e revisão final de dependências continuam pendentes.
 - Confirmar que eventos de pacotes não permitidos são descartados antes de iniciar a captura.
 - Verificar que revogar permissões interrompe a captura e remove o overlay.
 - O histórico agora oferece exclusão manual de ofertas. O repositório remove a captura associada somente quando o caminho corresponde a um JPEG gerado diretamente em `files/trip_evidence`; caminhos externos ou inválidos são recusados e o registro é preservado. Essa lógica está coberta por testes unitários, mas ainda precisa de validação em aparelho real.
