@@ -347,12 +347,12 @@ private fun InitialSetupScreen(
                     color = MaterialTheme.colorScheme.onSecondaryContainer
                 )
                 Text(
-                    "O texto reconhecido, inclusive origem e destino, e imagens de evidência podem ser armazenados no histórico local. As imagens podem conter dados pessoais visíveis na tela. Para entender o tratamento de dados, consulte a política de privacidade do app.",
+                    "O texto reconhecido, inclusive origem e destino, e imagens de evidência podem ser armazenados no histórico local. As imagens podem conter dados pessoais visíveis na tela. A política de privacidade ainda precisa ser publicada e estará disponível antes da distribuição pública do aplicativo.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSecondaryContainer
                 )
                 Text(
-                    "Para interromper, desligue o monitoramento no app ou desative o serviço Copiloto Pro nas configurações de acessibilidade do Android. No Android 8, 9 e 10, também será solicitada autorização separada de captura de tela.",
+                    "Para interromper a análise de ofertas, pause ou finalize o expediente pelo controle flutuante. Para interromper o serviço de acessibilidade, desative o Copiloto Pro nas configurações de acessibilidade do Android. No Android 8, 9 e 10, também será solicitada autorização separada de captura de tela.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSecondaryContainer
                 )
