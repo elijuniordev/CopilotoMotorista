@@ -207,7 +207,11 @@ class OverlayWindowManager(private val context: Context) {
         }
         return OverlayDisplayAttempt.execute(
             attach = { windowManager.addView(view, params) },
-            activate = { owner.moveToResumed() },
+            activate = {
+                owner.moveToResumed()
+                overlayView = view
+                overlayOwner = owner
+            },
             cleanup = { cleanupFailedOverlay(view, owner) },
             onFailure = { exception ->
                 when (exception) {
