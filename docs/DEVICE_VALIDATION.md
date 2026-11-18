@@ -56,7 +56,7 @@ Não há medições físicas anexadas a este repositório; nenhum número de lat
 
 ## Privacidade e segurança
 
-- A descrição exibida nas configurações de acessibilidade informa que eventos são usados para identificar Uber Driver/99 Motorista, que a captura é restrita a esses apps durante o monitoramento, que o OCR é local, que texto/evidências podem ser armazenados e como interromper o serviço. Essa descrição não substitui a divulgação destacada dentro do app nem a política de privacidade exigidas para a publicação.
+- A descrição exibida nas configurações de acessibilidade informa que eventos são usados para identificar Uber Driver/99 Motorista, que a captura é restrita a esses apps durante o monitoramento, que o OCR é local, que texto/evidências podem ser armazenados e como interromper o serviço. A tela inicial apresenta divulgação destacada antes do acesso às configurações e exige confirmação explícita para liberar o atalho de ativação. Essa confirmação não substitui a política de privacidade publicada nem a revisão das exigências do Google Play.
 - O serviço recebe eventos de acessibilidade do sistema, mas o código descarta eventos de pacotes diferentes dos apps de transporte permitidos antes de solicitar uma captura. A captura de tela não é usada para analisar outros apps.
 - No Android 8–10, além de habilitar o serviço, o usuário precisa conceder a autorização de MediaProjection para a sessão de captura. No Android 11+, o fluxo usa a API de screenshot do AccessibilityService.
 
