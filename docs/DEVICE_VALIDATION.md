@@ -4,7 +4,7 @@
 
 Este documento define a validação de campo necessária antes de liberar o aplicativo para motoristas. Os testes de CI e emulador não comprovam compatibilidade com as interfaces reais do Uber Driver e 99 Motorista.
 
-**Status em 15/11/2026:** testes unitários e builds Debug/Release aprovados no CI para API 26, 30, 35 e 36; testes instrumentados Room aprovados em emuladores API 26 e 35. APKs Debug/Release passam a ser publicados como artefato temporário do CI. Testes físicos continuam pendentes. Não registrar um item como aprovado sem evidência (modelo do aparelho, versão Android, versão do app de transporte, data, resultado e observações).
+**Status em 18/11/2026:** testes unitários e builds Debug/Release aprovados no CI para API 26, 30, 35 e 36; testes instrumentados Room aprovados em emuladores API 26 e 35. A PR #33 também passou nos seis jobs automatizados após implementar exclusão manual de ofertas e limpeza restrita das evidências associadas. APKs Debug/Release são publicados como artefato temporário do CI. Testes físicos continuam pendentes. Não registrar um item como aprovado sem evidência (modelo do aparelho, versão Android, versão do app de transporte, data, resultado e observações).
 
 ## Matriz de dispositivos
 
