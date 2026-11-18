@@ -9,7 +9,7 @@ class AppContainer(context: Context) {
  private val database = AppDatabase.getInstance(context)
  val preferences = AppPreferencesDataStore(context.applicationContext)
  val vehicleRepository: VehicleRepository = RoomVehicleRepository(database.vehicleDao())
- val tripRecordRepository: TripRecordRepository = RoomTripRecordRepository(database.tripRecordDao())
+ val tripRecordRepository: TripRecordRepository = RoomTripRecordRepository(database.tripRecordDao(), context.applicationContext.filesDir)
  val expenseRepository: ExpenseRepository = RoomExpenseRepository(database.expenseDao())
  val clientRepository: ClientRepository = RoomClientRepository(database.clientDao())
  val privateTripRepository: PrivateTripRepository = RoomPrivateTripRepository(database.privateTripDao())
