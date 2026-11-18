@@ -151,7 +151,7 @@ class AccessibilityReaderService : AccessibilityService() {
             val candidates = radarOfferExtractor.extract(snapshot.text)
             Log.i("OfferCapture", "radar_candidates count=${candidates.size}")
             if (candidates.size >= 2) {
-                showRadarCandidates(candidates, platform, generation)
+                showRadarCandidates(candidates, platform, generation, snapshot.capturedAtMillis, snapshot.source.name)
             } else if (generation == captureGeneration) {
                 overlayWindowManager.hideOverlay()
                 lastOfferFingerprint = null
@@ -424,22 +424,40 @@ class AccessibilityReaderService : AccessibilityService() {
     private fun showRadarCandidates(
         candidates: List<RadarOfferExtractor.Candidate>,
         platform: String,
-        generation: Long
+        generation: Long,
+        capturedAtMillis: Long,
+        source: String
     ) {
         serviceScope.launch {
+            val configurationStartedAt = SystemClock.uptimeMillis()
             val selected = withContext(Dispatchers.IO) {
                 val vehicleId = appContainer.preferences.selectedVehicleId.first()
                 val vehicle = vehicleId?.let { appContainer.vehicleRepository.getVehicle(it) }
                 val targets = appContainer.preferences.financialTargets.first()
                 vehicle?.let { it to targets }
             }
+            recordPipelineStage(
+                "radar_load_vehicle_configuration",
+                platform,
+                source,
+                configurationStartedAt,
+                selected != null
+            )
             if (serviceDestroyed || generation != captureGeneration) return@launch
             if (selected == null) {
                 overlayWindowManager.hideOverlay()
+                recordPipelineStage(
+                    "radar_capture_to_overlay",
+                    platform,
+                    source,
+                    capturedAtMillis,
+                    false
+                )
                 Log.w("OfferCapture", "radar_overlay_skipped reason=no_selected_vehicle")
                 return@launch
             }
             val (vehicle, targets) = selected
+            val evaluationStartedAt = SystemClock.uptimeMillis()
             val analyzed = candidates.mapNotNull { candidate ->
                 val result = runCatching {
                     evaluateOfferUseCase.execute(candidate.offer, vehicle, targets)
@@ -450,15 +468,50 @@ class AccessibilityReaderService : AccessibilityService() {
                     analysisResult = result
                 )
             }
-            if (analyzed.size < 2 || serviceDestroyed || generation != captureGeneration) {
+            val enoughAnalyzedOffers = analyzed.size >= 2
+            recordPipelineStage(
+                "radar_evaluate_offers",
+                platform,
+                source,
+                evaluationStartedAt,
+                enoughAnalyzedOffers
+            )
+            if (!enoughAnalyzedOffers || serviceDestroyed || generation != captureGeneration) {
                 if (generation == captureGeneration) overlayWindowManager.hideOverlay()
-                Log.w("OfferCapture", "radar_overlay_skipped reason=insufficient_analyzed_candidates count=${analyzed.size}")
+                if (!serviceDestroyed && generation == captureGeneration) {
+                    recordPipelineStage(
+                        "radar_capture_to_overlay",
+                        platform,
+                        source,
+                        capturedAtMillis,
+                        false
+                    )
+                }
+                Log.w(
+                    "OfferCapture",
+                    "radar_overlay_skipped reason=insufficient_analyzed_candidates count=${analyzed.size}"
+                )
                 return@launch
             }
+            val overlayStartedAt = SystemClock.uptimeMillis()
             val overlayDisplayed = overlayWindowManager.showRadarOverlay(
                 offers = analyzed,
                 platform = if (platform == "uber") "Uber" else if (platform == "99") "99" else "Aplicativo",
                 onDismiss = {}
+            )
+            recordPipelineStage(
+                "radar_overlay_show",
+                platform,
+                source,
+                overlayStartedAt,
+                overlayDisplayed
+            )
+            recordPipelineStage(
+                "radar_capture_to_overlay",
+                platform,
+                source,
+                capturedAtMillis,
+                overlayDisplayed
             )
             if (overlayDisplayed) {
                 Log.i("OfferCapture", "radar_overlay_shown offers=${analyzed.size}")
