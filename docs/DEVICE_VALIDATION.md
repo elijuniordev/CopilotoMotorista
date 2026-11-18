@@ -63,7 +63,8 @@ Não há medições físicas anexadas a este repositório; nenhum número de lat
 - Não há envio remoto desses dados implementado no fluxo revisado; confirmar dependências, manifesto mesclado e tráfego de rede antes de cada release.
 - Confirmar que eventos de pacotes não permitidos são descartados antes de iniciar a captura.
 - Verificar que revogar permissões interrompe a captura e remove o overlay.
-- A política de retenção, a exclusão pelo usuário dos registros e a remoção dos arquivos de evidência associados ainda precisam ser definidas e validadas antes da publicação.
+- O histórico agora oferece exclusão manual de ofertas. O repositório remove a captura associada somente quando o caminho corresponde a um JPEG gerado diretamente em `files/trip_evidence`; caminhos externos ou inválidos são recusados e o registro é preservado. Essa lógica está coberta por testes unitários, mas ainda precisa de validação em aparelho real.
+- A política de retenção automática/temporal e a política de privacidade publicada continuam pendentes antes da publicação.
 - Usar dados de teste controlados. Não anexar evidências com dados pessoais; mascarar informações antes de compartilhar qualquer captura fora do aparelho.
 
 ## Evidências a anexar
