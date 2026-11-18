@@ -1,4 +1,4 @@
 <resources>
     <string name="app_name">Copiloto Pro</string>
-    <string name="accessibility_service_description">Copiloto Pro: análise de ofertas e rentabilidade para motoristas de aplicativo.</string>
+    <string name="accessibility_service_description">Quando o monitoramento estiver ativo, o Copiloto Pro observa eventos de acessibilidade para identificar o uso do Uber Driver e do 99 Motorista. Somente nesses apps, usa a captura de tela para reconhecer ofertas por OCR local. Texto da oferta e imagens de evidência podem ser armazenados no aparelho. No Android 8 a 10, a captura também exige autorização de compartilhamento de tela. Para interromper, encerre o monitoramento no app ou desative este serviço nas configurações de acessibilidade.</string>
 </resources>

@@ -56,6 +56,10 @@ Não há medições físicas anexadas a este repositório; nenhum número de lat
 
 ## Privacidade e segurança
 
+- A descrição exibida nas configurações de acessibilidade informa que eventos são usados para identificar Uber Driver/99 Motorista, que a captura é restrita a esses apps durante o monitoramento, que o OCR é local, que texto/evidências podem ser armazenados e como interromper o serviço. Essa descrição não substitui a divulgação destacada dentro do app nem a política de privacidade exigidas para a publicação.
+- O serviço recebe eventos de acessibilidade do sistema, mas o código descarta eventos de pacotes diferentes dos apps de transporte permitidos antes de solicitar uma captura. A captura de tela não é usada para analisar outros apps.
+- No Android 8–10, além de habilitar o serviço, o usuário precisa conceder a autorização de MediaProjection para a sessão de captura. No Android 11+, o fluxo usa a API de screenshot do AccessibilityService.
+
 - O manifesto atual não declara permissão de Internet e desativa o backup Android; confirmar essas propriedades no manifesto mesclado de cada variante de release.
 - O OCR é executado localmente, mas o texto reconhecido de ofertas completas é persistido no Room em `trip_records.rawOfferText`; origem e destino extraídos também podem ser persistidos nos campos próprios. Portanto, não declarar que o texto OCR nunca é armazenado.
 - Capturas de evidência podem ser gravadas em `files/trip_evidence`, no armazenamento privado do app, e associadas ao registro por `evidenceUri`. A imagem pode conter nomes, endereços ou outros dados visíveis na tela, mesmo sem ser exposta à galeria.

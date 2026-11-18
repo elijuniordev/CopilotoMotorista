@@ -13,6 +13,7 @@
 - [ ] Definir política de retenção dos dados locais e avaliar exportação.
 - [x] Disponibilizar exclusão manual de ofertas no histórico, com remoção restrita da evidência associada ao diretório privado gerenciado (PR #33); validar o fluxo em aparelho real.
 - [ ] Publicar política de privacidade acessível ao usuário, informando que texto OCR, origem/destino e capturas de evidência podem ser armazenados localmente; revisar declarações de dados/permissões da Play Store.
+- [x] Descrever no próprio serviço de acessibilidade o monitoramento de eventos, os apps permitidos, o OCR local, o armazenamento local possível e como interromper a captura.
 - [ ] Revisar as políticas do Google Play para AccessibilityService e overlays, incluindo divulgação destacada e consentimento.
 - [x] Criar identidade vetorial Copiloto Pro, ícone adaptativo Android e splash screen (Bloco 12).
 - [x] Refinar navegação inferior, cabeçalho e espaçamento das áreas seguras (Bloco 12).
