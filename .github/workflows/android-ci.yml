@@ -57,6 +57,37 @@ jobs:
           echo "ANDROID_KEYSTORE_PATH=$KEYSTORE_PATH" >> "$GITHUB_ENV"
       - name: Run unit tests and build APKs
         run: ./gradlew --no-daemon testDebugUnitTest assembleDebug assembleRelease
+      - name: Verify Release APK manifest privacy settings
+        if: matrix.api-level == 35
+        shell: bash
+        run: |
+          set -euo pipefail
+          MERGED_MANIFEST="$(find app/build/intermediates/merged_manifest/release -type f -name AndroidManifest.xml -print -quit)"
+          test -n "$MERGED_MANIFEST"
+          python3 - "$MERGED_MANIFEST" <<'PY'
+          import sys
+          import xml.etree.ElementTree as ET
+
+          manifest_path = sys.argv[1]
+          root = ET.parse(manifest_path).getroot()
+          android_ns = "{http://schemas.android.com/apk/res/android}"
+          permissions = {
+              node.get(android_ns + "name")
+              for node in root.findall("uses-permission")
+          }
+          assert "android.permission.INTERNET" not in permissions, (
+              "Release merged manifest declares INTERNET permission"
+          )
+          app = root.find("application")
+          assert app is not None, "Release merged manifest has no application element"
+          assert app.get(android_ns + "allowBackup") == "false", (
+              "Release merged manifest must keep allowBackup=false"
+          )
+          assert app.get(android_ns + "dataExtractionRules") == "@xml/data_extraction_rules", (
+              "Release merged manifest is missing the explicit data extraction rules"
+          )
+          print("Release manifest privacy checks passed: no INTERNET permission, backup disabled.")
+          PY
       - name: Verify signed release APK
         if: ${{ env.ANDROID_KEYSTORE_BASE64 != '' && env.ANDROID_KEYSTORE_PASSWORD != '' && env.ANDROID_KEY_ALIAS != '' && env.ANDROID_KEY_PASSWORD != '' }}
         shell: bash
