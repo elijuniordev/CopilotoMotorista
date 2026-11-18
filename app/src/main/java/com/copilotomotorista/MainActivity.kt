@@ -32,6 +32,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
@@ -39,6 +40,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -267,6 +269,8 @@ private fun InitialSetupScreen(
     onTestOverlay: () -> Unit,
     onOpenDashboard: () -> Unit
 ) {
+    var disclosureAccepted by remember { mutableStateOf(false) }
+
     val completedSteps = listOf(
         permissions.overlayGranted,
         permissions.accessibilityEnabled,
@@ -330,11 +334,40 @@ private fun InitialSetupScreen(
             }
         }
 
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(18.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
+        ) {
+            Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text("ANTES DE ATIVAR O MONITORAMENTO", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSecondaryContainer)
+                Text(
+                    "Com o serviço ligado, o Android informa ao Copiloto eventos de acessibilidade para identificar quando Uber Driver ou 99 Motorista estão em uso. Após esse filtro, o app pode capturar a tela desses aplicativos e reconhecer o texto (OCR) no próprio aparelho. Não é feita análise de tela de outros aplicativos.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSecondaryContainer
+                )
+                Text(
+                    "O texto reconhecido, inclusive origem e destino, e imagens de evidência podem ser armazenados no histórico local. As imagens podem conter dados pessoais visíveis na tela. Para entender o tratamento de dados, consulte a política de privacidade do app.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSecondaryContainer
+                )
+                Text(
+                    "Para interromper, desligue o monitoramento no app ou desative o serviço Copiloto Pro nas configurações de acessibilidade do Android. No Android 8, 9 e 10, também será solicitada autorização separada de captura de tela.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSecondaryContainer
+                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(checked = disclosureAccepted, onCheckedChange = { disclosureAccepted = it })
+                    Text("Li e entendi como o monitoramento funciona e quais dados podem ser armazenados.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSecondaryContainer)
+                }
+            }
+        }
+
         PermissionStepCard("01", "Exibir sobre outros aplicativos", "Permite mostrar a análise flutuante sobre a tela do aplicativo de corridas.", permissions.overlayGranted, "Permissão concedida", "Conceder permissão", onRequestOverlayPermission)
-        PermissionStepCard("02", "Serviço de acessibilidade", "Permite ao Copiloto identificar informações exibidas na tela. A leitura depende do conteúdo disponibilizado pelo aplicativo de corridas.", permissions.accessibilityEnabled, "Serviço ativado", "Abrir configurações de acessibilidade", onRequestAccessibility)
+        PermissionStepCard("02", "Serviço de acessibilidade", "Ative somente depois de ler e confirmar a divulgação acima.", permissions.accessibilityEnabled, "Serviço ativado", "Abrir configurações de acessibilidade", onRequestAccessibility, enabled = disclosureAccepted)
         PermissionStepCard("03", "Otimização de bateria", "Confira as restrições de bateria do Android. Alguns fabricantes podem interromper serviços em segundo plano.", permissions.batteryOptimizationDisabled, "Sem restrição de otimização", "Ver configurações de bateria", onRequestBatterySettings)
         if (showLegacyCaptureStep) {
-            PermissionStepCard("04", "Captura de tela compatível", "No Android 8, 9 e 10, autorize a captura de tela para que o Copiloto leia as ofertas visíveis. A imagem é processada localmente e não é enviada a servidores.", legacyCaptureActive, "Captura autorizada", "Autorizar captura de tela", onRequestLegacyCapture)
+            PermissionStepCard("04", "Captura de tela compatível", "No Android 8, 9 e 10, autorize a captura de tela para que o Copiloto leia as ofertas visíveis. O OCR é executado no aparelho; texto reconhecido e imagens de evidência podem ser armazenados localmente.", legacyCaptureActive, "Captura autorizada", "Autorizar captura de tela", onRequestLegacyCapture)
         }
 
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -347,7 +380,7 @@ private fun InitialSetupScreen(
             ) {
                 Text("TESTAR CARD FLUTUANTE", fontWeight = FontWeight.Bold)
             }
-            OutlinedButton(onClick = onRequestAccessibility, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)) { Text("Revisar permissões") }
+            OutlinedButton(onClick = onRequestAccessibility, enabled = disclosureAccepted, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)) { Text("Revisar permissões") }
             OutlinedButton(onClick = onOpenDashboard, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)) { Text("Abrir painel financeiro") }
             Text("O teste utiliza uma oferta demonstrativa. Ele não representa uma corrida real nem ativa o monitoramento automático.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
@@ -363,7 +396,8 @@ private fun PermissionStepCard(
     granted: Boolean,
     grantedLabel: String,
     actionLabel: String,
-    onAction: () -> Unit
+    onAction: () -> Unit,
+    enabled: Boolean = true
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -377,7 +411,7 @@ private fun PermissionStepCard(
             }
             Text(title, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface)
             Text(description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            OutlinedButton(onClick = onAction, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)) {
+            OutlinedButton(onClick = onAction, enabled = enabled, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)) {
                 Text(if (granted) "Abrir configurações" else actionLabel)
             }
         }
