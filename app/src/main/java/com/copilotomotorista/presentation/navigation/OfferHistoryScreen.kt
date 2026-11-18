@@ -14,6 +14,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -62,6 +63,8 @@ fun OfferHistoryScreen(repository: TripRecordRepository) {
     val trips by repository.observeTrips().collectAsState(initial = emptyList())
     val scope = rememberCoroutineScope()
     var selectedTrip by remember { mutableStateOf<TripRecord?>(null) }
+    var deleteCandidate by remember { mutableStateOf<TripRecord?>(null) }
+    var deleteError by remember { mutableStateOf<String?>(null) }
     var searchQuery by rememberSaveable { mutableStateOf("") }
     var selectedPlatform by rememberSaveable { mutableStateOf("Todas") }
     var selectedStatus by rememberSaveable { mutableStateOf("Todas") }
@@ -272,6 +275,14 @@ fun OfferHistoryScreen(repository: TripRecordRepository) {
                             if (trip.evidenceUri != null) {
                                 Text("Captura de tela disponível · Toque para ver detalhes", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelSmall)
                             }
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                                TextButton(onClick = {
+                                    deleteError = null
+                                    deleteCandidate = trip
+                                }) {
+                                    Text("Excluir oferta", color = MaterialTheme.colorScheme.error)
+                                }
+                            }
                         }
                     }
                 }
@@ -317,6 +328,43 @@ fun OfferHistoryScreen(repository: TripRecordRepository) {
             },
             dismissButton = { TextButton(onClick = { showEndPicker = false }) { Text("Cancelar") } }
         ) { DatePicker(state = pickerState) }
+    }
+
+    deleteCandidate?.let { trip ->
+        AlertDialog(
+            onDismissRequest = {
+                deleteCandidate = null
+                deleteError = null
+            },
+            title = { Text("Excluir oferta?") },
+            text = {
+                Text(deleteError ?: "A oferta e a captura de tela associada serão excluídas permanentemente deste aparelho.")
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    scope.launch {
+                        runCatching { repository.deleteTrip(trip.id) }
+                            .onSuccess {
+                                if (selectedTrip?.id == trip.id) selectedTrip = null
+                                deleteCandidate = null
+                                deleteError = null
+                            }
+                            .onFailure {
+                                deleteError = it.message
+                                    ?: "Não foi possível excluir a oferta. O registro foi mantido."
+                            }
+                    }
+                }) {
+                    Text(if (deleteError == null) "Excluir" else "Tentar novamente", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    deleteCandidate = null
+                    deleteError = null
+                }) { Text("Cancelar") }
+            }
+        )
     }
 
     selectedTrip?.let { trip ->
