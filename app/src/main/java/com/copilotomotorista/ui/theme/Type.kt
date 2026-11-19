@@ -8,8 +8,8 @@ import androidx.compose.ui.unit.sp
 
 /**
  * Escala tipográfica unificada do Copiloto Pro.
- * Mantém sans-serif consistente enquanto o arquivo local licenciado da Sora
- * não é incorporado ao pacote Android.
+ * A identidade recomenda Montserrat. Até a inclusão do arquivo tipográfico local,
+ * usa sans-serif do sistema como fallback, sem baixar fontes em tempo de execução.
  */
 private val BrandFamily = FontFamily.SansSerif
 private val NumericFamily = FontFamily.Monospace
