@@ -110,7 +110,7 @@ fun MainNavigationScreen(
                                 Text("Copiloto", color = MaterialTheme.colorScheme.onSurface, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                                 Text(" Pro", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, fontStyle = FontStyle.Italic)
                             }
-                            Text("PLANEJE  •  CONQUISTE  •  EVOLUA", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 8.sp, letterSpacing = 1.15.sp, fontWeight = FontWeight.Medium)
+                            Text("Dirija melhor. Conquiste mais.", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 8.sp, letterSpacing = 1.15.sp, fontWeight = FontWeight.Medium)
                         }
                     }
                 },
