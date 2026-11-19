@@ -1,12 +1,18 @@
 package com.copilotomotorista
 
+import android.content.BroadcastReceiver
 import android.content.ComponentName
+import android.content.Context
+import android.content.IntentFilter
+import android.media.projection.MediaProjectionManager
+import android.os.Build
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import android.os.PowerManager
 import android.provider.Settings
 import androidx.activity.ComponentActivity
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -26,6 +32,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
@@ -33,6 +40,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -47,6 +55,7 @@ import com.copilotomotorista.domain.model.VehicleOperatingCosts
 import com.copilotomotorista.domain.usecase.EvaluateOfferUseCase
 import com.copilotomotorista.presentation.dashboard.DashboardDataSource
 import com.copilotomotorista.service.AccessibilityReaderService
+import com.copilotomotorista.service.MediaProjectionCaptureService
 import com.copilotomotorista.service.OverlayWindowManager
 import com.copilotomotorista.presentation.navigation.MainNavigationScreen
 import com.copilotomotorista.ui.theme.CopilotoMotoristaTheme
@@ -67,6 +76,60 @@ class MainActivity : ComponentActivity() {
 
     private var permissionStatus by mutableStateOf(PermissionStatus())
     private var showDashboard by mutableStateOf(false)
+    private var legacyCaptureActive by mutableStateOf(false)
+    private var captureStateReceiverRegistered = false
+
+    private val captureStateReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent?.action == MediaProjectionCaptureService.ACTION_CAPTURE_STATE_CHANGED) {
+                legacyCaptureActive = intent.getBooleanExtra(
+                    MediaProjectionCaptureService.EXTRA_CAPTURE_ACTIVE,
+                    false
+                )
+            }
+        }
+    }
+
+    private val screenCaptureLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        val data = result.data
+        if (result.resultCode == RESULT_OK && data != null) {
+            val serviceIntent = Intent(this, MediaProjectionCaptureService::class.java).apply {
+                putExtra(MediaProjectionCaptureService.EXTRA_RESULT_CODE, result.resultCode)
+                putExtra(MediaProjectionCaptureService.EXTRA_RESULT_DATA, data)
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                startForegroundService(serviceIntent)
+            } else {
+                startService(serviceIntent)
+            }
+            // The service broadcasts active only after MediaProjection and VirtualDisplay
+            // have both initialized successfully. Consent alone is not an active session.
+            legacyCaptureActive = false
+        }
+    }
+
+    override fun onStart() {
+        super.onStart()
+        val filter = IntentFilter(MediaProjectionCaptureService.ACTION_CAPTURE_STATE_CHANGED)
+        if (Build.VERSION.SDK_INT >= 33) {
+            registerReceiver(captureStateReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+        } else {
+            @Suppress("DEPRECATION")
+            registerReceiver(captureStateReceiver, filter)
+        }
+        captureStateReceiverRegistered = true
+        legacyCaptureActive = MediaProjectionCaptureService.isCaptureActive()
+    }
+
+    override fun onStop() {
+        if (captureStateReceiverRegistered) {
+            unregisterReceiver(captureStateReceiver)
+            captureStateReceiverRegistered = false
+        }
+        super.onStop()
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -104,6 +167,9 @@ class MainActivity : ComponentActivity() {
                             onRequestOverlayPermission = ::requestOverlayPermission,
                             onRequestAccessibility = ::openAccessibilitySettings,
                             onRequestBatterySettings = ::openBatterySettings,
+                            onRequestLegacyCapture = ::requestLegacyCapture,
+                            showLegacyCaptureStep = Build.VERSION.SDK_INT < Build.VERSION_CODES.R,
+                            legacyCaptureActive = legacyCaptureActive,
                             onTestOverlay = ::triggerMockOffer,
                             onOpenDashboard = { showDashboard = true }
                         )
@@ -169,6 +235,11 @@ class MainActivity : ComponentActivity() {
         )
     }
 
+    private fun requestLegacyCapture() {
+        val manager = getSystemService(MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
+        screenCaptureLauncher.launch(manager.createScreenCaptureIntent())
+    }
+
     private fun requestOverlayPermission() {
         val intent = Intent(
             Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
@@ -192,9 +263,14 @@ private fun InitialSetupScreen(
     onRequestOverlayPermission: () -> Unit,
     onRequestAccessibility: () -> Unit,
     onRequestBatterySettings: () -> Unit,
+    onRequestLegacyCapture: () -> Unit,
+    showLegacyCaptureStep: Boolean,
+    legacyCaptureActive: Boolean,
     onTestOverlay: () -> Unit,
     onOpenDashboard: () -> Unit
 ) {
+    var disclosureAccepted by remember { mutableStateOf(false) }
+
     val completedSteps = listOf(
         permissions.overlayGranted,
         permissions.accessibilityEnabled,
@@ -258,9 +334,41 @@ private fun InitialSetupScreen(
             }
         }
 
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(18.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
+        ) {
+            Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text("ANTES DE ATIVAR O MONITORAMENTO", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSecondaryContainer)
+                Text(
+                    "Com o serviço ligado, o Android informa ao Copiloto eventos de acessibilidade para identificar quando Uber Driver ou 99 Motorista estão em uso. Após esse filtro, o app pode capturar a tela desses aplicativos e reconhecer o texto (OCR) no próprio aparelho. Não é feita análise de tela de outros aplicativos.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSecondaryContainer
+                )
+                Text(
+                    "O texto reconhecido, inclusive origem e destino, e imagens de evidência podem ser armazenados no histórico local. As imagens podem conter dados pessoais visíveis na tela. A política de privacidade ainda precisa ser publicada e estará disponível antes da distribuição pública do aplicativo.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSecondaryContainer
+                )
+                Text(
+                    "Para interromper a análise de ofertas, pause ou finalize o expediente pelo controle flutuante. Para interromper o serviço de acessibilidade, desative o Copiloto Pro nas configurações de acessibilidade do Android. No Android 8, 9 e 10, também será solicitada autorização separada de captura de tela.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSecondaryContainer
+                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(checked = disclosureAccepted, onCheckedChange = { disclosureAccepted = it })
+                    Text("Li e entendi como o monitoramento funciona e quais dados podem ser armazenados.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSecondaryContainer)
+                }
+            }
+        }
+
         PermissionStepCard("01", "Exibir sobre outros aplicativos", "Permite mostrar a análise flutuante sobre a tela do aplicativo de corridas.", permissions.overlayGranted, "Permissão concedida", "Conceder permissão", onRequestOverlayPermission)
-        PermissionStepCard("02", "Serviço de acessibilidade", "Permite ao Copiloto identificar informações exibidas na tela. A leitura depende do conteúdo disponibilizado pelo aplicativo de corridas.", permissions.accessibilityEnabled, "Serviço ativado", "Abrir configurações de acessibilidade", onRequestAccessibility)
+        PermissionStepCard("02", "Serviço de acessibilidade", "Ative somente depois de ler e confirmar a divulgação acima.", permissions.accessibilityEnabled, "Serviço ativado", "Abrir configurações de acessibilidade", onRequestAccessibility, enabled = disclosureAccepted)
         PermissionStepCard("03", "Otimização de bateria", "Confira as restrições de bateria do Android. Alguns fabricantes podem interromper serviços em segundo plano.", permissions.batteryOptimizationDisabled, "Sem restrição de otimização", "Ver configurações de bateria", onRequestBatterySettings)
+        if (showLegacyCaptureStep) {
+            PermissionStepCard("04", "Captura de tela compatível", "No Android 8, 9 e 10, autorize a captura de tela para que o Copiloto leia as ofertas visíveis. O OCR é executado no aparelho; texto reconhecido e imagens de evidência podem ser armazenados localmente.", legacyCaptureActive, "Captura autorizada", "Autorizar captura de tela", onRequestLegacyCapture)
+        }
 
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Button(
@@ -272,7 +380,7 @@ private fun InitialSetupScreen(
             ) {
                 Text("TESTAR CARD FLUTUANTE", fontWeight = FontWeight.Bold)
             }
-            OutlinedButton(onClick = onRequestAccessibility, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)) { Text("Revisar permissões") }
+            OutlinedButton(onClick = onRequestAccessibility, enabled = disclosureAccepted, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)) { Text("Revisar permissões") }
             OutlinedButton(onClick = onOpenDashboard, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)) { Text("Abrir painel financeiro") }
             Text("O teste utiliza uma oferta demonstrativa. Ele não representa uma corrida real nem ativa o monitoramento automático.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
@@ -288,7 +396,8 @@ private fun PermissionStepCard(
     granted: Boolean,
     grantedLabel: String,
     actionLabel: String,
-    onAction: () -> Unit
+    onAction: () -> Unit,
+    enabled: Boolean = true
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -302,7 +411,7 @@ private fun PermissionStepCard(
             }
             Text(title, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface)
             Text(description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            OutlinedButton(onClick = onAction, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)) {
+            OutlinedButton(onClick = onAction, enabled = enabled, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)) {
                 Text(if (granted) "Abrir configurações" else actionLabel)
             }
         }

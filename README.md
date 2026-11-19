@@ -37,7 +37,7 @@ No macOS/Linux:
 ./gradlew assembleRelease
 ```
 
-O APK de depuração será gerado em `app/build/outputs/apk/debug/`. O artefato Release atual é compilado com minificação, mas ainda não está assinado para distribuição.
+O APK de depuração será gerado em `app/build/outputs/apk/debug/`. O CI configura a assinatura de release por secrets e verifica a assinatura do APK Release e do AAB gerados. A verificação técnica da assinatura não substitui testes de instalação/atualização em aparelho nem a preparação para o Google Play.
 
 ## Arquitetura
 
@@ -53,11 +53,11 @@ O aplicativo não aceita nem recusa corridas automaticamente. A confirmação de
 
 ## Captura, privacidade e permissões
 
-A captura é limitada aos pacotes configurados para Uber Driver e 99 Motorista. O OCR é executado localmente. Capturas de tela não são armazenadas pelo fluxo de OCR. O aplicativo não solicita permissão de Internet.
+A captura é limitada aos pacotes configurados para Uber Driver e 99 Motorista. O OCR é executado localmente. O texto reconhecido de ofertas completas, incluindo origem/destino quando extraídos, pode ser persistido nos registros locais. Capturas de evidência podem ser armazenadas no diretório privado do app e associadas a uma corrida; não são enviadas à galeria pelo fluxo de captura. O manifesto Release remove a permissão INTERNET, verificada no CI; isso não substitui análise dinâmica de tráfego.
 
 O serviço de acessibilidade e a permissão de sobreposição são recursos sensíveis e exigem consentimento explícito do motorista nas configurações do Android. A descrição do serviço informa sua finalidade. Backup Android está desativado para evitar cópia automática dos registros operacionais e preferências.
 
-Os registros são mantidos localmente. Ainda é necessário validar em aparelhos físicos o comportamento de permissões, privacidade, consumo de bateria e compatibilidade com versões reais dos aplicativos de transporte.
+Os registros e eventuais evidências são mantidos localmente no armazenamento privado do app. O histórico permite exclusão manual de ofertas e da evidência associada, com validação física ainda pendente. Ainda é necessário validar em aparelhos físicos o comportamento de permissões, privacidade, consumo de bateria e compatibilidade com versões reais dos aplicativos de transporte.
 
 ## CI e matriz Android
 

@@ -4,7 +4,7 @@
 
 Este documento define a validação de campo necessária antes de liberar o aplicativo para motoristas. Os testes de CI e emulador não comprovam compatibilidade com as interfaces reais do Uber Driver e 99 Motorista.
 
-**Status em 15/11/2026:** testes unitários e builds Debug/Release aprovados no CI para API 26, 30, 35 e 36; testes instrumentados Room aprovados em emuladores API 26 e 35. APKs Debug/Release passam a ser publicados como artefato temporário do CI. Testes físicos continuam pendentes. Não registrar um item como aprovado sem evidência (modelo do aparelho, versão Android, versão do app de transporte, data, resultado e observações).
+**Status em 19/11/2026:** no HEAD `dbe82bb` (CI #44429457105, tentativa 2), os builds Debug/Release e testes unitários passaram nas APIs 26, 30, 35 e 36; os testes instrumentados Room passaram nos emuladores API 26 e 35. A tentativa 2 concluiu com 6/6 jobs aprovados; o teste Room API 35 foi reexecutado após uma falha anterior de infraestrutura do emulador durante a instalação do APK de teste, e desta vez executou e passou. Nos quatro jobs de build, a verificação da assinatura do APK Release e do AAB concluiu com sucesso. No job API 35 também passaram a auditoria estática de dependências/referências de rede, a verificação do manifesto Release mesclado e a publicação dos artefatos temporários. A auditoria estática e a ausência de `INTERNET` no manifesto não comprovam ausência absoluta de tráfego em tempo de execução. Os testes físicos continuam pendentes; o CI não comprova instalação/atualização em aparelho, compatibilidade com telas reais do Uber Driver/99 Motorista ou aprovação no Play Console. Não registrar um item como aprovado sem evidência (modelo do aparelho, versão Android, versão do app de transporte, data, resultado e observações).
 
 ## Matriz de dispositivos
 
@@ -15,7 +15,7 @@ Este documento define a validação de campo necessária antes de liberar o apli
 | Android API 35 (Android 15) | Compatibilidade recente | Pendente em aparelho físico |
 | Android API 36 (Android 16) | Versão-alvo atual do projeto | Pendente em aparelho físico |
 
-O CI compila e executa testes unitários nas quatro APIs. Os testes instrumentados Room rodam em emuladores API 26 e 35. O workflow publica APKs Debug e Release do build API 35 por 14 dias; baixar o artefato na execução aprovada do GitHub Actions. O teste de campo precisa usar pelo menos um aparelho físico por versão que se pretenda declarar como suportada.
+O CI compila e executa testes unitários nas quatro APIs. Os testes instrumentados Room rodam em emuladores API 26 e 35. O workflow publica APKs Debug/Release e AAB do build API 35 por 14 dias quando os secrets de assinatura estão disponíveis; as assinaturas do APK Release e do AAB são verificadas automaticamente. Isso não equivale a validar instalação/atualização em aparelhos nem a concluir a ficha ou revisão do Play Console. O teste de campo precisa usar pelo menos um aparelho físico por versão que se pretenda declarar como suportada.
 
 ## Preparação
 
@@ -56,12 +56,19 @@ Não há medições físicas anexadas a este repositório; nenhum número de lat
 
 ## Privacidade e segurança
 
-- Verificar no manifesto que não há permissão de Internet e que backup Android está desativado.
-- Confirmar que o OCR não grava screenshots, imagens ou texto capturado em arquivos/logs.
-- Confirmar que eventos de pacotes não permitidos são descartados antes de ler a árvore.
+- A descrição exibida nas configurações de acessibilidade informa que eventos são usados para identificar Uber Driver/99 Motorista, que a captura é restrita a esses apps durante o monitoramento, que o OCR é local, que texto/evidências podem ser armazenados e como interromper o serviço. A tela inicial apresenta divulgação destacada antes do acesso às configurações e exige confirmação explícita para liberar o atalho de ativação. O texto esclarece que pausar/finalizar o expediente interrompe a análise de ofertas, enquanto desativar o AccessibilityService interrompe o serviço; também informa que a política de privacidade será publicada antes da distribuição pública. Essa confirmação não substitui a política de privacidade nem a revisão das exigências do Google Play.
+- O serviço recebe eventos de acessibilidade do sistema, mas o código descarta eventos de pacotes diferentes dos apps de transporte permitidos antes de solicitar uma captura. A captura de tela não é usada para analisar outros apps.
+- No Android 8–10, além de habilitar o serviço, o usuário precisa conceder a autorização de MediaProjection para a sessão de captura. No Android 11+, o fluxo usa a API de screenshot do AccessibilityService.
+- O manifesto Release mesclado foi verificado no CI #44429457105 (HEAD `dbe82bb`): sem `INTERNET`, `allowBackup=false` e com `dataExtractionRules` explícitas. Repetir a verificação em cada variante futura de release.
+- O OCR é executado localmente, mas o texto reconhecido de ofertas completas é persistido no Room em `trip_records.rawOfferText`; origem e destino extraídos também podem ser persistidos nos campos próprios. Portanto, não declarar que o texto OCR nunca é armazenado.
+- Capturas de evidência podem ser gravadas em `files/trip_evidence`, no armazenamento privado do app, e associadas ao registro por `evidenceUri`. A imagem pode conter nomes, endereços ou outros dados visíveis na tela, mesmo sem ser exposta à galeria.
+- Os logs atuais registram metadados e contagem de caracteres, não o conteúdo OCR bruto; revisar logs de novas alterações para manter essa regra.
+- A auditoria estática do CI #44429457105 (HEAD `dbe82bb`) não encontrou dependências conhecidas de rede/telemetria nem referências às APIs de rede monitoradas no código Kotlin; o manifesto Release mesclado também não declara `INTERNET`. Essas verificações reduzem a superfície conhecida, mas não provam ausência de tráfego em tempo de execução, comportamento de SDKs nativos ou mudanças transitivas futuras. Captura de tráfego em aparelho real e revisão final de dependências continuam pendentes.
+- Confirmar que eventos de pacotes não permitidos são descartados antes de iniciar a captura.
 - Verificar que revogar permissões interrompe a captura e remove o overlay.
-- Validar que dados Room/DataStore permanecem locais e que a exclusão do app remove os dados.
-- Não coletar nomes, endereços ou dados de passageiros durante os testes. Se a interface real os mostrar, confirmar que não são persistidos.
+- O histórico agora oferece exclusão manual de ofertas. O repositório remove a captura associada somente quando o caminho corresponde a um JPEG gerado diretamente em `files/trip_evidence`; caminhos externos ou inválidos são recusados e o registro é preservado. Essa lógica está coberta por testes unitários, mas ainda precisa de validação em aparelho real.
+- A política de retenção automática/temporal e a política de privacidade publicada continuam pendentes antes da publicação.
+- Usar dados de teste controlados. Não anexar evidências com dados pessoais; mascarar informações antes de compartilhar qualquer captura fora do aparelho.
 
 ## Evidências a anexar
 
