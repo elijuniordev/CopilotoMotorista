@@ -7,7 +7,12 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.Canvas
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -16,6 +21,9 @@ import com.copilotomotorista.presentation.dashboard.DashboardDataSource
 import com.copilotomotorista.presentation.dashboard.FinancialReportPeriod
 import java.text.NumberFormat
 import java.util.Locale
+import java.time.Instant
+import java.time.temporal.ChronoUnit
+import java.time.ZoneId
 
 @Composable
 fun FinancialReportsScreen(dataSource: DashboardDataSource) {
@@ -34,6 +42,31 @@ fun FinancialReportsScreen(dataSource: DashboardDataSource) {
     }
     val currency = remember { NumberFormat.getCurrencyInstance(Locale.forLanguageTag("pt-BR")) }
     val dateFormat = remember { java.time.format.DateTimeFormatter.ofPattern("dd/MM") }
+    val chartBuckets = remember(snapshot, report, period) {
+        val count = if (period == FinancialReportPeriod.WEEK) 7 else 5
+        val days = ChronoUnit.DAYS.between(report.startDate, report.endDate).toInt().coerceAtLeast(0) + 1
+        val zone = ZoneId.systemDefault()
+        val revenue = LongArray(count)
+        val expenses = LongArray(count)
+        snapshot.settlements.forEach { settlement ->
+            val date = Instant.ofEpochMilli(settlement.dateEpochMillis).atZone(zone).toLocalDate()
+            if (!date.isBefore(report.startDate) && !date.isAfter(report.endDate)) {
+                val index = if (count == 7) ChronoUnit.DAYS.between(report.startDate, date).toInt()
+                    else (ChronoUnit.DAYS.between(report.startDate, date).toInt() * count / days).coerceIn(0, count - 1)
+                revenue[index] += settlement.amountCents
+            }
+        }
+        snapshot.expenses.forEach { expense ->
+            val date = Instant.ofEpochMilli(expense.occurredAtEpochMillis).atZone(zone).toLocalDate()
+            if (!date.isBefore(report.startDate) && !date.isAfter(report.endDate)) {
+                val index = if (count == 7) ChronoUnit.DAYS.between(report.startDate, date).toInt()
+                    else (ChronoUnit.DAYS.between(report.startDate, date).toInt() * count / days).coerceIn(0, count - 1)
+                expenses[index] += expense.amountCents
+            }
+        }
+        (0 until count).map { revenue[it] to expenses[it] }
+    }
+    val chartLabels = if (period == FinancialReportPeriod.WEEK) listOf("Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom") else listOf("S1", "S2", "S3", "S4", "S5")
     Column(Modifier.fillMaxSize().padding(18.dp)) {
         Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
             Text("DESEMPENHO E RESULTADOS", color = MaterialTheme.colorScheme.primary, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.1.sp)
@@ -75,6 +108,29 @@ fun FinancialReportsScreen(dataSource: DashboardDataSource) {
                 }
             }
             item {
+                Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
+                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Text("Movimento financeiro", color = MaterialTheme.colorScheme.onSurface, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Surface(Modifier.size(9.dp), color = Color(0xFF22C55E), shape = RoundedCornerShape(3.dp)) {}
+                                Text("Faturamento", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.labelSmall)
+                            }
+                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Surface(Modifier.size(9.dp), color = Color(0xFFEF4444), shape = RoundedCornerShape(3.dp)) {}
+                                Text("Despesas", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.labelSmall)
+                            }
+                        }
+                        FinancialBarChart(values = chartBuckets)
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                            chartLabels.forEach { label ->
+                                Text(label, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.labelSmall)
+                            }
+                        }
+                    }
+                }
+            }
+            item {
                 Surface(Modifier.fillMaxWidth().clickable { showCategories = !showCategories }, color = MaterialTheme.colorScheme.surfaceContainerLow, shape = RoundedCornerShape(12.dp)) {
                     Row(Modifier.padding(horizontal = 14.dp, vertical = 12.dp), horizontalArrangement = Arrangement.SpaceBetween) {
                         Text("Despesas por categoria", color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.SemiBold)
@@ -109,6 +165,36 @@ private fun ReportValueCard(label: String, value: String, modifier: Modifier = M
         Column(Modifier.fillMaxWidth().padding(13.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text(label, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.labelSmall)
             Text(value, color = MaterialTheme.colorScheme.onSurface, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+        }
+    }
+}
+
+
+@Composable
+private fun FinancialBarChart(values: List<Pair<Long, Long>>) {
+    val revenueColor = Color(0xFF22C55E)
+    val expenseColor = Color(0xFFEF4444)
+    Canvas(Modifier.fillMaxWidth().height(142.dp)) {
+        val maxValue = values.maxOfOrNull { maxOf(it.first, it.second) }?.coerceAtLeast(1L)?.toFloat() ?: 1f
+        val groupWidth = size.width / values.size.coerceAtLeast(1)
+        val barWidth = groupWidth * 0.25f
+        val baseline = size.height - 4.dp.toPx()
+        values.forEachIndexed { index, pair ->
+            val center = groupWidth * (index + 0.5f)
+            val revenueHeight = (pair.first.toFloat() / maxValue) * (size.height - 12.dp.toPx())
+            val expenseHeight = (pair.second.toFloat() / maxValue) * (size.height - 12.dp.toPx())
+            drawRoundRect(
+                color = revenueColor,
+                topLeft = Offset(center - barWidth - 2.dp.toPx(), baseline - revenueHeight),
+                size = Size(barWidth, revenueHeight),
+                cornerRadius = CornerRadius(5.dp.toPx(), 5.dp.toPx())
+            )
+            drawRoundRect(
+                color = expenseColor,
+                topLeft = Offset(center + 2.dp.toPx(), baseline - expenseHeight),
+                size = Size(barWidth, expenseHeight),
+                cornerRadius = CornerRadius(5.dp.toPx(), 5.dp.toPx())
+            )
         }
     }
 }

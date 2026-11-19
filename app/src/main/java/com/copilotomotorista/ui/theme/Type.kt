@@ -2,16 +2,22 @@ package com.copilotomotorista.ui.theme
 
 import androidx.compose.material3.Typography
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
+import com.copilotomotorista.R
 
 /**
  * Escala tipográfica unificada do Copiloto Pro.
- * Mantém sans-serif consistente enquanto o arquivo local licenciado da Sora
- * não é incorporado ao pacote Android.
+ * Montserrat é empacotada no aplicativo: não depende de rede nem de fontes instaladas no aparelho.
  */
-private val BrandFamily = FontFamily.SansSerif
+private val BrandFamily = FontFamily(
+    Font(R.font.montserrat_variable, weight = FontWeight.Normal),
+    Font(R.font.montserrat_variable, weight = FontWeight.Medium),
+    Font(R.font.montserrat_variable, weight = FontWeight.SemiBold),
+    Font(R.font.montserrat_variable, weight = FontWeight.Bold)
+)
 private val NumericFamily = FontFamily.Monospace
 
 val Typography = Typography(

@@ -297,11 +297,20 @@ private fun SectionHeading(title: String, subtitle: String) {
 
 @Composable
 private fun MetricCard(title: String, value: String, supporting: String, modifier: Modifier = Modifier) {
-    Card(modifier = modifier, shape = RoundedCornerShape(18.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)) {
-        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-            Text(title, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Text(value, style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold)
-            Text(supporting, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    val cardColor = when (title) {
+        "Faturamento" -> Color(0xFF1769C2)
+        "Despesas" -> Color(0xFFB8323C)
+        "Resultado / km", "Resultado / hora" -> Color(0xFF087B50)
+        "Distância total" -> Color(0xFF1769C2)
+        "Tempo registrado" -> Color(0xFFB88708)
+        else -> MaterialTheme.colorScheme.surfaceContainerHigh
+    }
+    val foreground = if (title == "Tempo registrado") Color(0xFF101827) else Color.White
+    Card(modifier = modifier, shape = RoundedCornerShape(18.dp), colors = CardDefaults.cardColors(containerColor = cardColor)) {
+        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text(title.uppercase(Locale("pt", "BR")), style = MaterialTheme.typography.labelSmall, color = foreground.copy(alpha = 0.82f), fontWeight = FontWeight.SemiBold)
+            Text(value, style = MaterialTheme.typography.titleLarge, color = foreground, fontWeight = FontWeight.Bold)
+            Text(supporting, style = MaterialTheme.typography.bodySmall, color = foreground.copy(alpha = 0.88f))
         }
     }
 }
