@@ -58,6 +58,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.platform.LocalContext
 import com.copilotomotorista.service.ShiftSessionStore
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
@@ -103,10 +104,13 @@ fun MainNavigationScreen(
             TopAppBar(
                 title = {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(9.dp)) {
-                        Icon(painter = painterResource(R.drawable.copiloto_pro_mark), contentDescription = "Copiloto Pro", modifier = Modifier.size(32.dp), tint = Color.Unspecified)
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text("Copiloto", color = MaterialTheme.colorScheme.onSurface, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                            Text(" PRO", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.ExtraBold)
+                        Icon(painter = painterResource(R.drawable.copiloto_pro_mark), contentDescription = "Copiloto Pro", modifier = Modifier.size(38.dp), tint = Color.Unspecified)
+                        Column(verticalArrangement = Arrangement.spacedBy(0.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text("Copiloto", color = MaterialTheme.colorScheme.onSurface, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                                Text(" Pro", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, fontStyle = FontStyle.Italic)
+                            }
+                            Text("PLANEJE  •  CONQUISTE  •  EVOLUA", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 8.sp, letterSpacing = 1.15.sp, fontWeight = FontWeight.Medium)
                         }
                     }
                 },
