@@ -21,7 +21,7 @@
 - [x] Configurar assinatura de release via secrets do CI, sem armazenar keystore/senhas no repositório; CI verificou a assinatura do APK Release (esquema v2).
 - [x] Gerar AAB Release assinado e verificar sua assinatura no CI (commit `cfc4954`); artefato temporário publicado junto dos APKs.
 - [ ] Validar instalação/atualização do AAB em aparelho; a estratégia técnica de versionamento já está documentada abaixo.
-- [x] Adicionar auditoria estática de dependências Release e referências a APIs de rede; no commit `251afeb`, a verificação CI passou sem candidatos conhecidos.
+- [x] Adicionar auditoria estática de dependências Release e referências a APIs de rede; no HEAD `dbe82bb` (CI #44429457105, tentativa 2), a verificação CI passou sem candidatos conhecidos.
 - [x] Verificar no CI o manifesto Release mesclado: sem permissão INTERNET, backup desativado e regras de extração explícitas.
 - [ ] Fazer revisão final de segurança, dependências, licenças, tráfego em tempo de execução e dados pessoais; a auditoria estática não prova ausência de tráfego.
 
@@ -40,4 +40,4 @@ A configuração atual inicia em `versionCode = 1` e `versionName = "1.0"`. Ante
 
 ## Restrições de release
 
-O CI gerou o AAB Release e verificou sua assinatura com `jarsigner`; isso comprova a assinatura do artefato produzido naquele commit, mas não comprova instalação/atualização em aparelho, conformidade final com políticas, nem aprovação no Play Console. A configuração atual usa `targetSdk = 36`, nível exigido para novos apps e atualizações de apps móveis enviados ao Google Play desde 31 de agosto de 2026. Não publicar nem declarar o aplicativo pronto para produção enquanto os bloqueadores acima permanecerem.
+O CI gerou o AAB Release e verificou sua assinatura com `jarsigner`; isso comprova a assinatura do artefato produzido naquele commit, mas não comprova instalação/atualização em aparelho, conformidade final com políticas, nem aprovação no Play Console. No HEAD `dbe82bb` (CI #44429457105, tentativa 2), os seis jobs do workflow passaram: builds/testes unitários nas APIs 26, 30, 35 e 36, testes instrumentados Room nas APIs 26 e 35, auditoria estática de rede, verificação do manifesto Release, assinatura do APK/AAB e publicação dos artefatos no job API 35. A configuração atual usa `targetSdk = 36`, nível exigido para novos apps e atualizações de apps móveis enviados ao Google Play desde 31 de agosto de 2026. Não publicar nem declarar o aplicativo pronto para produção enquanto os bloqueadores acima permanecerem.
