@@ -648,7 +648,12 @@ class AccessibilityReaderService : AccessibilityService() {
     }
 
     private fun captureOfferEvidence(recordId: String) {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R || serviceDestroyed) return
+        val context = evidenceCaptureContexts[recordId] ?: return
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R || !isCaptureContextAllowed(context.first, context.second)) {
+            evidenceCaptureRequested.remove(recordId)
+            evidenceCaptureContexts.remove(recordId)
+            return
+        }
         if (screenshotInProgress) {
             // OCR and evidence share Android's screenshot API. Never lose an evidence
             // request just because the OCR screenshot currently owns the capture slot.
@@ -664,8 +669,11 @@ class AccessibilityReaderService : AccessibilityService() {
                 object : TakeScreenshotCallback {
                     override fun onSuccess(screenshot: ScreenshotResult) {
                         screenshotInProgress = false
-                        if (serviceDestroyed) {
+                        if (!isCaptureContextAllowed(context.first, context.second)) {
                             screenshot.hardwareBuffer.close()
+                            evidenceCaptureRequested.remove(recordId)
+                            evidenceCaptureContexts.remove(recordId)
+                            drainPendingScreenshotWork()
                             return
                         }
                         val hardware = Bitmap.wrapHardwareBuffer(screenshot.hardwareBuffer, screenshot.colorSpace)
@@ -680,10 +688,17 @@ class AccessibilityReaderService : AccessibilityService() {
                         serviceScope.launch {
                             var evidenceSaved = false
                             try {
+                                if (!isCaptureContextAllowed(context.first, context.second)) return@launch
                                 val path = withContext(Dispatchers.IO) {
                                     OfferEvidenceStorage.save(this@AccessibilityReaderService, bitmap)
                                 }
-                                if (path != null && !serviceDestroyed) {
+                                if (path != null && !isCaptureContextAllowed(context.first, context.second)) {
+                                    // Never attach evidence captured after the user left
+                                    // the supported app. This is an app-private new file.
+                                    withContext(Dispatchers.IO) { File(path).delete() }
+                                    return@launch
+                                }
+                                if (path != null) {
                                     pendingEvidenceByRecordId[recordId] = path
                                     withContext(Dispatchers.IO) {
                                         val existing = appContainer.tripRecordRepository.getTrip(recordId)
@@ -697,6 +712,7 @@ class AccessibilityReaderService : AccessibilityService() {
                                 // Keep the offer eligible for a later retry.
                             } finally {
                                 if (!evidenceSaved) evidenceCaptureRequested.remove(recordId)
+                                evidenceCaptureContexts.remove(recordId)
                                 bitmap.recycle()
                                 drainPendingScreenshotWork()
                             }
@@ -706,6 +722,7 @@ class AccessibilityReaderService : AccessibilityService() {
                     override fun onFailure(errorCode: Int) {
                         screenshotInProgress = false
                         evidenceCaptureRequested.remove(recordId)
+                        evidenceCaptureContexts.remove(recordId)
                         drainPendingScreenshotWork()
                     }
                 }
@@ -713,10 +730,12 @@ class AccessibilityReaderService : AccessibilityService() {
         } catch (_: SecurityException) {
             screenshotInProgress = false
             evidenceCaptureRequested.remove(recordId)
+            evidenceCaptureContexts.remove(recordId)
             drainPendingScreenshotWork()
         } catch (_: IllegalStateException) {
             screenshotInProgress = false
             evidenceCaptureRequested.remove(recordId)
+            evidenceCaptureContexts.remove(recordId)
             drainPendingScreenshotWork()
         }
     }
@@ -945,15 +964,18 @@ class AccessibilityReaderService : AccessibilityService() {
     }
 
     override fun onInterrupt() {
-        captureGeneration++
-        if (::overlayWindowManager.isInitialized) overlayWindowManager.hideOverlay()
+        capturePrivacyGate.invalidate(captureGeneration)
+        invalidatePendingCaptureWork()
     }
 
     override fun onDestroy() {
         serviceDestroyed = true
+        capturePrivacyGate.invalidate(captureGeneration)
         captureGeneration++
         screenshotInProgress = false
         pendingScreenshotWork.clear()
+        evidenceCaptureContexts.clear()
+        evidenceCaptureRequested.clear()
         serviceScope.cancel()
         ocrRecognizer?.close()
         ocrRecognizer = null
