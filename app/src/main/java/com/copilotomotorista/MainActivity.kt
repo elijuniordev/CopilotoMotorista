@@ -281,11 +281,13 @@ private fun InitialSetupScreen(
 ) {
     var disclosureAccepted by remember { mutableStateOf(false) }
 
-    val completedSteps = listOf(
+    val permissionSteps = listOf(
         permissions.overlayGranted,
         permissions.accessibilityEnabled,
         permissions.batteryOptimizationDisabled
-    ).count { it }
+    ) + if (showLegacyCaptureStep) listOf(legacyCaptureActive) else emptyList()
+    val completedSteps = permissionSteps.count { it }
+    val totalSteps = permissionSteps.size
 
     Column(
         modifier = Modifier
@@ -329,12 +331,12 @@ private fun InitialSetupScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text("CONFIGURAÇÃO INICIAL", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text("$completedSteps/3", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+                    Text("$completedSteps/$totalSteps", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
                 }
                 Text(
-                    text = when (completedSteps) {
-                        3 -> "Tudo pronto para o teste"
-                        0 -> "Precisamos de algumas permissões"
+                    text = when {
+                        completedSteps == totalSteps -> "Tudo pronto para o teste"
+                        completedSteps == 0 -> "Precisamos de algumas permissões"
                         else -> "Você está quase lá"
                     },
                     style = MaterialTheme.typography.titleLarge,
@@ -377,7 +379,7 @@ private fun InitialSetupScreen(
         PermissionStepCard("02", "Serviço de acessibilidade", "Ative somente depois de ler e confirmar a divulgação acima.", permissions.accessibilityEnabled, "Serviço ativado", "Abrir configurações de acessibilidade", onRequestAccessibility, enabled = disclosureAccepted)
         PermissionStepCard("03", "Otimização de bateria", "Confira as restrições de bateria do Android. Alguns fabricantes podem interromper serviços em segundo plano.", permissions.batteryOptimizationDisabled, "Sem restrição de otimização", "Ver configurações de bateria", onRequestBatterySettings)
         if (showLegacyCaptureStep) {
-            PermissionStepCard("04", "Captura de tela compatível", "No Android 8, 9 e 10, autorize a captura de tela para que o Copiloto leia as ofertas visíveis. O OCR é executado no aparelho; texto reconhecido e imagens de evidência podem ser armazenados localmente.", legacyCaptureActive, "Captura autorizada", "Autorizar captura de tela", onRequestLegacyCapture)
+            PermissionStepCard("04", "Captura de tela compatível", "No Android 8, 9 e 10, autorize a captura de tela para que o Copiloto leia as ofertas visíveis. O OCR é executado no aparelho; texto reconhecido e imagens de evidência podem ser armazenados localmente.", legacyCaptureActive, "Captura autorizada", "Autorizar captura de tela", onRequestLegacyCapture, enabled = disclosureAccepted)
         }
 
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
