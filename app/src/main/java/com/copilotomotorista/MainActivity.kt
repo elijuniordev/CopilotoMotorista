@@ -190,6 +190,17 @@ class MainActivity : ComponentActivity() {
         super.onSaveInstanceState(outState)
     }
 
+    override fun onDestroy() {
+        // The demonstration overlay is hosted by this Activity (unlike the
+        // independent monitoring overlay owned by AccessibilityReaderService).
+        // Always remove its ComposeView before this Activity's context dies,
+        // including during rotation/recreation and when the screen is closed.
+        if (::overlayWindowManager.isInitialized) {
+            overlayWindowManager.hideOverlay()
+        }
+        super.onDestroy()
+    }
+
     override fun onResume() {
         super.onResume()
         refreshPermissionStatus()
