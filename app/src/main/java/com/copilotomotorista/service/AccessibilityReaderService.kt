@@ -428,10 +428,10 @@ class AccessibilityReaderService : AccessibilityService() {
                 showDistanceAndTime = displayPreferences.showDistanceAndTime,
                 onDismiss = {},
                 onAccepted = {
-                    saveConfirmedTrip(recordId, currentOffer.receivedFareCents, vehicle.id, vehicle.name, validAnalysis.operatingCostCents, TRIP_STATUS_ACCEPTED, detectPaymentMethod(snapshot.text), extractLabeledAddress(snapshot.text, true), extractLabeledAddress(snapshot.text, false))
+                    saveConfirmedTrip(recordId, vehicle.id, vehicle.name, validAnalysis.operatingCostCents, TRIP_STATUS_ACCEPTED, detectPaymentMethod(snapshot.text), extractLabeledAddress(snapshot.text, true), extractLabeledAddress(snapshot.text, false))
                 },
                 onCompleted = {
-                    saveConfirmedTrip(recordId, currentOffer.receivedFareCents, vehicle.id, vehicle.name, validAnalysis.operatingCostCents, TRIP_STATUS_COMPLETED, detectPaymentMethod(snapshot.text), extractLabeledAddress(snapshot.text, true), extractLabeledAddress(snapshot.text, false))
+                    saveConfirmedTrip(recordId, vehicle.id, vehicle.name, validAnalysis.operatingCostCents, TRIP_STATUS_COMPLETED, detectPaymentMethod(snapshot.text), extractLabeledAddress(snapshot.text, true), extractLabeledAddress(snapshot.text, false))
                 },
                 showCompleteAction = recentRecord?.status == "in_progress"
             )
@@ -604,7 +604,6 @@ class AccessibilityReaderService : AccessibilityService() {
 
     private fun saveConfirmedTrip(
         recordId: String,
-        fareCents: Long,
         vehicleId: String,
         vehicleName: String,
         operatingCostCents: Long,
