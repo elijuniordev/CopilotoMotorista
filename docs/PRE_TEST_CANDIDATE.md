@@ -24,6 +24,11 @@ Branch de trabalho: `fix/overlay-stability-20261121`; PR #35 sobre a PR #34. **N
 
 **Verificação no computador:** após extrair, executar `sha256sum -c SHA256SUMS.txt` na pasta do pacote. No Windows, usar uma ferramenta de cálculo SHA-256 confiável ou `Get-FileHash` e comparar os hashes. No Android, guardar a identificação do pacote e do commit no relatório do teste; o download direto do GitHub não substitui a checagem de integridade.
 
+## Validação automatizada prévia
+- O CI de 21/11/2026, [execução #44917060453](https://github.com/elijuniordev/CopilotoMotorista/actions/runs/44917060453), aprovou **6 de 6 jobs** no SHA `8bf56f363b408befa3561d84f45ff10fecf316c1`; o pacote de testes desse commit foi gerado com sucesso.
+- Os testes instrumentados de emulador seguintes foram ampliados para verificar a **abertura da configuração inicial**, a **exibição da divulgação sobre captura** e a **navegação para o painel financeiro sem conceder permissão**. Essas verificações só podem ser marcadas como aprovadas depois de CI 6/6 no novo SHA.
+- Testes do emulador validam interfaces locais; não simulam o comportamento de OCR sobre Uber Driver/99 Motorista, permissão especial concedida em aparelho, sobreposição do fabricante ou consumo da bateria.
+
 ## Roteiro mínimo para a primeira rodada
 
 | ID | Teste | Resultado obrigatório |
