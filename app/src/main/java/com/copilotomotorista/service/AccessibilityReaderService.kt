@@ -282,7 +282,9 @@ class AccessibilityReaderService : AccessibilityService() {
                 )
             }
             recordPipelineStage("duplicate_lookup", platform, snapshot.source.name, duplicateLookupStartedAt, true)
-            if (serviceDestroyed) return@launch
+            // A complete offer may arrive before a window switch but finish
+            // its repository lookup afterwards. Do not persist that stale OCR.
+            if (!isCaptureContextAllowed(platform, generation)) return@launch
             if (recentRecord?.status == TRIP_STATUS_COMPLETED) {
                 if (generation == captureGeneration) {
                     currentOfferRecordId = null
@@ -296,6 +298,7 @@ class AccessibilityReaderService : AccessibilityService() {
                 appContainer.tripRecordRepository.getTrip(recordId)
             }
             recordPipelineStage("existing_record_lookup", platform, snapshot.source.name, existingLookupStartedAt, true)
+            if (!isCaptureContextAllowed(platform, generation)) return@launch
 
             // Save a complete offer before vehicle/configuration lookups. Those reads may
             // suspend while the ride app keeps emitting accessibility events.
@@ -351,7 +354,7 @@ class AccessibilityReaderService : AccessibilityService() {
                 }
             }
 
-            if (serviceDestroyed) return@launch
+            if (!isCaptureContextAllowed(platform, generation)) return@launch
             if (generation == captureGeneration) {
                 currentOfferRecordId = recordId
             }
@@ -371,7 +374,9 @@ class AccessibilityReaderService : AccessibilityService() {
                 vehicle?.let { Triple(it, targets, offer) }
             }
             recordPipelineStage("load_vehicle_configuration", platform, snapshot.source.name, configurationStartedAt, selected != null)
-            if (serviceDestroyed || generation != captureGeneration) return@launch
+            if (generation != captureGeneration ||
+                !isCaptureContextAllowed(platform, generation)
+            ) return@launch
             if (selected == null) {
                 overlayWindowManager.hideOverlay()
                 return@launch
@@ -409,7 +414,9 @@ class AccessibilityReaderService : AccessibilityService() {
                 Log.e("OfferCapture", "Failed to update captured offer cost snapshot", error)
             }
 
-            if (serviceDestroyed || generation != captureGeneration) return@launch
+            if (generation != captureGeneration ||
+                !isCaptureContextAllowed(platform, generation)
+            ) return@launch
             val overlayStartedAt = SystemClock.uptimeMillis()
             val overlayDisplayed = overlayWindowManager.showOverlay(
                 analysisResult = validAnalysis,
@@ -498,7 +505,9 @@ class AccessibilityReaderService : AccessibilityService() {
                 configurationStartedAt,
                 selected != null
             )
-            if (serviceDestroyed || generation != captureGeneration) return@launch
+            if (generation != captureGeneration ||
+                !isCaptureContextAllowed(platform, generation)
+            ) return@launch
             if (selected == null) {
                 overlayWindowManager.hideOverlay()
                 recordPipelineStage(
@@ -531,7 +540,9 @@ class AccessibilityReaderService : AccessibilityService() {
                 evaluationStartedAt,
                 enoughAnalyzedOffers
             )
-            if (!enoughAnalyzedOffers || serviceDestroyed || generation != captureGeneration) {
+            if (!enoughAnalyzedOffers || generation != captureGeneration ||
+                !isCaptureContextAllowed(platform, generation)
+            ) {
                 if (generation == captureGeneration) overlayWindowManager.hideOverlay()
                 if (!serviceDestroyed && generation == captureGeneration) {
                     recordPipelineStage(
