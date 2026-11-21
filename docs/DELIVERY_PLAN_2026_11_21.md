@@ -82,6 +82,9 @@ Não marcar etapas como aprovadas apenas porque o código compila.
 - [ ] Confirmar CI completo 6/6 no HEAD depois das mudanças atômicas de evidência e dos novos testes.
 - [x] Reforçar compensação da escrita de evidência: apagar JPEG e desvincular o registro se a sessão do aplicativo mudar durante a gravação.
 - [x] Evitar substituição de outros campos da corrida pela gravação de evidência: `UPDATE` SQL condicional para vinculação e rollback, com teste instrumentado de integridade.
+- [x] Confirmar CI #44940298893: **6/6** jobs aprovados no commit `604c1a56`, incluindo testes de concorrência de expediente e heartbeat após mudança do relógio.
+- [x] Evitar exclusão baseada em vínculo de imagem obsoleto: `DELETE ... WHERE evidenceUri IS :expectedEvidenceUri` impede excluir registro cuja evidência foi anexada/trocada durante a operação. Teste Android cobre imagem anexada após leitura, imagem diferente, linha já excluída e evidência nula.
+- [ ] Validar exclusão do histórico com captura de evidência simultânea no aparelho; exclusão de JPEG e transação Room não são uma operação atômica de filesystem + banco.
 - [x] Bloquear ações de cartão flutuante obsoleto sobre registros já excluídos, já concluídos ou em andamento: política de transição local e três testes unitários.
 - [x] Eliminar a janela entre leitura e gravação das confirmações manuais: `UPDATE` condicional atômico no Room, preservando tarifa, notas, evidência e status do motorista, com teste instrumentado de exclusão/repetição/edição.
 - [x] Eliminar gravações de linha inteira obsoletas na complementação de OCR e no snapshot financeiro do veículo: apenas `UPDATE` de campos ainda ausentes em ofertas no estado `captured`, com teste instrumentado de regressão.
