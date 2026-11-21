@@ -45,6 +45,17 @@ class MainActivitySmokeInstrumentedTest {
     }
 
     @Test
+    fun onboardingRemainsUsableAfterActivityRecreation() {
+        // Exercises the Activity-owned overlay cleanup path in onDestroy
+        // without needing SYSTEM_ALERT_WINDOW permission from an emulator.
+        // The actual visible overlay must still be tested on a physical device.
+        composeRule.onNodeWithText("Vamos preparar seu copiloto").assertExists()
+        composeRule.activityRule.scenario.recreate()
+        composeRule.onNodeWithText("Vamos preparar seu copiloto").assertExists()
+        composeRule.onNodeWithText("Abrir painel financeiro").assertExists()
+    }
+
+    @Test
     fun dashboardRemainsOpenAfterActivityRecreation() {
         composeRule.onNodeWithText("Abrir painel financeiro")
             .performScrollTo()
