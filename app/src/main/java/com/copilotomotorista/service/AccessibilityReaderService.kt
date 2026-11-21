@@ -349,8 +349,9 @@ class AccessibilityReaderService : AccessibilityService() {
             if (generation == captureGeneration) {
                 currentOfferRecordId = recordId
             }
-            if (recentRecord?.evidenceUri == null && evidenceCaptureRequested.add(recordId) &&
-                isCaptureContextAllowed(platform, generation)
+            if (recentRecord?.evidenceUri == null &&
+                isCaptureContextAllowed(platform, generation) &&
+                evidenceCaptureRequested.add(recordId)
             ) {
                 evidenceCaptureContexts[recordId] = platform to generation
                 captureOfferEvidence(recordId)
