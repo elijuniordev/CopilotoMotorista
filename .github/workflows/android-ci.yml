@@ -57,6 +57,11 @@ jobs:
           echo "ANDROID_KEYSTORE_PATH=$KEYSTORE_PATH" >> "$GITHUB_ENV"
       - name: Run unit tests and build APKs
         run: ./gradlew --no-daemon testDebugUnitTest assembleDebug assembleRelease bundleRelease
+      # Compile instrumentation sources before starting costly emulators,
+      # catching Kotlin/import errors even if the emulator is unavailable.
+      - name: Compile instrumentation tests before emulator boot
+        if: matrix.api-level == 35
+        run: ./gradlew --no-daemon :app:assembleDebugAndroidTest
       - name: Audit release dependencies and application network APIs
         if: matrix.api-level == 35
         shell: bash
