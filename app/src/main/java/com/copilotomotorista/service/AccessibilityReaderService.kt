@@ -353,16 +353,17 @@ class AccessibilityReaderService : AccessibilityService() {
                     Log.e("OfferCapture", "Failed to persist captured offer", saved.exceptionOrNull())
                     return@launch
                 }
-                persistedRecord = saved.getOrThrow()
-                recordId = persistedRecord.id
-                if (persistedRecord.status == TRIP_STATUS_COMPLETED) {
+                val insertedOrReused = saved.getOrThrow()
+                persistedRecord = insertedOrReused
+                recordId = insertedOrReused.id
+                if (insertedOrReused.status == TRIP_STATUS_COMPLETED) {
                     if (generation == captureGeneration) {
                         currentOfferRecordId = null
                         overlayWindowManager.hideOverlay()
                     }
                     return@launch
                 }
-                if (persistedRecord.rawOfferText.isNullOrBlank()) {
+                if (insertedOrReused.rawOfferText.isNullOrBlank()) {
                     runCatching {
                         withContext(Dispatchers.IO) {
                             appContainer.tripRecordRepository.enrichCapturedOfferIfMissing(
