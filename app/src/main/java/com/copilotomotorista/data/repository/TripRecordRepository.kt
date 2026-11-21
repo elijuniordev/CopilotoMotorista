@@ -6,6 +6,14 @@ interface TripRecordRepository {
  suspend fun getTrip(id: String): TripRecord?
  suspend fun findRecentMatchingOffer(platform: String, fareCents: Long, pickupDistanceKm: Double, tripDistanceKm: Double, pickupTimeMinutes: Int, tripTimeMinutes: Int, sinceEpochMillis: Long): TripRecord?
  suspend fun saveTrip(trip: TripRecord)
+ /** Update only a missing OCR payload on a still-captured offer. */
+ suspend fun enrichCapturedOfferIfMissing(
+  id: String, rawText: String, origin: String?, destination: String?
+ ): Boolean
+ /** Update only missing cost snapshot fields on a still-captured offer. */
+ suspend fun fillCapturedCostSnapshotIfMissing(
+  id: String, vehicleId: String, costCents: Long, vehicleName: String
+ ): Boolean
  /** Returns true only when an existing trip had no prior evidence. */
  suspend fun attachEvidenceIfAbsent(id: String, path: String): Boolean
  /** Clears only the expected attachment, preserving a newer replacement. */
