@@ -101,10 +101,15 @@ class AccessibilityReaderService : AccessibilityService() {
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         event ?: return
         val packageName = event.packageName?.toString()
+        val foregroundPackage = rootInActiveWindow?.packageName?.toString()
         // Window transitions are observed for invalidation only. Never read
         // accessibility text or capture a screenshot of a different app.
         val windowChanged = capturePrivacyGate.onWindowEvent(
-            packageName, event.eventType, captureGeneration
+            packageName = packageName,
+            eventType = event.eventType,
+            generation = captureGeneration,
+            verifiedForegroundPackage = foregroundPackage,
+            ownPackage = applicationContext.packageName
         )
         if (windowChanged) invalidatePendingCaptureWork()
 
@@ -125,7 +130,6 @@ class AccessibilityReaderService : AccessibilityService() {
         // Accessibility can be enabled while Uber/99 is already foreground.
         // In that case a verified content event may establish the first
         // capture session without inspecting any node text.
-        val foregroundPackage = rootInActiveWindow?.packageName?.toString()
         if (foregroundPackage == packageName &&
             capturePrivacyGate.onVerifiedForeground(packageName, captureGeneration)
         ) {
