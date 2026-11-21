@@ -361,6 +361,46 @@ class DatabasePersistenceTest {
     }
 
     @Test
+    fun deletingTripRequiresSameEvidenceAsReadBeforeAsyncCapture() = runBlocking {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val databaseName = "trip-deletion-evidence-guard-${System.currentTimeMillis()}.db"
+        val database = Room.databaseBuilder(context, AppDatabase::class.java, databaseName).build()
+        try {
+            val dao = database.tripRecordDao()
+            val captured = TripRecordEntity(
+                id = "delete-race", platform = "uber", status = "captured",
+                receivedFareCents = 2_800L, pickupDistanceKm = 1.0,
+                tripDistanceKm = 6.0, pickupTimeMinutes = 3, tripTimeMinutes = 15,
+                origin = null, destination = null, passengerRating = null,
+                paymentMethod = null, startedAtEpochMillis = null,
+                completedAtEpochMillis = null, vehicleId = null,
+                evidenceUri = null, notes = "Oferta capturada automaticamente.",
+                createdAtEpochMillis = 123L
+            )
+            dao.upsert(captured)
+            // Caller saw no photo; an async screenshot attaches one while
+            // the caller is awaiting file cleanup or the Room dispatcher.
+            assertEquals(1, dao.attachEvidenceIfAbsent(captured.id, "offer_new.jpg"))
+            assertEquals(0, dao.deleteIfEvidenceMatches(captured.id, null))
+            assertEquals("offer_new.jpg", dao.findById(captured.id)?.evidenceUri)
+
+            assertEquals(0, dao.deleteIfEvidenceMatches(captured.id, "offer_stale.jpg"))
+            assertEquals(1, dao.deleteIfEvidenceMatches(captured.id, "offer_new.jpg"))
+            assertEquals(null, dao.findById(captured.id))
+            assertEquals(0, dao.deleteIfEvidenceMatches(captured.id, "offer_new.jpg"))
+
+            // Null evidence comparison is not ordinary SQL "=": both NULLs
+            // match, so records without a photo remain deletable.
+            dao.upsert(captured.copy(id = "no-photo"))
+            assertEquals(1, dao.deleteIfEvidenceMatches("no-photo", null))
+            assertEquals(null, dao.findById("no-photo"))
+        } finally {
+            database.close()
+            context.deleteDatabase(databaseName)
+        }
+    }
+
+    @Test
     fun privateTripCreateUpdateAndDeletePersistAcrossDatabaseReopen() = runBlocking {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val databaseName = "private-trip-crud-${System.currentTimeMillis()}.db"
