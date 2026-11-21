@@ -725,15 +725,12 @@ class AccessibilityReaderService : AccessibilityService() {
                                     var attached = false
                                     try {
                                         attached = withContext(Dispatchers.IO) {
-                                            val existing = appContainer.tripRecordRepository.getTrip(recordId)
-                                            if (existing != null && existing.evidenceUri == null) {
-                                                appContainer.tripRecordRepository.saveTrip(
-                                                    existing.copy(evidenceUri = path)
-                                                )
-                                                true
-                                            } else {
-                                                false
-                                            }
+                                            // Atomic SQL UPDATE touches evidenceUri only.
+                                            // A manual acceptance/completion or cost edit
+                                            // must not be overwritten by a stale read.
+                                            appContainer.tripRecordRepository.attachEvidenceIfAbsent(
+                                                recordId, path
+                                            )
                                         }
                                         evidenceSaved = attached &&
                                             isCaptureContextAllowed(context.first, context.second)
@@ -746,12 +743,12 @@ class AccessibilityReaderService : AccessibilityService() {
                                             // the compensating delete still runs.
                                             withContext(NonCancellable + Dispatchers.IO) {
                                                 try {
-                                                    val record = appContainer.tripRecordRepository.getTrip(recordId)
-                                                    if (record?.evidenceUri == path) {
-                                                        appContainer.tripRecordRepository.saveTrip(
-                                                            record.copy(evidenceUri = null)
-                                                        )
-                                                    }
+                                                    // Remove only this JPEG's pointer,
+                                                    // never wipe out a newer attachment or
+                                                    // modify any other trip field.
+                                                    appContainer.tripRecordRepository.clearEvidenceIfMatches(
+                                                        recordId, path
+                                                    )
                                                 } finally {
                                                     // Delete the capture even if Room
                                                     // fails during compensation.
