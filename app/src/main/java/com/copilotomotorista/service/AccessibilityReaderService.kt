@@ -734,13 +734,18 @@ class AccessibilityReaderService : AccessibilityService() {
                                             // Teardown can cancel serviceScope. Ensure
                                             // the compensating delete still runs.
                                             withContext(NonCancellable + Dispatchers.IO) {
-                                                val record = appContainer.tripRecordRepository.getTrip(recordId)
-                                                if (record?.evidenceUri == path) {
-                                                    appContainer.tripRecordRepository.saveTrip(
-                                                        record.copy(evidenceUri = null)
-                                                    )
+                                                try {
+                                                    val record = appContainer.tripRecordRepository.getTrip(recordId)
+                                                    if (record?.evidenceUri == path) {
+                                                        appContainer.tripRecordRepository.saveTrip(
+                                                            record.copy(evidenceUri = null)
+                                                        )
+                                                    }
+                                                } finally {
+                                                    // Delete the capture even if Room
+                                                    // fails during compensation.
+                                                    File(path).delete()
                                                 }
-                                                File(path).delete()
                                             }
                                         }
                                     }
