@@ -101,6 +101,45 @@ class OfferCapturePrivacyGateTest {
     }
 
     @Test
+    fun delayedUberStateEventCannotRestoreSessionWhenBrowserOwnsForeground() {
+        val gate = newGate()
+        gate.onWindowEvent(uber, OfferCapturePrivacyGate.WINDOW_STATE_CHANGED, 0)
+        assertTrue(gate.isAllowed(uber, 1, uber))
+
+        assertTrue(
+            gate.onWindowEvent(
+                packageName = uber,
+                eventType = OfferCapturePrivacyGate.WINDOW_STATE_CHANGED,
+                generation = 2,
+                verifiedForegroundPackage = browser
+            )
+        )
+        // Even if the foreground later returns to Uber without a fresh
+        // accessibility event, old generations cannot be replayed.
+        assertFalse(gate.isAllowed(uber, 3, uber))
+        assertTrue(gate.onVerifiedForeground(uber, 3))
+        assertTrue(gate.isAllowed(uber, 4, uber))
+    }
+
+    @Test
+    fun staleWindowEventFromRideAppCannotReauthorizeAfterKnownAppSwitch() {
+        val gate = newGate()
+        gate.onWindowEvent(uber, OfferCapturePrivacyGate.WINDOW_STATE_CHANGED, 0)
+        gate.onWindowEvent(browser, OfferCapturePrivacyGate.WINDOW_STATE_CHANGED, 1)
+        assertFalse(
+            gate.onWindowEvent(
+                packageName = uber,
+                eventType = OfferCapturePrivacyGate.WINDOW_STATE_CHANGED,
+                generation = 2,
+                verifiedForegroundPackage = browser
+            )
+        )
+        assertFalse(gate.isAllowed(uber, 3, uber))
+        assertTrue(gate.onVerifiedForeground(uber, 3))
+        assertTrue(gate.isAllowed(uber, 4, uber))
+    }
+
+    @Test
     fun verifiedContentEventCanStartSessionWithoutPriorWindowStateEvent() {
         val gate = newGate()
         assertFalse(gate.isAllowed(uber, 1, uber))
