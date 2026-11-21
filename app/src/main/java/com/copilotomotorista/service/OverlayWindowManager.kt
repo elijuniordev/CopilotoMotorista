@@ -238,20 +238,20 @@ class OverlayWindowManager(private val context: Context) {
     }
 
     fun hideOverlay() {
+        // Take ownership of both references before disposal; callbacks from
+        // Compose or WindowManager must not see a still-active overlay.
         val view = overlayView
+        val owner = overlayOwner
         overlayView = null
-        try {
-            view?.let {
-                it.disposeComposition()
-                if (it.isAttachedToWindow) {
-                    windowManager.removeView(it)
-                }
+        overlayOwner = null
+        // Each teardown step is independent. A failed composition disposal
+        // must not leave the window attached or the lifecycle owner alive.
+        runCatching { view?.disposeComposition() }
+        runCatching {
+            if (view?.isAttachedToWindow == true) {
+                windowManager.removeView(view)
             }
-        } catch (_: IllegalArgumentException) {
-            // A view may already have been removed by the system.
-        } finally {
-            overlayOwner?.destroy()
-            overlayOwner = null
         }
+        runCatching { owner?.destroy() }
     }
 }

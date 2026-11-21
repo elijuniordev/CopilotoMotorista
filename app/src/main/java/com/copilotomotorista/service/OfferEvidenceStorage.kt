@@ -18,10 +18,16 @@ internal object OfferEvidenceStorage {
         } else source
         val file = File(directory, "offer_${UUID.randomUUID()}.jpg")
         return try {
-            FileOutputStream(file).use { output ->
-                if (!bitmap.compress(Bitmap.CompressFormat.JPEG, 72, output)) return null
+            val compressed = FileOutputStream(file).use { output ->
+                bitmap.compress(Bitmap.CompressFormat.JPEG, 72, output)
             }
-            file.absolutePath
+            if (compressed) {
+                file.absolutePath
+            } else {
+                // A failed compressor may leave a truncated JPEG on disk.
+                file.delete()
+                null
+            }
         } catch (_: Exception) {
             file.delete()
             null

@@ -133,36 +133,51 @@ class FloatingControlWindowManager(
                 }
             }
         }
-        try {
-            windowManager.addView(composeView, layout)
-            treeOwner.resume()
-            view = composeView
-            owner = treeOwner
-            params = layout
-        } catch (_: SecurityException) {
-            composeView.disposeComposition()
-            treeOwner.destroy()
-        } catch (_: WindowManager.BadTokenException) {
-            composeView.disposeComposition()
-            treeOwner.destroy()
-        }
+        // If the window attaches but lifecycle activation fails, always tear
+        // down both the window and its Compose owners. Never leave an orphan overlay.
+        OverlayDisplayAttempt.execute(
+            attach = { windowManager.addView(composeView, layout) },
+            activate = {
+                treeOwner.resume()
+                view = composeView
+                owner = treeOwner
+                params = layout
+            },
+            cleanup = {
+                runCatching {
+                    if (composeView.isAttachedToWindow) windowManager.removeView(composeView)
+                }
+                runCatching { composeView.disposeComposition() }
+                runCatching { treeOwner.destroy() }
+                if (view === composeView) {
+                    view = null
+                    owner = null
+                    params = null
+                }
+            },
+            onFailure = { error ->
+                android.util.Log.w(
+                    "FloatingControl",
+                    "Unable to show shift control: ${error.javaClass.simpleName}"
+                )
+            }
+        )
     }
 
     fun hide() {
+        // Clear references before disposing the composition: callbacks may
+        // attempt to show the control again during window teardown.
         val current = view
+        val currentOwner = owner
         view = null
+        owner = null
         params = null
-        try {
-            current?.let {
-                it.disposeComposition()
-                if (it.isAttachedToWindow) windowManager.removeView(it)
-            }
-        } catch (_: IllegalArgumentException) {
-            // A janela já pode ter sido removida pelo Android.
-        } finally {
-            owner?.destroy()
-            owner = null
+        // One failure must not prevent the other resources from being released.
+        runCatching { current?.disposeComposition() }
+        runCatching {
+            if (current?.isAttachedToWindow == true) windowManager.removeView(current)
         }
+        runCatching { currentOwner?.destroy() }
     }
 }
 

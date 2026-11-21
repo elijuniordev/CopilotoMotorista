@@ -10,12 +10,13 @@ import org.junit.Test
 class ScreenTextSnapshotTest {
 
     @Test
-    fun normalizesWhitespaceAndRemovesDuplicateLines() {
+    fun normalizesWhitespaceWithoutDeletingRepeatedRadarCardLines() {
         val normalized = ScreenTextSnapshot.normalize(
             "  R$ 32,50  \n\n  8,5 km  \nR$ 32,50"
         )
 
-        assertEquals("R$ 32,50\n8,5 km", normalized)
+        // Equal amounts may represent two distinct Radar offers.
+        assertEquals("R$ 32,50\n8,5 km\nR$ 32,50", normalized)
     }
 
     @Test

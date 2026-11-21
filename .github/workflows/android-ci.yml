@@ -4,7 +4,7 @@ on:
   push:
     branches: [master, feat/copiloto-pro-brand-identity]
   pull_request:
-    branches: [master]
+    branches: [master, feat/copiloto-pro-brand-identity]
   workflow_dispatch:
 
 permissions:
@@ -57,6 +57,11 @@ jobs:
           echo "ANDROID_KEYSTORE_PATH=$KEYSTORE_PATH" >> "$GITHUB_ENV"
       - name: Run unit tests and build APKs
         run: ./gradlew --no-daemon testDebugUnitTest assembleDebug assembleRelease bundleRelease
+      # Compile instrumentation sources before starting costly emulators,
+      # catching Kotlin/import errors even if the emulator is unavailable.
+      - name: Compile instrumentation tests before emulator boot
+        if: matrix.api-level == 35
+        run: ./gradlew --no-daemon :app:assembleDebugAndroidTest
       - name: Audit release dependencies and application network APIs
         if: matrix.api-level == 35
         shell: bash
@@ -156,15 +161,60 @@ jobs:
           RELEASE_AAB="$(find app/build/outputs/bundle/release -maxdepth 1 -name '*.aab' -print -quit)"
           test -n "$RELEASE_AAB"
           jarsigner -verify -verbose -certs "$RELEASE_AAB"
-      - name: Publish validation APKs and AAB
+      - name: Prepare verified device-test package
+        if: matrix.api-level == 35
+        shell: bash
+        env:
+          SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          GITHUB_BUILD_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          OUTPUT_DIR="$RUNNER_TEMP/copiloto-device-test"
+          mkdir -p "$OUTPUT_DIR"
+          DEBUG_APK="$(find app/build/outputs/apk/debug -maxdepth 1 -type f -name '*.apk' -print -quit)"
+          test -n "$DEBUG_APK" && test -s "$DEBUG_APK"
+          cp "$DEBUG_APK" "$OUTPUT_DIR/CopilotoPro-debug.apk"
+
+          # Never distribute an unsigned Release APK, even if Gradle produced one.
+          if [ -n "${ANDROID_KEYSTORE_PATH:-}" ]; then
+            RELEASE_APK="$(find app/build/outputs/apk/release -maxdepth 1 -type f -name '*.apk' -print -quit)"
+            RELEASE_AAB="$(find app/build/outputs/bundle/release -maxdepth 1 -type f -name '*.aab' -print -quit)"
+            test -n "$RELEASE_APK" && test -s "$RELEASE_APK"
+            test -n "$RELEASE_AAB" && test -s "$RELEASE_AAB"
+            APKSIGNER="$(find "${ANDROID_HOME:-${ANDROID_SDK_ROOT}}/build-tools" -maxdepth 2 -type f -name apksigner -print -quit)"
+            test -n "$APKSIGNER"
+            "$APKSIGNER" verify "$RELEASE_APK"
+            jarsigner -verify "$RELEASE_AAB" >/dev/null
+            cp "$RELEASE_APK" "$OUTPUT_DIR/CopilotoPro-release-signed.apk"
+            cp "$RELEASE_AAB" "$OUTPUT_DIR/CopilotoPro-release-signed.aab"
+            echo "Release APK/AAB included: verified signed artifacts."
+          else
+            echo "::warning::No release signing credentials: test package contains Debug APK only."
+          fi
+
+          {
+            echo "project=Copiloto Pro"
+            echo "source_commit=$SOURCE_SHA"
+            echo "checkout_commit=$(git rev-parse HEAD)"
+            echo "github_build_sha=$GITHUB_BUILD_SHA"
+            echo "workflow_run=$GITHUB_RUN_ID"
+            echo "workflow_attempt=$GITHUB_RUN_ATTEMPT"
+            echo "release_signed=$([ -f "$OUTPUT_DIR/CopilotoPro-release-signed.apk" ] && echo true || echo false)"
+            echo "use=internal_device_testing_only"
+          } > "$OUTPUT_DIR/BUILD_INFO.txt"
+          (
+            cd "$OUTPUT_DIR"
+            sha256sum ./*.apk ./*.aab 2>/dev/null > SHA256SUMS.txt ||
+              sha256sum ./*.apk > SHA256SUMS.txt
+          )
+          test -s "$OUTPUT_DIR/SHA256SUMS.txt"
+
+      - name: Publish verified device-test package
         if: matrix.api-level == 35
         uses: actions/upload-artifact@v6
         with:
-          name: copiloto-motorista-apks-${{ github.sha }}
-          path: |
-            app/build/outputs/apk/debug/*.apk
-            app/build/outputs/apk/release/*.apk
-            app/build/outputs/bundle/release/*.aab
+          name: copiloto-motorista-test-${{ github.event.pull_request.head.sha || github.sha }}
+          path: ${{ runner.temp }}/copiloto-device-test/
           if-no-files-found: error
           retention-days: 14
 
@@ -195,6 +245,25 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
       - name: Verify repository wrapper
         run: test -f ./gradlew && chmod +x ./gradlew
+      - name: Enable KVM or supported software fallback
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Hosted Ubuntu runners may expose /dev/kvm without user permission.
+          # The emulator runner selects '-accel off' when KVM is not accessible.
+          if [ -e /dev/kvm ]; then
+            echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+            sudo chmod 666 /dev/kvm || true
+            sudo udevadm control --reload-rules || true
+            sudo udevadm trigger --name-match=kvm || true
+          fi
+          if [ -r /dev/kvm ] && [ -w /dev/kvm ]; then
+            echo "Android emulator: KVM is available."
+          else
+            # Emulator 37.3+ refuses -accel off unless TCG is explicitly opted in.
+            echo "ANDROID_I_WANT_MY_TCG=yes" >> "$GITHUB_ENV"
+            echo "::warning::KVM unavailable; Android emulator will use slower TCG."
+          fi
       - name: Run database persistence tests on emulator
         uses: reactivecircus/android-emulator-runner@v2
         with:

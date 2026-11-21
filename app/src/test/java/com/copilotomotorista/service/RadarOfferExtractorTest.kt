@@ -8,6 +8,129 @@ class RadarOfferExtractorTest {
     private val extractor = RadarOfferExtractor()
 
     @Test
+    fun countsOnlyPrimaryFareAnchorsAndExcludesRatesBaseFaresAndBonuses() {
+        val count = RadarOfferExtractor.countPrimaryFareAnchors(
+            """
+            Radar de Viagens
+            R$ 12,50
+            UberX
+            Est. de R$ 2,20/km
+            +R$ 1,00 incluído
+            Tarifa base R$ 1,28
+            Tenho interesse
+            R$ 18,90
+            R$ 3,15/km
+            Ver oferta
+            """.trimIndent()
+        )
+
+        assertEquals(2, count)
+    }
+
+    @Test
+    fun doesNotCountTwoFareAmountsFromASingleRateAndOneCard() {
+        val count = RadarOfferExtractor.countPrimaryFareAnchors(
+            """
+            Radar de Viagens
+            R$ 12,50
+            20 min • 5,7 km - Est. de R$ 2,20/km
+            5 min • 1,1 km
+            15 min • 4,6 km
+            Tenho interesse
+            """.trimIndent()
+        )
+
+        assertEquals(1, count)
+    }
+
+    @Test
+    fun keepsTwoSeparateCardsEvenWhenTheirFareAndRouteMetricsAreIdentical() {
+        val text = ScreenTextSnapshot.normalize(
+            """
+            Radar de Viagens
+            R$ 12,50
+            UberX
+            20 min • 5,7 km - Est. de R$2,20/km
+            5 min • 1,1 km
+            15 min • 4,6 km
+            Tenho interesse
+            R$ 12,50
+            UberX
+            20 min • 5,7 km - Est. de R$2,20/km
+            5 min • 1,1 km
+            15 min • 4,6 km
+            Tenho interesse
+            """.trimIndent()
+        )
+
+        assertEquals(
+            OfferScreenClassifier.ScreenKind.RADAR_CANDIDATE,
+            OfferScreenClassifier().classify(text).kind
+        )
+        val cards = extractor.extract(text)
+        assertEquals(2, cards.size)
+        assertEquals(listOf(1, 2), cards.map { it.position })
+        assertEquals(listOf(1250L, 1250L), cards.map { it.offer.receivedFareCents })
+        assertEquals(cards[0].offer, cards[1].offer)
+    }
+
+    @Test
+    fun twoFareAnchorsWithOnlyOneActionCannotBecomeTwoCompleteRadarCards() {
+        val cards = extractor.extract(
+            """
+            Radar de Viagens
+            R$ 12,50
+            UberX
+            20 min • 5,7 km - Est. de R$2,20/km
+            5 min • 1,1 km
+            15 min • 4,6 km
+            R$ 18,90
+            UberX
+            24 min • 7,0 km - Est. de R$2,70/km
+            6 min • 1,5 km
+            18 min • 5,5 km
+            Tenho interesse
+            """.trimIndent()
+        )
+
+        assertEquals(1, cards.size)
+        assertEquals(2, cards.single().position)
+    }
+
+    @Test
+    fun endToEndOcrNormalizationKeepsTwoSamePriceRadarCards() {
+        val text = ScreenTextSnapshot.normalize(
+            """
+            Radar de Viagens
+            R$ 12,50
+            UberX
+            20 min • 5,7 km - Est. de R$2,20/km
+            +R$ 1,00 incluído
+            5 min • 1,1 km
+            15 min • 4,6 km
+            Tenho interesse
+            R$ 12,50
+            UberX
+            24 min • 7,0 km - Est. de R$1,79/km
+            +R$ 1,00 incluído
+            6 min • 1,5 km
+            18 min • 5,5 km
+            Tenho interesse
+            """.trimIndent()
+        )
+
+        val classification = OfferScreenClassifier().classify(text)
+        assertEquals(OfferScreenClassifier.ScreenKind.RADAR_CANDIDATE, classification.kind)
+
+        val cards = extractor.extract(text)
+        assertEquals(2, cards.size)
+        assertEquals(listOf(1, 2), cards.map { it.position })
+        assertEquals(listOf(1250L, 1250L), cards.map { it.offer.receivedFareCents })
+        assertEquals(1.1, cards[0].offer.pickupDistanceKm, 0.001)
+        assertEquals(1.5, cards[1].offer.pickupDistanceKm, 0.001)
+    }
+
+    @Test
     fun extractsTwoIndependentCompleteOffersFromRadarReadingOrder() {
         val candidates = extractor.extract(
             """

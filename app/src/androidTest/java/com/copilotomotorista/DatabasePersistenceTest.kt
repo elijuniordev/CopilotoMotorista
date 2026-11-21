@@ -12,6 +12,10 @@ import com.copilotomotorista.data.local.entity.ExpenseEntity
 import com.copilotomotorista.data.local.entity.PrivateTripEntity
 import com.copilotomotorista.data.local.entity.TripRecordEntity
 import com.copilotomotorista.data.local.entity.VehicleEntity
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
@@ -132,6 +136,335 @@ class DatabasePersistenceTest {
             database.close()
         } finally {
             context.deleteDatabase(databaseName)
+        }
+    }
+
+    @Test
+    fun evidenceOnlyUpdatesNeverOverwriteDriverChangesOrAnotherAttachment() = runBlocking {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val databaseName = "evidence-atomic-${System.currentTimeMillis()}.db"
+        val database = Room.databaseBuilder(context, AppDatabase::class.java, databaseName).build()
+        try {
+            val dao = database.tripRecordDao()
+            val record = TripRecordEntity(
+                id = "trip-atomic", platform = "uber", status = "accepted",
+                receivedFareCents = 3250L, pickupDistanceKm = 1.0,
+                tripDistanceKm = 8.0, pickupTimeMinutes = 3, tripTimeMinutes = 18,
+                origin = "Origem", destination = "Destino", passengerRating = null,
+                paymentMethod = "pix", startedAtEpochMillis = null,
+                completedAtEpochMillis = null, vehicleId = null,
+                evidenceUri = null, notes = "Nota manual do motorista",
+                createdAtEpochMillis = 100L
+            )
+            dao.upsert(record)
+            assertEquals(1, dao.attachEvidenceIfAbsent(record.id, "offer_first.jpg"))
+            assertEquals(0, dao.attachEvidenceIfAbsent(record.id, "offer_second.jpg"))
+            val attached = requireNotNull(dao.findById(record.id))
+            assertEquals("accepted", attached.status)
+            assertEquals("Nota manual do motorista", attached.notes)
+            assertEquals(3250L, attached.receivedFareCents)
+            assertEquals("offer_first.jpg", attached.evidenceUri)
+
+            dao.upsert(attached.copy(status = "completed", notes = "Confirmada"))
+            assertEquals(0, dao.clearEvidenceIfMatches(record.id, "offer_second.jpg"))
+            val confirmed = requireNotNull(dao.findById(record.id))
+            assertEquals("completed", confirmed.status)
+            assertEquals("Confirmada", confirmed.notes)
+            assertEquals("offer_first.jpg", confirmed.evidenceUri)
+
+            assertEquals(1, dao.clearEvidenceIfMatches(record.id, "offer_first.jpg"))
+            val cleared = requireNotNull(dao.findById(record.id))
+            assertEquals("completed", cleared.status)
+            assertEquals("Confirmada", cleared.notes)
+            assertEquals(null, cleared.evidenceUri)
+            assertEquals(0, dao.clearEvidenceIfMatches(record.id, "offer_first.jpg"))
+
+            dao.deleteById(record.id)
+            assertEquals(0, dao.attachEvidenceIfAbsent(record.id, "offer_after_delete.jpg"))
+            assertEquals(null, dao.findById(record.id))
+        } finally {
+            database.close()
+            context.deleteDatabase(databaseName)
+        }
+    }
+
+    @Test
+    fun manualOverlayConfirmationIsAtomicAndPreservesDriverEdits() = runBlocking {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val databaseName = "manual-confirmation-${System.currentTimeMillis()}.db"
+        val database = Room.databaseBuilder(context, AppDatabase::class.java, databaseName).build()
+        try {
+            database.vehicleDao().upsert(
+                VehicleEntity("vehicle-confirm", "Veículo", "gasoline", "GASOLINE",
+                    12.0, 590L, 10L, 20L, 5L)
+            )
+            val dao = database.tripRecordDao()
+            val captured = TripRecordEntity(
+                id = "offer-manual", platform = "uber", status = "captured",
+                receivedFareCents = 3_250L, pickupDistanceKm = 1.0,
+                tripDistanceKm = 8.0, pickupTimeMinutes = 3, tripTimeMinutes = 18,
+                origin = null, destination = null, passengerRating = null,
+                paymentMethod = null, startedAtEpochMillis = null,
+                completedAtEpochMillis = null, vehicleId = null,
+                evidenceUri = "offer_original.jpg", notes = "Nota do motorista",
+                createdAtEpochMillis = 100L,
+                rawOfferText = "Oferta capturada"
+            )
+            dao.upsert(captured)
+            // A driver edit can happen after the service reads this record.
+            dao.upsert(captured.copy(
+                receivedFareCents = 3_500L,
+                destination = "Destino corrigido",
+                notes = "Observação preservada"
+            ))
+            assertEquals(
+                1,
+                dao.confirmOfferFromOverlay(
+                    id = captured.id, requestedStatus = "accepted", nowEpochMillis = 200L,
+                    detectedOrigin = "Origem OCR", detectedDestination = "Destino OCR",
+                    paymentMethod = "pix", vehicleId = "vehicle-confirm",
+                    vehicleName = "Veículo", costCents = 800L
+                )
+            )
+            val accepted = requireNotNull(dao.findById(captured.id))
+            assertEquals("accepted", accepted.status)
+            assertEquals(3_500L, accepted.receivedFareCents)
+            assertEquals("Destino corrigido", accepted.destination)
+            assertEquals("Origem OCR", accepted.origin)
+            assertEquals("Observação preservada", accepted.notes)
+            assertEquals("offer_original.jpg", accepted.evidenceUri)
+            assertEquals("Oferta capturada", accepted.rawOfferText)
+            assertEquals(800L, accepted.operatingCostCentsSnapshot)
+            assertEquals("vehicle-confirm", accepted.vehicleId)
+            assertEquals("pix", accepted.paymentMethod)
+            assertEquals(0, dao.confirmOfferFromOverlay(
+                captured.id, "accepted", 205L, null, null, null,
+                "vehicle-confirm", "Veículo", 800L
+            ))
+
+            assertEquals(1, dao.confirmOfferFromOverlay(
+                captured.id, "completed", 300L, null, null, null,
+                "vehicle-confirm", "Veículo", 999L
+            ))
+            val completed = requireNotNull(dao.findById(captured.id))
+            assertEquals("completed", completed.status)
+            assertEquals(300L, completed.startedAtEpochMillis)
+            assertEquals(300L, completed.completedAtEpochMillis)
+            assertEquals(800L, completed.operatingCostCentsSnapshot)
+            assertEquals("Observação preservada", completed.notes)
+            assertEquals(0, dao.confirmOfferFromOverlay(
+                captured.id, "accepted", 310L, null, null, null,
+                "vehicle-confirm", "Veículo", 800L
+            ))
+            assertEquals(0, dao.confirmOfferFromOverlay(
+                captured.id, "completed", 310L, null, null, null,
+                "vehicle-confirm", "Veículo", 800L
+            ))
+            assertEquals(300L, dao.findById(captured.id)?.completedAtEpochMillis)
+
+            dao.upsert(captured.copy(id = "offer-unaccepted"))
+            assertEquals(0, dao.confirmOfferFromOverlay(
+                "offer-unaccepted", "completed", 350L, null, null, null,
+                "vehicle-confirm", "Veículo", 800L
+            ))
+            dao.deleteById(captured.id)
+            assertEquals(0, dao.confirmOfferFromOverlay(
+                captured.id, "accepted", 400L, null, null, null,
+                "vehicle-confirm", "Veículo", 800L
+            ))
+            assertEquals(null, dao.findById(captured.id))
+        } finally {
+            database.close()
+            context.deleteDatabase(databaseName)
+        }
+    }
+
+    @Test
+    fun delayedOcrAndCostEnrichmentDoNotRevertConfirmedTripOrUserEdits() = runBlocking {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val name = "ocr-enrichment-atomic-${System.currentTimeMillis()}.db"
+        val database = Room.databaseBuilder(context, AppDatabase::class.java, name).build()
+        try {
+            database.vehicleDao().upsert(
+                VehicleEntity("vehicle-ocr", "Carro", "gasoline", "GASOLINE",
+                    12.0, 590L, 10L, 20L, 5L)
+            )
+            val dao = database.tripRecordDao()
+            val captured = TripRecordEntity(
+                id = "ocr-enrich", platform = "uber", status = "captured",
+                receivedFareCents = 3_000L, pickupDistanceKm = 1.0,
+                tripDistanceKm = 7.0, pickupTimeMinutes = 4, tripTimeMinutes = 17,
+                origin = null, destination = null, passengerRating = null,
+                paymentMethod = null, startedAtEpochMillis = null,
+                completedAtEpochMillis = null, vehicleId = null,
+                evidenceUri = null, notes = "Oferta capturada automaticamente.",
+                createdAtEpochMillis = 100L
+            )
+            dao.upsert(captured)
+            assertEquals(
+                1, dao.enrichCapturedOfferIfMissing(
+                    captured.id, "Texto OCR inicial", "Origem OCR", "Destino OCR"
+                )
+            )
+            assertEquals(0, dao.enrichCapturedOfferIfMissing(
+                captured.id, "Texto repetido", "Origem nova", "Destino novo"
+            ))
+            val enriched = requireNotNull(dao.findById(captured.id))
+            assertEquals("Texto OCR inicial", enriched.rawOfferText)
+            assertEquals("Destino OCR", enriched.destination)
+
+            // Simulate the driver manually editing fare/notes and an
+            // evidence callback attaching a photo before cost enrichment.
+            dao.upsert(enriched.copy(
+                receivedFareCents = 3_350L,
+                notes = "Observação editada",
+                evidenceUri = "offer_current.jpg"
+            ))
+            assertEquals(
+                1, dao.fillCapturedCostSnapshotIfMissing(
+                    captured.id, "vehicle-ocr", 750L, "Carro"
+                )
+            )
+            assertEquals(0, dao.fillCapturedCostSnapshotIfMissing(
+                captured.id, "vehicle-ocr", 999L, "Carro novo"
+            ))
+            val withCost = requireNotNull(dao.findById(captured.id))
+            assertEquals(3_350L, withCost.receivedFareCents)
+            assertEquals("Observação editada", withCost.notes)
+            assertEquals("offer_current.jpg", withCost.evidenceUri)
+            assertEquals("Texto OCR inicial", withCost.rawOfferText)
+            assertEquals(750L, withCost.operatingCostCentsSnapshot)
+
+            // Async results that arrive after manual confirmation cannot
+            // overwrite the captured trip with an older full-row snapshot.
+            dao.upsert(withCost.copy(status = "accepted"))
+            assertEquals(0, dao.enrichCapturedOfferIfMissing(
+                captured.id, "Texto atrasado", "Origem atrasada", "Destino atrasado"
+            ))
+            assertEquals(0, dao.fillCapturedCostSnapshotIfMissing(
+                captured.id, "vehicle-ocr", 999L, "Nome atrasado"
+            ))
+            val accepted = requireNotNull(dao.findById(captured.id))
+            assertEquals("accepted", accepted.status)
+            assertEquals(3_350L, accepted.receivedFareCents)
+            assertEquals("Observação editada", accepted.notes)
+            assertEquals("offer_current.jpg", accepted.evidenceUri)
+
+            dao.deleteById(captured.id)
+            assertEquals(0, dao.enrichCapturedOfferIfMissing(
+                captured.id, "Texto de item excluído", null, null
+            ))
+            assertEquals(0, dao.fillCapturedCostSnapshotIfMissing(
+                captured.id, "vehicle-ocr", 999L, "Carro"
+            ))
+            assertEquals(null, dao.findById(captured.id))
+        } finally {
+            database.close()
+            context.deleteDatabase(name)
+        }
+    }
+
+    @Test
+    fun deletingTripRequiresSameEvidenceAsReadBeforeAsyncCapture() = runBlocking {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val databaseName = "trip-deletion-evidence-guard-${System.currentTimeMillis()}.db"
+        val database = Room.databaseBuilder(context, AppDatabase::class.java, databaseName).build()
+        try {
+            val dao = database.tripRecordDao()
+            val captured = TripRecordEntity(
+                id = "delete-race", platform = "uber", status = "captured",
+                receivedFareCents = 2_800L, pickupDistanceKm = 1.0,
+                tripDistanceKm = 6.0, pickupTimeMinutes = 3, tripTimeMinutes = 15,
+                origin = null, destination = null, passengerRating = null,
+                paymentMethod = null, startedAtEpochMillis = null,
+                completedAtEpochMillis = null, vehicleId = null,
+                evidenceUri = null, notes = "Oferta capturada automaticamente.",
+                createdAtEpochMillis = 123L
+            )
+            dao.upsert(captured)
+            // Caller saw no photo; an async screenshot attaches one while
+            // the caller is awaiting file cleanup or the Room dispatcher.
+            assertEquals(1, dao.attachEvidenceIfAbsent(captured.id, "offer_new.jpg"))
+            assertEquals(0, dao.deleteIfEvidenceMatches(captured.id, null))
+            assertEquals("offer_new.jpg", dao.findById(captured.id)?.evidenceUri)
+
+            assertEquals(0, dao.deleteIfEvidenceMatches(captured.id, "offer_stale.jpg"))
+            assertEquals(1, dao.deleteIfEvidenceMatches(captured.id, "offer_new.jpg"))
+            assertEquals(null, dao.findById(captured.id))
+            assertEquals(0, dao.deleteIfEvidenceMatches(captured.id, "offer_new.jpg"))
+
+            // Null evidence comparison is not ordinary SQL "=": both NULLs
+            // match, so records without a photo remain deletable.
+            dao.upsert(captured.copy(id = "no-photo"))
+            assertEquals(1, dao.deleteIfEvidenceMatches("no-photo", null))
+            assertEquals(null, dao.findById("no-photo"))
+        } finally {
+            database.close()
+            context.deleteDatabase(databaseName)
+        }
+    }
+
+    @Test
+    fun simultaneousOcrClaimsReuseOneTripAndNeverReplaceDriverChanges() = runBlocking {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val name = "capture-claim-atomic-${System.currentTimeMillis()}.db"
+        val database = Room.databaseBuilder(context, AppDatabase::class.java, name).build()
+        try {
+            val dao = database.tripRecordDao()
+            val base = TripRecordEntity(
+                id = "candidate-0", platform = "uber", status = "captured",
+                receivedFareCents = 2_700L, pickupDistanceKm = 1.5,
+                tripDistanceKm = 7.0, pickupTimeMinutes = 5, tripTimeMinutes = 19,
+                origin = "A", destination = "B", passengerRating = null,
+                paymentMethod = null, startedAtEpochMillis = null,
+                completedAtEpochMillis = null, vehicleId = null,
+                evidenceUri = null, notes = "Oferta capturada automaticamente.",
+                createdAtEpochMillis = 1_000L, rawOfferText = "Oferta original"
+            )
+            // Sixteen async snapshots can finish their lookups at once.
+            // A transactional lookup+insert must return one persisted ID.
+            val results = (0 until 16).map { index ->
+                async(Dispatchers.Default) {
+                    dao.findOrInsertCapturedOffer(base.copy(id = "candidate-$index"), 500L)
+                }
+            }.awaitAll()
+            assertEquals(1, results.map { it.id }.toSet().size)
+            assertEquals(1, dao.observeAll().first().size)
+            val first = results.first()
+
+            // An already confirmed offer must be reused, NOT overwritten
+            // by a delayed OCR callback carrying an old captured state.
+            dao.upsert(first.copy(
+                status = "completed",
+                receivedFareCents = 2_900L,
+                evidenceUri = "offer_confirmed.jpg",
+                notes = "Notas particulares",
+                completedAtEpochMillis = 1_500L
+            ))
+            val reused = dao.findOrInsertCapturedOffer(
+                base.copy(id = "stale-ocr-new-id"), 500L
+            )
+            assertEquals(first.id, reused.id)
+            assertEquals("completed", reused.status)
+            assertEquals(2_900L, reused.receivedFareCents)
+            assertEquals("offer_confirmed.jpg", reused.evidenceUri)
+            assertEquals("Notas particulares", reused.notes)
+            assertEquals(null, dao.findById("stale-ocr-new-id"))
+
+            // A different fare must still create a different offer; this
+            // guard does not collapse genuinely distinct offer snapshots.
+            val different = dao.findOrInsertCapturedOffer(
+                base.copy(
+                    id = "different-fare",
+                    receivedFareCents = 3_100L,
+                    rawOfferText = "Outra oferta"
+                ), 500L
+            )
+            assertEquals("different-fare", different.id)
+            assertEquals(2, dao.observeAll().first().size)
+        } finally {
+            database.close()
+            context.deleteDatabase(name)
         }
     }
 

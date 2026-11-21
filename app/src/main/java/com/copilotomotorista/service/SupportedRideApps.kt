@@ -12,4 +12,14 @@ internal object SupportedRideApps {
 
     fun contains(packageName: String?): Boolean =
         packageName != null && packageName in packages
+
+    /**
+     * Attribution must come from Android's independently verified foreground
+     * package, never from text guessed by OCR (which can contain other brands).
+     */
+    fun platformForPackage(packageName: String?): String? = when (packageName) {
+        UBER_DRIVER -> "uber"
+        NINETY_NINE_DRIVER -> "99"
+        else -> null
+    }
 }

@@ -21,7 +21,9 @@ data class ScreenTextSnapshot(
             rawText.lineSequence()
                 .map { it.trim().replace(Regex("\\s+"), " ") }
                 .filter { it.isNotEmpty() }
-                .distinct()
+                // Preserve repeated lines. Two different Radar cards may have
+                // the same fare, route segment, or "Tenho interesse" action.
+                // Global deduplication silently removed data from later cards.
                 .joinToString("\n")
     }
 }

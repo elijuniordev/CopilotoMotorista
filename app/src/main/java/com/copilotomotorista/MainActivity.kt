@@ -55,10 +55,13 @@ import com.copilotomotorista.domain.model.VehicleOperatingCosts
 import com.copilotomotorista.domain.usecase.EvaluateOfferUseCase
 import com.copilotomotorista.presentation.dashboard.DashboardDataSource
 import com.copilotomotorista.service.AccessibilityReaderService
+import com.copilotomotorista.service.AccessibilityServicePermissionStatus
 import com.copilotomotorista.service.MediaProjectionCaptureService
 import com.copilotomotorista.service.OverlayWindowManager
 import com.copilotomotorista.presentation.navigation.MainNavigationScreen
 import com.copilotomotorista.ui.theme.CopilotoMotoristaTheme
+
+private const val DASHBOARD_OPEN_STATE_KEY = "copiloto.dashboard_open"
 
 private data class PermissionStatus(
     val overlayGranted: Boolean = false,
@@ -133,6 +136,9 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Preserve the chosen area across rotation/process recreation.
+        // The default remains onboarding for a fresh install.
+        showDashboard = savedInstanceState?.getBoolean(DASHBOARD_OPEN_STATE_KEY) ?: false
         overlayWindowManager = OverlayWindowManager(this)
         evaluateOfferUseCase = EvaluateOfferUseCase()
         val appContainer = AppContainer(applicationContext)
@@ -179,6 +185,22 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    override fun onSaveInstanceState(outState: Bundle) {
+        outState.putBoolean(DASHBOARD_OPEN_STATE_KEY, showDashboard)
+        super.onSaveInstanceState(outState)
+    }
+
+    override fun onDestroy() {
+        // The demonstration overlay is hosted by this Activity (unlike the
+        // independent monitoring overlay owned by AccessibilityReaderService).
+        // Always remove its ComposeView before this Activity's context dies,
+        // including during rotation/recreation and when the screen is closed.
+        if (::overlayWindowManager.isInitialized) {
+            overlayWindowManager.hideOverlay()
+        }
+        super.onDestroy()
+    }
+
     override fun onResume() {
         super.onResume()
         refreshPermissionStatus()
@@ -189,11 +211,10 @@ class MainActivity : ComponentActivity() {
         val enabledServices = Settings.Secure.getString(
             contentResolver,
             Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
-        ).orEmpty().split(':')
-
-        val accessibilityEnabled = enabledServices.any { enabled ->
-            enabled.equals(serviceComponent.flattenToString(), ignoreCase = true)
-        }
+        )
+        val accessibilityEnabled = AccessibilityServicePermissionStatus.isEnabled(
+            enabledServices, serviceComponent
+        )
 
         val powerManager = getSystemService(POWER_SERVICE) as PowerManager
         permissionStatus = PermissionStatus(
@@ -271,11 +292,13 @@ private fun InitialSetupScreen(
 ) {
     var disclosureAccepted by remember { mutableStateOf(false) }
 
-    val completedSteps = listOf(
+    val permissionSteps = listOf(
         permissions.overlayGranted,
         permissions.accessibilityEnabled,
         permissions.batteryOptimizationDisabled
-    ).count { it }
+    ) + if (showLegacyCaptureStep) listOf(legacyCaptureActive) else emptyList()
+    val completedSteps = permissionSteps.count { it }
+    val totalSteps = permissionSteps.size
 
     Column(
         modifier = Modifier
@@ -319,12 +342,12 @@ private fun InitialSetupScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text("CONFIGURAÇÃO INICIAL", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text("$completedSteps/3", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+                    Text("$completedSteps/$totalSteps", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
                 }
                 Text(
-                    text = when (completedSteps) {
-                        3 -> "Tudo pronto para o teste"
-                        0 -> "Precisamos de algumas permissões"
+                    text = when {
+                        completedSteps == totalSteps -> "Tudo pronto para o teste"
+                        completedSteps == 0 -> "Precisamos de algumas permissões"
                         else -> "Você está quase lá"
                     },
                     style = MaterialTheme.typography.titleLarge,
@@ -367,7 +390,7 @@ private fun InitialSetupScreen(
         PermissionStepCard("02", "Serviço de acessibilidade", "Ative somente depois de ler e confirmar a divulgação acima.", permissions.accessibilityEnabled, "Serviço ativado", "Abrir configurações de acessibilidade", onRequestAccessibility, enabled = disclosureAccepted)
         PermissionStepCard("03", "Otimização de bateria", "Confira as restrições de bateria do Android. Alguns fabricantes podem interromper serviços em segundo plano.", permissions.batteryOptimizationDisabled, "Sem restrição de otimização", "Ver configurações de bateria", onRequestBatterySettings)
         if (showLegacyCaptureStep) {
-            PermissionStepCard("04", "Captura de tela compatível", "No Android 8, 9 e 10, autorize a captura de tela para que o Copiloto leia as ofertas visíveis. O OCR é executado no aparelho; texto reconhecido e imagens de evidência podem ser armazenados localmente.", legacyCaptureActive, "Captura autorizada", "Autorizar captura de tela", onRequestLegacyCapture)
+            PermissionStepCard("04", "Captura de tela compatível", "No Android 8, 9 e 10, autorize a captura de tela para que o Copiloto leia as ofertas visíveis. O OCR é executado no aparelho; texto reconhecido e imagens de evidência podem ser armazenados localmente.", legacyCaptureActive, "Captura autorizada", "Autorizar captura de tela", onRequestLegacyCapture, enabled = disclosureAccepted)
         }
 
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {

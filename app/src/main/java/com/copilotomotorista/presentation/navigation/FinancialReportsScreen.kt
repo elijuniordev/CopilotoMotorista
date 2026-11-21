@@ -16,13 +16,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.copilotomotorista.presentation.dashboard.BuildFinancialChartBucketsUseCase
 import com.copilotomotorista.presentation.dashboard.BuildFinancialReportUseCase
 import com.copilotomotorista.presentation.dashboard.DashboardDataSource
 import com.copilotomotorista.presentation.dashboard.FinancialReportPeriod
 import java.text.NumberFormat
 import java.util.Locale
-import java.time.Instant
-import java.time.temporal.ChronoUnit
 import java.time.ZoneId
 
 @Composable
@@ -43,30 +42,15 @@ fun FinancialReportsScreen(dataSource: DashboardDataSource) {
     val currency = remember { NumberFormat.getCurrencyInstance(Locale.forLanguageTag("pt-BR")) }
     val dateFormat = remember { java.time.format.DateTimeFormatter.ofPattern("dd/MM") }
     val chartBuckets = remember(snapshot, report, period) {
-        val count = if (period == FinancialReportPeriod.WEEK) 7 else 5
-        val days = ChronoUnit.DAYS.between(report.startDate, report.endDate).toInt().coerceAtLeast(0) + 1
-        val zone = ZoneId.systemDefault()
-        val revenue = LongArray(count)
-        val expenses = LongArray(count)
-        snapshot.settlements.forEach { settlement ->
-            val date = Instant.ofEpochMilli(settlement.dateEpochMillis).atZone(zone).toLocalDate()
-            if (!date.isBefore(report.startDate) && !date.isAfter(report.endDate)) {
-                val index = if (count == 7) ChronoUnit.DAYS.between(report.startDate, date).toInt()
-                    else (ChronoUnit.DAYS.between(report.startDate, date).toInt() * count / days).coerceIn(0, count - 1)
-                revenue[index] += settlement.amountCents
-            }
-        }
-        snapshot.expenses.forEach { expense ->
-            val date = Instant.ofEpochMilli(expense.occurredAtEpochMillis).atZone(zone).toLocalDate()
-            if (!date.isBefore(report.startDate) && !date.isAfter(report.endDate)) {
-                val index = if (count == 7) ChronoUnit.DAYS.between(report.startDate, date).toInt()
-                    else (ChronoUnit.DAYS.between(report.startDate, date).toInt() * count / days).coerceIn(0, count - 1)
-                expenses[index] += expense.amountCents
-            }
-        }
-        (0 until count).map { revenue[it] to expenses[it] }
+        BuildFinancialChartBucketsUseCase.execute(
+            period = period,
+            startDate = report.startDate,
+            endDate = report.endDate,
+            settlements = snapshot.settlements,
+            expenses = snapshot.expenses,
+            zoneId = ZoneId.systemDefault()
+        )
     }
-    val chartLabels = if (period == FinancialReportPeriod.WEEK) listOf("Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom") else listOf("S1", "S2", "S3", "S4", "S5")
     Column(Modifier.fillMaxSize().padding(18.dp)) {
         Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
             Text("DESEMPENHO E RESULTADOS", color = MaterialTheme.colorScheme.primary, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.1.sp)
@@ -110,7 +94,7 @@ fun FinancialReportsScreen(dataSource: DashboardDataSource) {
             item {
                 Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Text("Movimento financeiro", color = MaterialTheme.colorScheme.onSurface, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                        Text(if (period == FinancialReportPeriod.WEEK) "Movimento diário" else "Movimento por semana", color = MaterialTheme.colorScheme.onSurface, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                         Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                 Surface(Modifier.size(9.dp), color = Color(0xFF22C55E), shape = RoundedCornerShape(3.dp)) {}
@@ -121,10 +105,10 @@ fun FinancialReportsScreen(dataSource: DashboardDataSource) {
                                 Text("Despesas", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.labelSmall)
                             }
                         }
-                        FinancialBarChart(values = chartBuckets)
+                        FinancialBarChart(values = chartBuckets.map { it.revenueCents to it.expenseCents })
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                            chartLabels.forEach { label ->
-                                Text(label, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.labelSmall)
+                            chartBuckets.forEach { bucket ->
+                                Text(bucket.label, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.labelSmall)
                             }
                         }
                     }

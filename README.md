@@ -4,11 +4,11 @@ Aplicativo Android em Kotlin e Jetpack Compose para apoiar motoristas de aplicat
 
 ## Identidade visual
 
-A marca do aplicativo é Copiloto Pro. O símbolo vetorial e o ícone adaptativo usam uma assinatura geométrica de rota em ciano e verde sobre azul-marinho. A navegação principal utiliza ícones vetoriais Material, rótulos persistentes e áreas seguras do sistema.
+A marca do aplicativo é Copiloto Pro. O símbolo vetorial e o ícone adaptativo seguem o guia mais recente: rota verde, marcações brancas e pin amarelo sobre navy. A navegação principal utiliza ícones vetoriais Material, rótulos persistentes e áreas seguras do sistema.
 
 ## Estado do projeto
 
-O núcleo do aplicativo está implementado: motor financeiro, persistência local, captura assistiva por AccessibilityService, OCR local de fallback, overlay de análise, Dashboard e histórico de corridas com edição, transição de status e deduplicação de confirmações recentes.
+O núcleo do aplicativo está implementado: motor financeiro, persistência local, captura visual acionada por AccessibilityService com OCR local como caminho principal, overlay de análise, Dashboard e histórico de corridas com edição, transição de status e deduplicação de confirmações recentes.
 
 **O aplicativo ainda não está liberado para uso produtivo ou publicação.** A captura e a leitura precisam ser validadas em aparelhos físicos com versões atuais dos aplicativos Uber Driver e 99 Motorista. Configuração de veículos e metas financeiras (Bloco 9) e agenda particular de viagens com cadastro, edição, cancelamento, conclusão e controle de pagamentos (Bloco 10) estão implementadas. Cadastro, edição, exclusão e filtros de despesas, além de relatórios semanais e mensais baseados em registros reais, estão implementados (Bloco 11).
 
@@ -59,9 +59,13 @@ O serviço de acessibilidade e a permissão de sobreposição são recursos sens
 
 Os registros e eventuais evidências são mantidos localmente no armazenamento privado do app. O histórico permite exclusão manual de ofertas e da evidência associada, com validação física ainda pendente. Ainda é necessário validar em aparelhos físicos o comportamento de permissões, privacidade, consumo de bateria e compatibilidade com versões reais dos aplicativos de transporte.
 
+## Validação de estabilidade
+
+A branch de estabilização `fix/overlay-stability-20261121` contém correções independentes de falhas da janela flutuante, limpeza de capturas de evidência, agrupamento temporal de gráficos e clareza do registro manual de corridas. A validação automatizada dessa branch não substitui ensaios em aparelho físico; consultar `docs/DELIVERY_PLAN_2026_11_21.md`.
+
 ## CI e matriz Android
 
-O workflow em `.github/workflows/android-ci.yml` executa testes unitários, builds Debug/Release e testes instrumentados de persistência Room em emuladores API 26, 30, 35 e 36.
+O workflow em `.github/workflows/android-ci.yml` executa builds e testes unitários para APIs 26, 30, 35 e 36; os testes instrumentados Room executam nos emuladores API 26 e 35. Isso não equivale a teste com Uber/99 em aparelho real.
 
 A matriz automatizada não substitui os testes físicos descritos em [docs/DEVICE_VALIDATION.md](docs/DEVICE_VALIDATION.md). O checklist de distribuição está em [docs/RELEASE_CHECKLIST.md](docs/RELEASE_CHECKLIST.md).
 

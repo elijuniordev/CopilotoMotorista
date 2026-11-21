@@ -14,16 +14,17 @@ import com.copilotomotorista.service.MediaProjectionCaptureService
 import com.copilotomotorista.domain.model.OfferInput
 import com.copilotomotorista.domain.model.TripRecord
 import com.copilotomotorista.domain.usecase.EvaluateOfferUseCase
-import com.copilotomotorista.domain.usecase.ResolveTripCostSnapshotUseCase
 import com.copilotomotorista.presentation.overlay.RadarOfferDisplay
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.File
 import java.util.UUID
 
 /**
@@ -37,13 +38,13 @@ class AccessibilityReaderService : AccessibilityService() {
     private lateinit var shiftSessionStore: ShiftSessionStore
     private lateinit var floatingControlWindowManager: FloatingControlWindowManager
     private val eventGate = AccessibilityEventGate(supportedPackages = SupportedRideApps.packages)
+    private val capturePrivacyGate = OfferCapturePrivacyGate(SupportedRideApps.packages)
     private val offerTextParser = OfferTextParser()
     private val offerScreenClassifier = OfferScreenClassifier()
     private val radarOfferExtractor = RadarOfferExtractor()
     private val captureLatencyMetrics = OfferCaptureLatencyMetrics()
     private val pipelineStageMetrics = OfferPipelineStageMetrics()
     private val evaluateOfferUseCase = EvaluateOfferUseCase()
-    private val resolveTripCostSnapshotUseCase = ResolveTripCostSnapshotUseCase()
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private var ocrRecognizer: LocalOcrTextRecognizer? = null
     private var screenshotInProgress = false
@@ -56,6 +57,7 @@ class AccessibilityReaderService : AccessibilityService() {
     private val evidenceCaptureRequested = mutableSetOf<String>()
     private val pendingScreenshotWork = PendingScreenshotWorkCoordinator()
     private val pendingEvidenceByRecordId = mutableMapOf<String, String>()
+    private val evidenceCaptureContexts = mutableMapOf<String, Pair<String, Long>>()
 
     override fun onCreate() {
         super.onCreate()
@@ -97,6 +99,19 @@ class AccessibilityReaderService : AccessibilityService() {
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         event ?: return
+        val packageName = event.packageName?.toString()
+        val foregroundPackage = rootInActiveWindow?.packageName?.toString()
+        // Window transitions are observed for invalidation only. Never read
+        // accessibility text or capture a screenshot of a different app.
+        val windowChanged = capturePrivacyGate.onWindowEvent(
+            packageName = packageName,
+            eventType = event.eventType,
+            generation = captureGeneration,
+            verifiedForegroundPackage = foregroundPackage,
+            ownPackage = applicationContext.packageName
+        )
+        if (windowChanged) invalidatePendingCaptureWork()
+
         val shift = shiftSessionStore.snapshot()
         if (shift.active) {
             floatingControlWindowManager.show()
@@ -104,14 +119,23 @@ class AccessibilityReaderService : AccessibilityService() {
             floatingControlWindowManager.hide()
         }
         if (!shift.canProcessOffers) {
-            overlayWindowManager.hideOverlay()
+            capturePrivacyGate.invalidate(captureGeneration)
+            invalidatePendingCaptureWork()
             return
         }
-        val packageName = event.packageName?.toString()
         if (packageName == null || packageName == applicationContext.packageName) return
-        // Package ID is used only to avoid capturing unrelated apps. Offer content
-        // still comes exclusively from the visible screenshot + local OCR.
         if (!SupportedRideApps.contains(packageName)) return
+
+        // Accessibility can be enabled while Uber/99 is already foreground.
+        // In that case a verified content event may establish the first
+        // capture session without inspecting any node text.
+        if (foregroundPackage == packageName &&
+            capturePrivacyGate.onVerifiedForeground(packageName, captureGeneration)
+        ) {
+            invalidatePendingCaptureWork()
+        }
+        if (foregroundPackage != packageName) return
+
         val accepted = eventGate.shouldAccept(
             packageName = packageName,
             eventType = event.eventType,
@@ -119,12 +143,9 @@ class AccessibilityReaderService : AccessibilityService() {
         )
         if (!accepted) return
 
-        // Package name is only an optional platform hint, never an allow-list.
-        val platformHint = when (packageName) {
-            SupportedRideApps.UBER_DRIVER -> "uber"
-            SupportedRideApps.NINETY_NINE_DRIVER -> "99"
-            else -> "unknown"
-        }
+        // A verified foreground package is the sole authority for platform
+        // attribution. Text produced by OCR can contain another app's brand.
+        val platformHint = SupportedRideApps.platformForPackage(packageName) ?: return
         val generation = ++captureGeneration
         val capturedAt = SystemClock.uptimeMillis()
         Log.d("OfferCapture", "screen_event type=${event.eventType} source=$packageName")
@@ -133,12 +154,37 @@ class AccessibilityReaderService : AccessibilityService() {
         requestLocalOcr(capturedAt, platformHint, generation)
     }
 
+    private fun invalidatePendingCaptureWork() {
+        captureGeneration++
+        pendingScreenshotWork.clear()
+        evidenceCaptureRequested.clear()
+        evidenceCaptureContexts.clear()
+        pendingEvidenceByRecordId.clear()
+        lastOfferFingerprint = null
+        lastOfferShownAt = 0L
+        currentOfferRecordId = null
+        if (::overlayWindowManager.isInitialized) overlayWindowManager.hideOverlay()
+    }
+
+    private fun isCaptureContextAllowed(platform: String, generation: Long): Boolean {
+        if (serviceDestroyed || !::shiftSessionStore.isInitialized ||
+            !shiftSessionStore.snapshot().canProcessOffers) return false
+        val expectedPackage = when (platform) {
+            "uber" -> SupportedRideApps.UBER_DRIVER
+            "99" -> SupportedRideApps.NINETY_NINE_DRIVER
+            else -> return false
+        }
+        // Package metadata only; never read another app's accessibility text.
+        val foregroundPackage = rootInActiveWindow?.packageName?.toString()
+        return capturePrivacyGate.isAllowed(expectedPackage, generation, foregroundPackage)
+    }
+
     private fun processSnapshot(
         snapshot: ScreenTextSnapshot,
         platform: String,
         generation: Long
     ) {
-        if (serviceDestroyed) return
+        if (!isCaptureContextAllowed(platform, generation)) return
         recordPipelineStage("capture_to_snapshot_ready", platform, snapshot.source.name, snapshot.capturedAtMillis, true)
 
         // O OCR pode ler valores e distâncias de mapas, notificações e telas
@@ -231,7 +277,9 @@ class AccessibilityReaderService : AccessibilityService() {
                 )
             }
             recordPipelineStage("duplicate_lookup", platform, snapshot.source.name, duplicateLookupStartedAt, true)
-            if (serviceDestroyed) return@launch
+            // A complete offer may arrive before a window switch but finish
+            // its repository lookup afterwards. Do not persist that stale OCR.
+            if (!isCaptureContextAllowed(platform, generation)) return@launch
             if (recentRecord?.status == TRIP_STATUS_COMPLETED) {
                 if (generation == captureGeneration) {
                     currentOfferRecordId = null
@@ -239,24 +287,25 @@ class AccessibilityReaderService : AccessibilityService() {
                 }
                 return@launch
             }
-            val recordId = recentRecord?.id ?: UUID.randomUUID().toString()
+            var recordId = recentRecord?.id ?: UUID.randomUUID().toString()
             val existingLookupStartedAt = SystemClock.uptimeMillis()
             val existingOffer = withContext(Dispatchers.IO) {
                 appContainer.tripRecordRepository.getTrip(recordId)
             }
             recordPipelineStage("existing_record_lookup", platform, snapshot.source.name, existingLookupStartedAt, true)
+            if (!isCaptureContextAllowed(platform, generation)) return@launch
+            var persistedRecord = existingOffer
 
             // Save a complete offer before vehicle/configuration lookups. Those reads may
             // suspend while the ride app keeps emitting accessibility events.
             if (existingOffer != null && existingOffer.rawOfferText.isNullOrBlank()) {
                 runCatching {
                     withContext(Dispatchers.IO) {
-                        appContainer.tripRecordRepository.saveTrip(
-                            existingOffer.copy(
-                                rawOfferText = snapshot.text,
-                                origin = existingOffer.origin ?: extractLabeledAddress(snapshot.text, true),
-                                destination = existingOffer.destination ?: extractLabeledAddress(snapshot.text, false)
-                            )
+                        appContainer.tripRecordRepository.enrichCapturedOfferIfMissing(
+                            id = recordId,
+                            rawText = snapshot.text,
+                            origin = extractLabeledAddress(snapshot.text, true),
+                            destination = extractLabeledAddress(snapshot.text, false)
                         )
                     }
                 }.onFailure { error ->
@@ -290,7 +339,13 @@ class AccessibilityReaderService : AccessibilityService() {
                 val persistenceStartedAt = SystemClock.uptimeMillis()
                 val saved = runCatching {
                     withContext(Dispatchers.IO) {
-                        appContainer.tripRecordRepository.saveTrip(captured)
+                        // The original duplicate lookup and this insertion can
+                        // overlap another OCR callback. Find-or-insert executes
+                        // inside one Room transaction, so we reuse its row
+                        // instead of creating a second UUID for the same offer.
+                        appContainer.tripRecordRepository.findOrInsertCapturedOffer(
+                            captured, nowEpochMillis - DUPLICATE_OFFER_WINDOW_MILLIS
+                        )
                     }
                 }
                 recordPipelineStage("persist_capture", platform, snapshot.source.name, persistenceStartedAt, saved.isSuccess)
@@ -298,13 +353,40 @@ class AccessibilityReaderService : AccessibilityService() {
                     Log.e("OfferCapture", "Failed to persist captured offer", saved.exceptionOrNull())
                     return@launch
                 }
+                val insertedOrReused = saved.getOrThrow()
+                persistedRecord = insertedOrReused
+                recordId = insertedOrReused.id
+                if (insertedOrReused.status == TRIP_STATUS_COMPLETED) {
+                    if (generation == captureGeneration) {
+                        currentOfferRecordId = null
+                        overlayWindowManager.hideOverlay()
+                    }
+                    return@launch
+                }
+                if (insertedOrReused.rawOfferText.isNullOrBlank()) {
+                    runCatching {
+                        withContext(Dispatchers.IO) {
+                            appContainer.tripRecordRepository.enrichCapturedOfferIfMissing(
+                                recordId, snapshot.text,
+                                extractLabeledAddress(snapshot.text, true),
+                                extractLabeledAddress(snapshot.text, false)
+                            )
+                        }
+                    }.onFailure { error ->
+                        Log.e("OfferCapture", "Failed to enrich reused captured offer", error)
+                    }
+                }
             }
 
-            if (serviceDestroyed) return@launch
+            if (!isCaptureContextAllowed(platform, generation)) return@launch
             if (generation == captureGeneration) {
                 currentOfferRecordId = recordId
             }
-            if (recentRecord?.evidenceUri == null && evidenceCaptureRequested.add(recordId)) {
+            if (persistedRecord?.evidenceUri == null &&
+                isCaptureContextAllowed(platform, generation) &&
+                evidenceCaptureRequested.add(recordId)
+            ) {
+                evidenceCaptureContexts[recordId] = platform to generation
                 captureOfferEvidence(recordId)
             }
 
@@ -316,7 +398,9 @@ class AccessibilityReaderService : AccessibilityService() {
                 vehicle?.let { Triple(it, targets, offer) }
             }
             recordPipelineStage("load_vehicle_configuration", platform, snapshot.source.name, configurationStartedAt, selected != null)
-            if (serviceDestroyed || generation != captureGeneration) return@launch
+            if (generation != captureGeneration ||
+                !isCaptureContextAllowed(platform, generation)
+            ) return@launch
             if (selected == null) {
                 overlayWindowManager.hideOverlay()
                 return@launch
@@ -339,22 +423,22 @@ class AccessibilityReaderService : AccessibilityService() {
             // screen generation; only overlay presentation is generation-sensitive.
             runCatching {
                 withContext(Dispatchers.IO) {
-                    val capturedRecord = appContainer.tripRecordRepository.getTrip(recordId)
-                    if (capturedRecord != null && capturedRecord.status == TRIP_STATUS_CAPTURED) {
-                        appContainer.tripRecordRepository.saveTrip(
-                            capturedRecord.copy(
-                                vehicleId = vehicle.id,
-                                operatingCostCentsSnapshot = validAnalysis.operatingCostCents,
-                                vehicleNameSnapshot = vehicle.name
-                            )
-                        )
-                    }
+                    // A single conditional UPDATE cannot overwrite a more
+                    // recent driver edit, JPEG attachment or status transition.
+                    appContainer.tripRecordRepository.fillCapturedCostSnapshotIfMissing(
+                        id = recordId,
+                        vehicleId = vehicle.id,
+                        costCents = validAnalysis.operatingCostCents,
+                        vehicleName = vehicle.name
+                    )
                 }
             }.onFailure { error ->
                 Log.e("OfferCapture", "Failed to update captured offer cost snapshot", error)
             }
 
-            if (serviceDestroyed || generation != captureGeneration) return@launch
+            if (generation != captureGeneration ||
+                !isCaptureContextAllowed(platform, generation)
+            ) return@launch
             val overlayStartedAt = SystemClock.uptimeMillis()
             val overlayDisplayed = overlayWindowManager.showOverlay(
                 analysisResult = validAnalysis,
@@ -368,12 +452,12 @@ class AccessibilityReaderService : AccessibilityService() {
                 showDistanceAndTime = displayPreferences.showDistanceAndTime,
                 onDismiss = {},
                 onAccepted = {
-                    saveConfirmedTrip(recordId, platform, currentOffer, vehicle.id, vehicle.name, validAnalysis.operatingCostCents, TRIP_STATUS_ACCEPTED, detectPaymentMethod(snapshot.text), extractLabeledAddress(snapshot.text, true), extractLabeledAddress(snapshot.text, false))
+                    saveConfirmedTrip(recordId, vehicle.id, vehicle.name, validAnalysis.operatingCostCents, TRIP_STATUS_ACCEPTED, detectPaymentMethod(snapshot.text), extractLabeledAddress(snapshot.text, true), extractLabeledAddress(snapshot.text, false))
                 },
                 onCompleted = {
-                    saveConfirmedTrip(recordId, platform, currentOffer, vehicle.id, vehicle.name, validAnalysis.operatingCostCents, TRIP_STATUS_COMPLETED, detectPaymentMethod(snapshot.text), extractLabeledAddress(snapshot.text, true), extractLabeledAddress(snapshot.text, false))
+                    saveConfirmedTrip(recordId, vehicle.id, vehicle.name, validAnalysis.operatingCostCents, TRIP_STATUS_COMPLETED, detectPaymentMethod(snapshot.text), extractLabeledAddress(snapshot.text, true), extractLabeledAddress(snapshot.text, false))
                 },
-                showCompleteAction = recentRecord?.status == "in_progress"
+                showCompleteAction = persistedRecord?.status == TRIP_STATUS_IN_PROGRESS
             )
             val overlayShownAt = SystemClock.uptimeMillis()
             recordPipelineStage("overlay_show", platform, snapshot.source.name, overlayStartedAt, overlayDisplayed)
@@ -443,7 +527,9 @@ class AccessibilityReaderService : AccessibilityService() {
                 configurationStartedAt,
                 selected != null
             )
-            if (serviceDestroyed || generation != captureGeneration) return@launch
+            if (generation != captureGeneration ||
+                !isCaptureContextAllowed(platform, generation)
+            ) return@launch
             if (selected == null) {
                 overlayWindowManager.hideOverlay()
                 recordPipelineStage(
@@ -476,7 +562,9 @@ class AccessibilityReaderService : AccessibilityService() {
                 evaluationStartedAt,
                 enoughAnalyzedOffers
             )
-            if (!enoughAnalyzedOffers || serviceDestroyed || generation != captureGeneration) {
+            if (!enoughAnalyzedOffers || generation != captureGeneration ||
+                !isCaptureContextAllowed(platform, generation)
+            ) {
                 if (generation == captureGeneration) overlayWindowManager.hideOverlay()
                 if (!serviceDestroyed && generation == captureGeneration) {
                     recordPipelineStage(
@@ -540,8 +628,6 @@ class AccessibilityReaderService : AccessibilityService() {
 
     private fun saveConfirmedTrip(
         recordId: String,
-        platform: String,
-        offer: OfferInput,
         vehicleId: String,
         vehicleName: String,
         operatingCostCents: Long,
@@ -553,45 +639,43 @@ class AccessibilityReaderService : AccessibilityService() {
         if (serviceDestroyed) return
         serviceScope.launch {
             val now = System.currentTimeMillis()
-            val existing = withContext(Dispatchers.IO) { appContainer.tripRecordRepository.getTrip(recordId) }
-            if (existing?.status == TRIP_STATUS_COMPLETED && status == TRIP_STATUS_ACCEPTED) return@launch
-            val costSnapshot = resolveTripCostSnapshotUseCase.execute(existing, vehicleId, operatingCostCents, vehicleName)
-            val record = TripRecord(
-                id = recordId,
-                platform = platform,
-                status = status,
-                receivedFareCents = offer.receivedFareCents,
-                pickupDistanceKm = offer.pickupDistanceKm,
-                tripDistanceKm = offer.tripDistanceKm,
-                pickupTimeMinutes = offer.pickupTimeMinutes,
-                tripTimeMinutes = offer.tripTimeMinutes,
-                origin = existing?.origin ?: detectedOrigin,
-                destination = existing?.destination ?: detectedDestination,
-                passengerRating = null,
-                paymentMethod = existing?.paymentMethod ?: paymentMethod.takeUnless { it == "Pagamento não identificado" },
-                startedAtEpochMillis = existing?.startedAtEpochMillis
-                    ?: if (status == TRIP_STATUS_COMPLETED) now else null,
-                completedAtEpochMillis = if (status == TRIP_STATUS_COMPLETED) now else existing?.completedAtEpochMillis,
-                vehicleId = costSnapshot.vehicleId,
-                evidenceUri = existing?.evidenceUri ?: pendingEvidenceByRecordId[recordId],
-                notes = "Registro confirmado manualmente pelo motorista.",
-                createdAtEpochMillis = existing?.createdAtEpochMillis ?: now,
-                operatingCostCentsSnapshot = costSnapshot.operatingCostCents,
-                vehicleNameSnapshot = costSnapshot.vehicleName,
-                rawOfferText = existing?.rawOfferText
-            )
+            val existing = withContext(Dispatchers.IO) {
+                appContainer.tripRecordRepository.getTrip(recordId)
+            }
+            // Fast rejection for stale overlay actions. More importantly, the
+            // Room UPDATE below repeats the status check atomically at write time:
+            // a deletion or edit between this read and the write cannot be lost.
+            if (!CapturedOfferConfirmationPolicy.canApply(existing?.status, status)) return@launch
             val saved = runCatching {
                 withContext(Dispatchers.IO) {
-                    appContainer.tripRecordRepository.saveTrip(record)
+                    appContainer.tripRecordRepository.confirmOfferFromOverlay(
+                        id = recordId,
+                        requestedStatus = status,
+                        nowEpochMillis = now,
+                        detectedOrigin = detectedOrigin,
+                        detectedDestination = detectedDestination,
+                        paymentMethod = paymentMethod.takeUnless {
+                            it == "Pagamento não identificado"
+                        },
+                        vehicleId = vehicleId,
+                        vehicleName = vehicleName,
+                        costCents = operatingCostCents
+                    )
                 }
-            }.isSuccess
+            }.onFailure { error ->
+                Log.e("OfferCapture", "manual_trip_confirmation_failed", error)
+            }.getOrDefault(false)
             val shiftStartedAt = shiftSessionStore.snapshot().startedAtEpochMillis
             val tripStartedAt = existing?.startedAtEpochMillis ?: now
             if (saved && status == TRIP_STATUS_COMPLETED &&
                 existing?.status == TRIP_STATUS_IN_PROGRESS &&
                 shiftStartedAt > 0L && tripStartedAt >= shiftStartedAt
             ) {
-                shiftSessionStore.recordCompletedTrip(recordId, offer.receivedFareCents)
+                // Prefer the driver's persisted fare, not a stale amount from
+                // the original OCR card when the record has been edited.
+                shiftSessionStore.recordCompletedTrip(
+                    recordId, existing.receivedFareCents
+                )
             }
             if (saved && currentOfferRecordId == recordId) {
                 overlayWindowManager.hideOverlay()
@@ -600,7 +684,12 @@ class AccessibilityReaderService : AccessibilityService() {
     }
 
     private fun captureOfferEvidence(recordId: String) {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R || serviceDestroyed) return
+        val context = evidenceCaptureContexts[recordId] ?: return
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R || !isCaptureContextAllowed(context.first, context.second)) {
+            evidenceCaptureRequested.remove(recordId)
+            evidenceCaptureContexts.remove(recordId)
+            return
+        }
         if (screenshotInProgress) {
             // OCR and evidence share Android's screenshot API. Never lose an evidence
             // request just because the OCR screenshot currently owns the capture slot.
@@ -616,8 +705,11 @@ class AccessibilityReaderService : AccessibilityService() {
                 object : TakeScreenshotCallback {
                     override fun onSuccess(screenshot: ScreenshotResult) {
                         screenshotInProgress = false
-                        if (serviceDestroyed) {
+                        if (!isCaptureContextAllowed(context.first, context.second)) {
                             screenshot.hardwareBuffer.close()
+                            evidenceCaptureRequested.remove(recordId)
+                            evidenceCaptureContexts.remove(recordId)
+                            drainPendingScreenshotWork()
                             return
                         }
                         val hardware = Bitmap.wrapHardwareBuffer(screenshot.hardwareBuffer, screenshot.colorSpace)
@@ -626,29 +718,69 @@ class AccessibilityReaderService : AccessibilityService() {
                         hardware?.recycle()
                         if (bitmap == null) {
                             evidenceCaptureRequested.remove(recordId)
+                            evidenceCaptureContexts.remove(recordId)
                             drainPendingScreenshotWork()
                             return
                         }
                         serviceScope.launch {
                             var evidenceSaved = false
                             try {
+                                if (!isCaptureContextAllowed(context.first, context.second)) return@launch
                                 val path = withContext(Dispatchers.IO) {
                                     OfferEvidenceStorage.save(this@AccessibilityReaderService, bitmap)
                                 }
-                                if (path != null && !serviceDestroyed) {
-                                    pendingEvidenceByRecordId[recordId] = path
-                                    withContext(Dispatchers.IO) {
-                                        val existing = appContainer.tripRecordRepository.getTrip(recordId)
-                                        if (existing != null && existing.evidenceUri == null) {
-                                            appContainer.tripRecordRepository.saveTrip(existing.copy(evidenceUri = path))
+                                if (path != null && !isCaptureContextAllowed(context.first, context.second)) {
+                                    // Never attach evidence captured after the user left
+                                    // the supported app. This is an app-private new file.
+                                    withContext(Dispatchers.IO) { File(path).delete() }
+                                    return@launch
+                                }
+                                if (path != null) {
+                                    // The app can switch while Room is writing on IO.
+                                    // Attach only when the record still exists and
+                                    // has no evidence, then recheck the foreground
+                                    // session on main after the suspend point.
+                                    var attached = false
+                                    try {
+                                        attached = withContext(Dispatchers.IO) {
+                                            // Atomic SQL UPDATE touches evidenceUri only.
+                                            // A manual acceptance/completion or cost edit
+                                            // must not be overwritten by a stale read.
+                                            appContainer.tripRecordRepository.attachEvidenceIfAbsent(
+                                                recordId, path
+                                            )
+                                        }
+                                        evidenceSaved = attached &&
+                                            isCaptureContextAllowed(context.first, context.second)
+                                    } finally {
+                                        if (!evidenceSaved) {
+                                            // Do not leave an orphan JPEG or a stale
+                                            // reference if the user leaves Uber/99
+                                            // while the evidence write is in flight.
+                                            // Teardown can cancel serviceScope. Ensure
+                                            // the compensating delete still runs.
+                                            withContext(NonCancellable + Dispatchers.IO) {
+                                                try {
+                                                    // Remove only this JPEG's pointer,
+                                                    // never wipe out a newer attachment or
+                                                    // modify any other trip field.
+                                                    appContainer.tripRecordRepository.clearEvidenceIfMatches(
+                                                        recordId, path
+                                                    )
+                                                } finally {
+                                                    // Delete the capture even if Room
+                                                    // fails during compensation.
+                                                    File(path).delete()
+                                                }
+                                            }
                                         }
                                     }
-                                    evidenceSaved = true
                                 }
                             } catch (_: Exception) {
                                 // Keep the offer eligible for a later retry.
                             } finally {
                                 if (!evidenceSaved) evidenceCaptureRequested.remove(recordId)
+                                evidenceCaptureContexts.remove(recordId)
                                 bitmap.recycle()
                                 drainPendingScreenshotWork()
                             }
@@ -658,6 +790,7 @@ class AccessibilityReaderService : AccessibilityService() {
                     override fun onFailure(errorCode: Int) {
                         screenshotInProgress = false
                         evidenceCaptureRequested.remove(recordId)
+                        evidenceCaptureContexts.remove(recordId)
                         drainPendingScreenshotWork()
                     }
                 }
@@ -665,10 +798,12 @@ class AccessibilityReaderService : AccessibilityService() {
         } catch (_: SecurityException) {
             screenshotInProgress = false
             evidenceCaptureRequested.remove(recordId)
+            evidenceCaptureContexts.remove(recordId)
             drainPendingScreenshotWork()
         } catch (_: IllegalStateException) {
             screenshotInProgress = false
             evidenceCaptureRequested.remove(recordId)
+            evidenceCaptureContexts.remove(recordId)
             drainPendingScreenshotWork()
         }
     }
@@ -697,40 +832,52 @@ class AccessibilityReaderService : AccessibilityService() {
         platform: String,
         generation: Long
     ) {
-        val recognizer = ocrRecognizer
-        if (recognizer == null) {
-            bitmap.recycle()
-            drainPendingScreenshotWork()
-            return
-        }
-        recognizer.recognize(bitmap) { recognizedText ->
-            ContextCompat.getMainExecutor(this).execute {
-                val resultAge = SystemClock.uptimeMillis() - requestedAtMillis
-                if (!serviceDestroyed &&
-                    generation == captureGeneration &&
-                    resultAge in 0..OCR_MAX_RESULT_AGE_MILLIS &&
-                    recognizedText.isNotBlank()
-                ) {
-                    val normalizedText = ScreenTextSnapshot.normalize(recognizedText)
-                    val detectedPlatform = when {
-                        Regex("\\buber\\b", RegexOption.IGNORE_CASE).containsMatchIn(normalizedText) -> "uber"
-                        Regex("\\b99(?:pop|plus|comfort|moto|entrega|taxi)\\b", RegexOption.IGNORE_CASE).containsMatchIn(normalizedText) -> "99"
-                        else -> platform
-                    }
-                    Log.d("OfferCapture", "ocr_result chars=${normalizedText.length} platform=$detectedPlatform ageMs=$resultAge")
-                    processSnapshot(
-                        ScreenTextSnapshot(
-                            text = normalizedText,
-                            source = ScreenTextSource.OCR,
-                            capturedAtMillis = requestedAtMillis
-                        ),
-                        detectedPlatform,
-                        generation
-                    )
-                } else if (!serviceDestroyed && resultAge in 0..OCR_MAX_RESULT_AGE_MILLIS) {
-                    Log.d("OfferCapture", "ocr_result_empty ageMs=$resultAge")
-                }
+        // MediaProjection callbacks may come from a capture worker. Android
+        // foreground checks and service state must be evaluated on main.
+        ContextCompat.getMainExecutor(this).execute {
+            if (!isCaptureContextAllowed(platform, generation)) {
+                bitmap.recycle()
                 drainPendingScreenshotWork()
+                return@execute
+            }
+
+            val recognizer = ocrRecognizer
+            if (recognizer == null) {
+                bitmap.recycle()
+                drainPendingScreenshotWork()
+                return@execute
+            }
+
+            recognizer.recognize(bitmap) { recognizedText ->
+                ContextCompat.getMainExecutor(this).execute {
+                    val resultAge = SystemClock.uptimeMillis() - requestedAtMillis
+                    // A newer event from the SAME ride app must not erase a
+                    // complete older offer. The session gate rejects any
+                    // transition to a different app; overlay still uses
+                    // captureGeneration to show only the latest offer.
+                    if (isCaptureContextAllowed(platform, generation) &&
+                        resultAge in 0..OCR_MAX_RESULT_AGE_MILLIS &&
+                        recognizedText.isNotBlank()
+                    ) {
+                        val normalizedText = ScreenTextSnapshot.normalize(recognizedText)
+                        Log.d(
+                            "OfferCapture",
+                            "ocr_result chars=${normalizedText.length} platform=$platform ageMs=$resultAge"
+                        )
+                        processSnapshot(
+                            ScreenTextSnapshot(
+                                text = normalizedText,
+                                source = ScreenTextSource.OCR,
+                                capturedAtMillis = requestedAtMillis
+                            ),
+                            platform,
+                            generation
+                        )
+                    } else if (!serviceDestroyed && resultAge in 0..OCR_MAX_RESULT_AGE_MILLIS) {
+                        Log.d("OfferCapture", "ocr_result_empty ageMs=$resultAge")
+                    }
+                    drainPendingScreenshotWork()
+                }
             }
         }
     }
@@ -740,7 +887,7 @@ class AccessibilityReaderService : AccessibilityService() {
         platform: String,
         generation: Long
     ) {
-        if (serviceDestroyed || generation != captureGeneration) return
+        if (generation != captureGeneration || !isCaptureContextAllowed(platform, generation)) return
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
             if (screenshotInProgress) {
                 pendingScreenshotWork.enqueueOcr(PendingOcrRequest(requestedAtMillis, platform, generation))
@@ -760,17 +907,19 @@ class AccessibilityReaderService : AccessibilityService() {
             screenshotInProgress = true
             lastScreenshotRequestAt = requestedAtMillis
             val accepted = MediaProjectionCaptureService.requestScreenshot { bitmap ->
-                if (serviceDestroyed) {
-                    bitmap?.recycle()
+                // MediaProjection frame callbacks may arrive on a background
+                // thread. Foreground package checks must run on main.
+                ContextCompat.getMainExecutor(this).execute {
                     screenshotInProgress = false
-                    return@requestScreenshot
-                }
-                screenshotInProgress = false
-                if (bitmap == null) {
-                    Log.w("OfferCapture", "legacy_visual_screenshot_unavailable")
-                    drainPendingScreenshotWork()
-                } else {
-                    processCapturedBitmap(bitmap, requestedAtMillis, platform, generation)
+                    if (!isCaptureContextAllowed(platform, generation)) {
+                        bitmap?.recycle()
+                        drainPendingScreenshotWork()
+                    } else if (bitmap == null) {
+                        Log.w("OfferCapture", "legacy_visual_screenshot_unavailable")
+                        drainPendingScreenshotWork()
+                    } else {
+                        processCapturedBitmap(bitmap, requestedAtMillis, platform, generation)
+                    }
                 }
             }
             if (!accepted) {
@@ -805,8 +954,9 @@ class AccessibilityReaderService : AccessibilityService() {
                 object : TakeScreenshotCallback {
                     override fun onSuccess(screenshot: ScreenshotResult) {
                         screenshotInProgress = false
-                        if (serviceDestroyed) {
+                        if (!isCaptureContextAllowed(platform, generation)) {
                             screenshot.hardwareBuffer.close()
+                            drainPendingScreenshotWork()
                             return
                         }
                         val hardwareBitmap = Bitmap.wrapHardwareBuffer(
@@ -832,20 +982,16 @@ class AccessibilityReaderService : AccessibilityService() {
                         }
 
                         ocrRecognizer?.recognize(softwareBitmap) { recognizedText ->
+                            ContextCompat.getMainExecutor(this@AccessibilityReaderService).execute {
                             val resultAge = SystemClock.uptimeMillis() - requestedAtMillis
-                            if (!serviceDestroyed &&
+                            if (isCaptureContextAllowed(platform, generation) &&
                                 resultAge in 0..OCR_MAX_RESULT_AGE_MILLIS &&
                                 recognizedText.isNotBlank()
                             ) {
                                 val normalizedText = ScreenTextSnapshot.normalize(recognizedText)
-                                val detectedPlatform = when {
-                                    Regex("\\buber\\b", RegexOption.IGNORE_CASE).containsMatchIn(normalizedText) -> "uber"
-                                    Regex("\\b99(?:pop|plus|comfort|moto|entrega|taxi)\\b", RegexOption.IGNORE_CASE).containsMatchIn(normalizedText) -> "99"
-                                    else -> platform
-                                }
                                 Log.d(
                                     "OfferCapture",
-                                    "ocr_result chars=${normalizedText.length} platform=$detectedPlatform ageMs=$resultAge"
+                                    "ocr_result chars=${normalizedText.length} platform=$platform ageMs=$resultAge"
                                 )
                                 processSnapshot(
                                     ScreenTextSnapshot(
@@ -853,13 +999,14 @@ class AccessibilityReaderService : AccessibilityService() {
                                         source = ScreenTextSource.OCR,
                                         capturedAtMillis = requestedAtMillis
                                     ),
-                                    detectedPlatform,
+                                    platform,
                                     generation
                                 )
                             } else if (!serviceDestroyed && resultAge in 0..OCR_MAX_RESULT_AGE_MILLIS) {
                                 Log.d("OfferCapture", "ocr_result_empty ageMs=$resultAge")
                             }
                             drainPendingScreenshotWork()
+                            }
                         } ?: run {
                             softwareBitmap.recycle()
                             drainPendingScreenshotWork()
@@ -885,15 +1032,19 @@ class AccessibilityReaderService : AccessibilityService() {
     }
 
     override fun onInterrupt() {
-        captureGeneration++
-        if (::overlayWindowManager.isInitialized) overlayWindowManager.hideOverlay()
+        capturePrivacyGate.invalidate(captureGeneration)
+        invalidatePendingCaptureWork()
     }
 
     override fun onDestroy() {
         serviceDestroyed = true
+        capturePrivacyGate.invalidate(captureGeneration)
         captureGeneration++
         screenshotInProgress = false
         pendingScreenshotWork.clear()
+        evidenceCaptureContexts.clear()
+        evidenceCaptureRequested.clear()
+        pendingEvidenceByRecordId.clear()
         serviceScope.cancel()
         ocrRecognizer?.close()
         ocrRecognizer = null

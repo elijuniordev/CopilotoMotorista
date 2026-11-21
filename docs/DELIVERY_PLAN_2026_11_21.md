@@ -1,0 +1,109 @@
+# Plano de estabilização e entrega — Copiloto Pro
+
+Data de referência: 21/11/2026. Fonte de verdade: código e CI do GitHub.
+**Não mesclar nenhuma PR sem autorização explícita do responsável.**
+Não marcar etapas como aprovadas apenas porque o código compila.
+
+## Base e dependências
+- Branch padrão: `master`.
+- PRs #25–#34 ainda abertas no início desta revisão. A #34 tem base na #33 e agrega a identidade visual mais recente.
+- Esta branch de estabilização nasce do commit `7e7757b` da PR #34. Abrir PR com base na branch da #34 para isolar apenas os novos patches.
+- Integrar as PRs antigas somente após verificar o grafo completo de dependências, duplicidade de alterações e comportamento financeiro. Não alterar a `master` automaticamente.
+
+## Ciclo A — Bloqueadores de estabilidade
+- [x] Recuperar de falhas de anexação/ativação do ComposeView no controle flutuante.
+- [x] Separar operações de limpeza para reduzir risco de janela e owners órfãos.
+- [x] Adicionar testes de unidade para falha de ativação e de limpeza no mecanismo de overlay.
+- [ ] Confirmar em aparelho físico qual janela falha e obter evidência sem dados pessoais.
+- [ ] Testar abrir/fechar/reabrir, mudança de app, rotação, lock/unlock, permissão revogada e interrupção do serviço.
+- [ ] Avaliar logs de travamento e corrigir apenas causas observadas.
+
+## Ciclo B — Integridade dos dados e regras de negócio
+- [x] Evitar JPEG truncado quando o codificador de evidência retorna falha.
+- [x] Adicionar teste instrumentado de gravação/decodificação de evidência no diretório privado.
+- [ ] Validar exclusão de evidências e registro Room, inclusive falhas parciais.
+- [ ] Revisar regressões de captura, deduplicação, mudança de status e confirmação tardia.
+- [ ] Confirmar regras: faturamento por lançamentos manuais nos relatórios, apenas corridas concluídas no indicador de corridas realizadas, estimativas devidamente identificadas; particulares não somadas automaticamente.
+
+## Ciclo C — OCR, Radar e MediaProjection
+- [x] Reforçar o classificador: Radar com OCR parcial e título próprio nunca é processado como oferta única; três testes JVM de regressão adicionados.
+- [x] Resolver falha real de CI #44895678186: classificador contava a tarifa por quilômetro como segunda oferta; agora reutiliza o reconhecimento de tarifas principais do RadarOfferExtractor, com dois novos testes de borda. Antes do patch, 157/158 testes unitários passavam; **nova CI precisa confirmar**.
+- [ ] Validar extração de dois ou mais cartões do Radar em imagens reais de Uber Driver com OCR e redigir qualquer dado pessoal antes de armazenar os exemplos.
+- [x] Proteger eventos de janela do próprio Copiloto sobre Uber/99: ignorar apenas quando a janela ativa da plataforma é verificada; dois testes adicionais cobrem overlay versus tela principal.
+- [x] Preservar linhas repetidas na normalização OCR para não perder cartões do Radar com mesma tarifa ou ação. Adicionar dois testes de normalização e um teste de ponta a ponta (normalização → classificação → extração).
+- [x] Não misturar cartões quando o OCR omitir o título `Radar de Viagens`: múltiplos preços principais acionam classificação específica de Radar ou rejeição conservadora, com dois testes extras.
+- [x] Preservar cartões Radar com números financeiros **totalmente idênticos** em posições distintas: remover a deduplicação apenas por tarifa, km e tempo, e testar dois cartões iguais com duas ações independentes.
+- [x] Proteger contra Radar parcial com apenas uma ação entre duas tarifas: manter só o cartão completo e não exibir um Radar de duas ofertas sem dois cartões válidos.
+- [ ] Confirmar ambos os comportamentos em screenshots reais desidentificados para descartar ambiguidades de leitura do OCR.
+- [ ] Reunir testes de parser/classificador por plataforma e layouts de oferta reais com dados pessoais removidos.
+- [x] Alinhar o processamento do OCR MediaProjection às regras de preservação de ofertas completas: eventos posteriores do mesmo app não descartam o resultado válido, enquanto a sessão de privacidade descarta trocas de aplicativo.
+- [ ] Validar fisicamente a política de geração e concorrência no OCR Android 8–10 e Android 11+; preservar debounce e integridade.
+- [x] Implementar em branch a proteção de contexto da [Issue #36](https://github.com/elijuniordev/CopilotoMotorista/issues/36): descartar snapshots e JPEGs quando o motorista sair de Uber/99; adicionar testes JVM.
+- [x] Endurecer o caminho assíncrono das ofertas: revalidar app/janela depois de consultas suspendidas no Room e antes de anexar evidência, enriquecer registro ou mostrar card.
+- [x] Bloquear eventos atrasados da Uber/99 quando a janela interativa verificada já pertence a outro app; adicionar dois testes JVM para impedir reautorização indevida.
+- [x] Confirmar CI #44923318825: 6/6 jobs aprovados no commit `2017ec59`, com APK/AAB assinados e SHA-256 verificados para teste interno; novas mudanças exigem novo CI.
+- [x] Garantir atribuição da plataforma pela identidade do pacote Uber/99 verificada pelo Android; o texto OCR não pode trocar uma captura Uber por 99 nem o contrário. Testar pacotes oficiais e rejeição de outros apps.
+- [x] Confirmar CI #44925083485: 6/6 jobs aprovados no commit `35bba793`, com APK Release assinado e checksum SHA-256 verificado; uma correção posterior exige aprovação própria.
+- [x] Corrigir configuração inicial no Android 8–10: apresentar quatro permissões no contador (inclui MediaProjection), em contraste às três etapas do Android 11+, e exigir confirmação da divulgação antes do botão de captura legado.
+- [ ] Confirmar novo smoke test instrumentado de contagem 3/4 e permissão de captura bloqueada antes da divulgação nas APIs 26 e 35.
+- [x] Fortalecer reconhecimento do serviço de acessibilidade já habilitado: `ComponentName.unflattenFromString` reconhece nomes abreviados e completos em `Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES`, sem correspondência por substring. Adicionados testes instrumentados para casos válidos, pacotes incorretos e valores inválidos.
+- [x] Confirmar CI #44928018573 com 6/6 jobs aprovados no commit `a648615b`, inclusive os testes instrumentados de configuração inicial e reconhecimento de acessibilidade em APIs 26 e 35.
+- [x] Remover o cartão demonstrativo associado à `MainActivity` em `onDestroy` (fechamento/rotação) sem afetar a sobreposição independente do `AccessibilityReaderService`. Adicionar smoke test de recriação da tela inicial sem exigir permissão de sobreposição.
+- [ ] Validar o comportamento de um cartão demonstrativo **visível** durante rotação/fechamento em aparelho físico; o smoke test sem permissão verifica apenas que a Activity se recria sem crash.
+- [ ] Confirmar CI 6/6 no novo HEAD após a correção do ciclo de vida do cartão demonstrativo.
+
+- [ ] Validar atribuição de Uber/99 em ofertas físicas e screenshots desidentificados que contenham texto de outras marcas.
+- [ ] Validar no Android real as trocas rápidas Uber ↔ outro app ↔ Uber enquanto consultas Room, OCR e evidências estão pendentes.
+- [ ] **Validar** a proteção da Issue #36 nos dois fluxos Android e com trocas reais de janela, inclusive controle flutuante ativo e retorno rápido para o mesmo app. Manter a issue aberta até essa validação.
+- [x] Diagnosticar CI #44892429379: quatro builds/unitários aprovados; emuladores falharam ao iniciar por falta de KVM e recusa de `-accel off` no Android Emulator 37.3.10.
+- [x] Adicionar habilitação de KVM + fallback TCG compatível ao workflow Android.
+- [x] Confirmar a correção de infraestrutura no CI #44898175118 (6/6 jobs aprovados: builds/unitários 26, 30, 35, 36; Room 26 e 35).
+- [ ] Confirmar **nova** execução completa do CI no HEAD mais recente, após os patches de evidência e o roteiro pré-teste.
+- [ ] Validar Radar com ofertas múltiplas (não combinar cartões; sem aceite automático).
+- [ ] Validar permissão, rotação, término e retomada de MediaProjection em Android 8–10.
+- [ ] Medir p50/p95, reconhecimento antes de desaparecer e custo de bateria em aparelhos, sem dados pessoais nos logs.
+
+## Ciclo D — Identidade visual Premium e relatórios
+- [x] Adequar card de oferta ao navy da marca, explicitar lucro estimado e registro manual do aceite.
+- [x] Corrigir o gráfico mensal para semanas reais do calendário, com testes de fuso horário e mês de seis semanas.
+- [ ] Conferir fidelidade dos vetores/ícone, Montserrat, contraste e áreas seguras em diferentes tamanhos.
+- [ ] Revisar formulários, histórico, agenda, despesas, veículos, fechamento e Radar sem mudar regras de negócio.
+- [ ] Conferir acessibilidade de toque e rótulos das ações, inclusive cards sobrepostos.
+
+## Ciclo E — Qualidade e distribuição
+- [ ] Confirmar resultado de CI para o **HEAD mais recente** desta PR (build Debug/Release, testes unitários e instrumentados).
+- [x] Criar roteiro objetivo de versão candidata a testes e retirada de APKs em `docs/PRE_TEST_CANDIDATE.md`.
+- [x] Validar CI #44917060453: 6/6 jobs aprovados e artefato de teste com metadados/checksums; é evidência apenas do commit `8bf56f3`, não do HEAD posterior.
+- [x] Corrigir import inválido em `MainActivitySmokeInstrumentedTest.kt` após CI #44918439348 (4 builds/unitários aprovados; 2 jobs de instrumentação falharam antes de executar os testes por erro de compilação de `assertExists`).
+- [x] Compilar `assembleDebugAndroidTest` antecipadamente no job API 35 para detectar erros de compilação de instrumentação antes de inicializar os emuladores.
+- [x] Confirmar CI #44920600467: 6/6 jobs aprovados no commit `9f6a0fa`, inclusive smoke tests de primeira abertura, navegação e recriação da Activity; não confundir com aprovação do HEAD posterior.
+- [x] Corrigir a falha de CI #44921599654: `FakeTripRepository` do teste `DashboardDataSourceTest` não implementava as novas operações condicionais de evidência.
+- [x] Incluir smoke test instrumentado para navegar de `Mais` até Relatórios e Veículos sem permissões de captura.
+- [ ] Confirmar CI completo 6/6 no HEAD depois das mudanças atômicas de evidência e dos novos testes.
+- [x] Reforçar compensação da escrita de evidência: apagar JPEG e desvincular o registro se a sessão do aplicativo mudar durante a gravação.
+- [x] Evitar substituição de outros campos da corrida pela gravação de evidência: `UPDATE` SQL condicional para vinculação e rollback, com teste instrumentado de integridade.
+- [x] Confirmar CI #44940298893: **6/6** jobs aprovados no commit `604c1a56`, incluindo testes de concorrência de expediente e heartbeat após mudança do relógio.
+- [x] Evitar exclusão baseada em vínculo de imagem obsoleto: `DELETE ... WHERE evidenceUri IS :expectedEvidenceUri` impede excluir registro cuja evidência foi anexada/trocada durante a operação. Teste Android cobre imagem anexada após leitura, imagem diferente, linha já excluída e evidência nula.
+- [x] Confirmar CI #44941693481: 6/6 jobs aprovados no commit `37f9c08c`, incluindo a exclusão condicional com imagem concorrente.
+- [x] Fazer a deduplicação de ofertas OCR como operação transacional do Room: `findOrInsertCapturedOffer` consulta/insere dentro de uma única transação, utiliza `INSERT IGNORE` em vez de sobrescrever registros, reaproveita ofertas concluídas e compara texto OCR idêntico quando a tarifa foi ajustada pelo motorista. Teste instrumentado simula 16 capturas simultâneas, confirmação manual e uma segunda oferta diferente.
+- [ ] Confirmar CI 6/6 no HEAD após deduplicação transacional e verificar em aparelho ofertas que reaparecem após edição manual do valor; não afirmar validação física do OCR sem screenshots reais desidentificados.
+- [ ] Validar exclusão do histórico com captura de evidência simultânea no aparelho; exclusão de JPEG e transação Room não são uma operação atômica de filesystem + banco.
+- [x] Bloquear ações de cartão flutuante obsoleto sobre registros já excluídos, já concluídos ou em andamento: política de transição local e três testes unitários.
+- [x] Eliminar a janela entre leitura e gravação das confirmações manuais: `UPDATE` condicional atômico no Room, preservando tarifa, notas, evidência e status do motorista, com teste instrumentado de exclusão/repetição/edição.
+- [x] Eliminar gravações de linha inteira obsoletas na complementação de OCR e no snapshot financeiro do veículo: apenas `UPDATE` de campos ainda ausentes em ofertas no estado `captured`, com teste instrumentado de regressão.
+- [x] Confirmar CI #44935342593 com 6/6 jobs aprovados no commit `a36a682b`, incluindo testes do expediente e prevenção de reinício duplicado.
+- [x] Serializar as leituras/gravações de `ShiftSessionStore` entre instâncias distintas da tela principal e do serviço de acessibilidade, evitando contagem perdida ou duplicada em `SharedPreferences`; incluir teste instrumentado com duas instâncias e gravações paralelas.
+- [ ] Confirmar CI 6/6 no HEAD com o bloqueio compartilhado de expediente; validar operações simultâneas e encerramento de turno em aparelho físico.
+- [ ] Validar no aparelho a interação simultânea entre exclusão/edição do histórico, aceite manual e captura de evidência; ainda não há evidência de execução física com Uber/99.
+- [ ] Revisar a versão candidata funcionalmente e completar pré-teste interno conforme o novo roteiro.
+- [ ] Executar `docs/DEVICE_VALIDATION.md` com Uber e 99 reais e Android suportados.
+- [ ] Revisar licença e privacidade, política pública, retenção/exclusão, Data Safety e declaração de AccessibilityService.
+- [ ] Auditar dependências, permissões e comportamento runtime; concluir documentação de Play Console.
+- [ ] Validar assinatura, instalação e atualização; incrementar versionCode somente na distribuição.
+- [ ] Solicitar autorização expressa antes de qualquer merge ou publicação.
+
+## Critérios de pronto
+Um ciclo de código é implementado quando commitado em branch de trabalho.
+Um ciclo automatizado é validado quando os respectivos jobs de CI aprovam o commit indicado.
+Uma funcionalidade dependente de Uber/99 só é validada depois de teste físico documentado.
+A versão só é candidata à publicação quando os bloqueadores do checklist de release estiverem fechados.

@@ -29,8 +29,8 @@ import com.copilotomotorista.domain.usecase.OfferAnalysisResult
 import com.copilotomotorista.domain.usecase.OfferViability
 import java.util.Locale
 
-private val CardBackground = Color(0xFF101827)
-private val CardSurface = Color(0xFF1B2638)
+private val CardBackground = Color(0xFF0B1220)
+private val CardSurface = Color(0xFF1B2A40)
 private val MainText = Color(0xFFF8FAFC)
 private val MutedText = Color(0xFF9AA8BA)
 private val GoodColor = Color(0xFF22C55E)
@@ -154,7 +154,7 @@ fun OfferOverlayUi(
                 ) {
                     CompactMetric("R$/KM", money(analysisResult.earningsPerKm), Modifier.weight(1f))
                     CompactMetric("R$/H", money(analysisResult.earningsPerHour), Modifier.weight(1f))
-                    CompactMetric("LUCRO", money(analysisResult.netProfit), Modifier.weight(1f))
+                    CompactMetric("LUCRO EST.", money(analysisResult.netProfit), Modifier.weight(1f))
                 }
 
                 Row(
@@ -182,7 +182,7 @@ fun OfferOverlayUi(
                                     contentColor = if (showCompleteAction) Color(0xFF07130B) else Color.White
                                 )
                             ) {
-                                Text(if (showCompleteAction) "CONCLUÍDA" else "ACEITAR", fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                                Text(if (showCompleteAction) "MARCAR CONCLUÍDA" else "MARCAR ACEITA", fontSize = 9.sp, fontWeight = FontWeight.Bold)
                             }
 
                         }
