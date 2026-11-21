@@ -37,7 +37,8 @@ Não marcar etapas como aprovadas apenas porque o código compila.
 - [ ] **Validar** a proteção da Issue #36 nos dois fluxos Android e com trocas reais de janela, inclusive controle flutuante ativo e retorno rápido para o mesmo app. Manter a issue aberta até essa validação.
 - [x] Diagnosticar CI #44892429379: quatro builds/unitários aprovados; emuladores falharam ao iniciar por falta de KVM e recusa de `-accel off` no Android Emulator 37.3.10.
 - [x] Adicionar habilitação de KVM + fallback TCG compatível ao workflow Android.
-- [ ] Exigir nova execução completa da CI no HEAD após a correção de infraestrutura (não confundir teste que nem iniciou com falha de Room).
+- [x] Confirmar a correção de infraestrutura no CI #44898175118 (6/6 jobs aprovados: builds/unitários 26, 30, 35, 36; Room 26 e 35).
+- [ ] Confirmar **nova** execução completa do CI no HEAD mais recente, após os patches de evidência e o roteiro pré-teste.
 - [ ] Validar Radar com ofertas múltiplas (não combinar cartões; sem aceite automático).
 - [ ] Validar permissão, rotação, término e retomada de MediaProjection em Android 8–10.
 - [ ] Medir p50/p95, reconhecimento antes de desaparecer e custo de bateria em aparelhos, sem dados pessoais nos logs.
@@ -50,7 +51,10 @@ Não marcar etapas como aprovadas apenas porque o código compila.
 - [ ] Conferir acessibilidade de toque e rótulos das ações, inclusive cards sobrepostos.
 
 ## Ciclo E — Qualidade e distribuição
-- [ ] Confirmar resultado de CI para o HEAD desta PR (build Debug/Release, testes unitários e instrumentados).
+- [ ] Confirmar resultado de CI para o **HEAD mais recente** desta PR (build Debug/Release, testes unitários e instrumentados).
+- [x] Criar roteiro objetivo de versão candidata a testes e retirada de APKs em `docs/PRE_TEST_CANDIDATE.md`.
+- [x] Reforçar compensação da escrita de evidência: apagar JPEG e desvincular o registro se a sessão do aplicativo mudar durante a gravação.
+- [ ] Revisar a versão candidata funcionalmente e completar pré-teste interno conforme o novo roteiro.
 - [ ] Executar `docs/DEVICE_VALIDATION.md` com Uber e 99 reais e Android suportados.
 - [ ] Revisar licença e privacidade, política pública, retenção/exclusão, Data Safety e declaração de AccessibilityService.
 - [ ] Auditar dependências, permissões e comportamento runtime; concluir documentação de Play Console.
