@@ -57,7 +57,7 @@ Não há medições físicas anexadas a este repositório; nenhum número de lat
 ## Privacidade e segurança
 
 - A descrição exibida nas configurações de acessibilidade informa que eventos são usados para identificar Uber Driver/99 Motorista, que a captura é restrita a esses apps durante o monitoramento, que o OCR é local, que texto/evidências podem ser armazenados e como interromper o serviço. A tela inicial apresenta divulgação destacada antes do acesso às configurações e exige confirmação explícita para liberar o atalho de ativação. O texto esclarece que pausar/finalizar o expediente interrompe a análise de ofertas, enquanto desativar o AccessibilityService interrompe o serviço; também informa que a política de privacidade será publicada antes da distribuição pública. Essa confirmação não substitui a política de privacidade nem a revisão das exigências do Google Play.
-- O serviço recebe eventos de acessibilidade do sistema, mas o código descarta eventos de pacotes diferentes dos apps de transporte permitidos antes de solicitar uma captura. A captura de tela não é usada para analisar outros apps.
+- O serviço recebe eventos de acessibilidade do sistema e só agenda OCR quando confirma janela ativa do Uber Driver/99 Motorista. Também invalida capturas pendentes em trocas de aplicativo e verifica o contexto novamente nos callbacks antes de analisar/persistir. No Android 8–10, a MediaProjection autorizada espelha a tela enquanto a sessão está ativa, por isso o contexto de janela deve ser validado de forma rigorosa e o cenário de troca rápida deve ser testado em aparelho. Não afirmar que o sistema operacional nunca capturou pixels transitórios de outros apps enquanto a projeção estava ativa.
 - No Android 8–10, além de habilitar o serviço, o usuário precisa conceder a autorização de MediaProjection para a sessão de captura. No Android 11+, o fluxo usa a API de screenshot do AccessibilityService.
 - O manifesto Release mesclado foi verificado no CI #44429457105 (HEAD `dbe82bb`): sem `INTERNET`, `allowBackup=false` e com `dataExtractionRules` explícitas. Repetir a verificação em cada variante futura de release.
 - O OCR é executado localmente, mas o texto reconhecido de ofertas completas é persistido no Room em `trip_records.rawOfferText`; origem e destino extraídos também podem ser persistidos nos campos próprios. Portanto, não declarar que o texto OCR nunca é armazenado.
@@ -76,7 +76,7 @@ Para cada execução, registrar: ID do caso, resultado (aprovado/reprovado/bloqu
 
 ## Limitações conhecidas
 
-- OCR local por screenshot depende de Android 11/API 30 ou superior.
+- OCR local via screenshot existe no Android 11/API 30+ com a API de screenshot do AccessibilityService. No Android 8–10/API 26–29, o projeto oferece o fluxo alternativo por MediaProjection com consentimento explícito do usuário, ainda pendente de validação física. A MediaProjection mantém uma sessão de espelhamento enquanto ativa; os filtros no serviço evitam processar resultados de apps fora da lista, mas não substituem a autorização nem eliminam a captura transitória do sistema.
 - Os identificadores de pacote Uber/99 podem mudar; confirmar em cada distribuição instalada.
 - O parser depende da linguagem/layout textual observado; atualizações dos apps podem alterar a tela.
 - O CI não simula integralmente overlays de outros apps, políticas OEM de bateria ou telas reais de ofertas.
