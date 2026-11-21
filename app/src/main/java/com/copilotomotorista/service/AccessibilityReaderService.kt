@@ -143,12 +143,9 @@ class AccessibilityReaderService : AccessibilityService() {
         )
         if (!accepted) return
 
-        // Package name is only an optional platform hint, never an allow-list.
-        val platformHint = when (packageName) {
-            SupportedRideApps.UBER_DRIVER -> "uber"
-            SupportedRideApps.NINETY_NINE_DRIVER -> "99"
-            else -> "unknown"
-        }
+        // A verified foreground package is the sole authority for platform
+        // attribution. Text produced by OCR can contain another app's brand.
+        val platformHint = SupportedRideApps.platformForPackage(packageName) ?: return
         val generation = ++captureGeneration
         val capturedAt = SystemClock.uptimeMillis()
         Log.d("OfferCapture", "screen_event type=${event.eventType} source=$packageName")
@@ -833,14 +830,9 @@ class AccessibilityReaderService : AccessibilityService() {
                         recognizedText.isNotBlank()
                     ) {
                         val normalizedText = ScreenTextSnapshot.normalize(recognizedText)
-                        val detectedPlatform = when {
-                            Regex("\\buber\\b", RegexOption.IGNORE_CASE).containsMatchIn(normalizedText) -> "uber"
-                            Regex("\\b99(?:pop|plus|comfort|moto|entrega|taxi)\\b", RegexOption.IGNORE_CASE).containsMatchIn(normalizedText) -> "99"
-                            else -> platform
-                        }
                         Log.d(
                             "OfferCapture",
-                            "ocr_result chars=${normalizedText.length} platform=$detectedPlatform ageMs=$resultAge"
+                            "ocr_result chars=${normalizedText.length} platform=$platform ageMs=$resultAge"
                         )
                         processSnapshot(
                             ScreenTextSnapshot(
@@ -848,7 +840,7 @@ class AccessibilityReaderService : AccessibilityService() {
                                 source = ScreenTextSource.OCR,
                                 capturedAtMillis = requestedAtMillis
                             ),
-                            detectedPlatform,
+                            platform,
                             generation
                         )
                     } else if (!serviceDestroyed && resultAge in 0..OCR_MAX_RESULT_AGE_MILLIS) {
@@ -967,14 +959,9 @@ class AccessibilityReaderService : AccessibilityService() {
                                 recognizedText.isNotBlank()
                             ) {
                                 val normalizedText = ScreenTextSnapshot.normalize(recognizedText)
-                                val detectedPlatform = when {
-                                    Regex("\\buber\\b", RegexOption.IGNORE_CASE).containsMatchIn(normalizedText) -> "uber"
-                                    Regex("\\b99(?:pop|plus|comfort|moto|entrega|taxi)\\b", RegexOption.IGNORE_CASE).containsMatchIn(normalizedText) -> "99"
-                                    else -> platform
-                                }
                                 Log.d(
                                     "OfferCapture",
-                                    "ocr_result chars=${normalizedText.length} platform=$detectedPlatform ageMs=$resultAge"
+                                    "ocr_result chars=${normalizedText.length} platform=$platform ageMs=$resultAge"
                                 )
                                 processSnapshot(
                                     ScreenTextSnapshot(
@@ -982,7 +969,7 @@ class AccessibilityReaderService : AccessibilityService() {
                                         source = ScreenTextSource.OCR,
                                         capturedAtMillis = requestedAtMillis
                                     ),
-                                    detectedPlatform,
+                                    platform,
                                     generation
                                 )
                             } else if (!serviceDestroyed && resultAge in 0..OCR_MAX_RESULT_AGE_MILLIS) {
