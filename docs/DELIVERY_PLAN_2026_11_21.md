@@ -27,7 +27,8 @@ Não marcar etapas como aprovadas apenas porque o código compila.
 
 ## Ciclo C — OCR, Radar e MediaProjection
 - [ ] Reunir testes de parser/classificador por plataforma e layouts de oferta reais com dados pessoais removidos.
-- [ ] Revisar política de geração obsoleta/concorrência no OCR Android 8–10 e Android 11+; preservar debounce e integridade.
+- [x] Alinhar o processamento do OCR MediaProjection às regras de preservação de ofertas completas: eventos posteriores do mesmo app não descartam o resultado válido, enquanto a sessão de privacidade descarta trocas de aplicativo.
+- [ ] Validar fisicamente a política de geração e concorrência no OCR Android 8–10 e Android 11+; preservar debounce e integridade.
 - [x] Implementar em branch a proteção de contexto da [Issue #36](https://github.com/elijuniordev/CopilotoMotorista/issues/36): descartar snapshots e JPEGs quando o motorista sair de Uber/99; adicionar testes JVM.
 - [ ] **Validar** a proteção da Issue #36 nos dois fluxos Android e com trocas reais de janela, inclusive controle flutuante ativo e retorno rápido para o mesmo app. Manter a issue aberta até essa validação.
 - [x] Diagnosticar CI #44892429379: quatro builds/unitários aprovados; emuladores falharam ao iniciar por falta de KVM e recusa de `-accel off` no Android Emulator 37.3.10.
