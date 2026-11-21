@@ -18,6 +18,7 @@ import com.copilotomotorista.domain.usecase.ResolveTripCostSnapshotUseCase
 import com.copilotomotorista.presentation.overlay.RadarOfferDisplay
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
@@ -730,7 +731,9 @@ class AccessibilityReaderService : AccessibilityService() {
                                             // Do not leave an orphan JPEG or a stale
                                             // reference if the user leaves Uber/99
                                             // while the evidence write is in flight.
-                                            withContext(Dispatchers.IO) {
+                                            // Teardown can cancel serviceScope. Ensure
+                                            // the compensating delete still runs.
+                                            withContext(NonCancellable + Dispatchers.IO) {
                                                 val record = appContainer.tripRecordRepository.getTrip(recordId)
                                                 if (record?.evidenceUri == path) {
                                                     appContainer.tripRecordRepository.saveTrip(
