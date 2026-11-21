@@ -30,7 +30,8 @@ class ShiftSessionStore(context: Context) {
     private val preferences = context.applicationContext.getSharedPreferences("shift_session", Context.MODE_PRIVATE)
 
     @Synchronized
-    fun snapshot(): ShiftSnapshot = ShiftSnapshot(
+    fun snapshot(): ShiftSnapshot = synchronized(PROCESS_LOCK) {
+        ShiftSnapshot(
         active = preferences.getBoolean(KEY_ACTIVE, false),
         paused = preferences.getBoolean(KEY_PAUSED, false),
         startedAtEpochMillis = preferences.getLong(KEY_STARTED_AT, 0L),
@@ -42,9 +43,11 @@ class ShiftSessionStore(context: Context) {
         monitoringConnected = preferences.getBoolean(KEY_MONITORING_CONNECTED, false) &&
             System.currentTimeMillis() - preferences.getLong(KEY_MONITORING_HEARTBEAT, 0L) <= MONITORING_HEARTBEAT_TIMEOUT_MILLIS
     )
+    }
 
     @Synchronized
     fun start(now: Long = System.currentTimeMillis()) {
+        synchronized(PROCESS_LOCK) {
         // Repeated taps, stale UI callbacks or a restored screen must not
         // reset a running shift's revenue, completed-trip IDs or elapsed time.
         // Pause/resume and ending a shift have their own explicit actions.
@@ -60,20 +63,24 @@ class ShiftSessionStore(context: Context) {
             .putLong(KEY_RECEIVED_FARE, 0L)
             .putStringSet(KEY_COUNTED_TRIPS, emptySet())
             .apply()
+            }
     }
 
     @Synchronized
     fun pause(now: Long = System.currentTimeMillis()) {
+        synchronized(PROCESS_LOCK) {
         val current = snapshot()
         if (!current.active || current.paused) return
         preferences.edit()
             .putBoolean(KEY_PAUSED, true)
             .putLong(KEY_PAUSE_STARTED_AT, now)
             .apply()
+            }
     }
 
     @Synchronized
     fun resume(now: Long = System.currentTimeMillis()) {
+        synchronized(PROCESS_LOCK) {
         val current = snapshot()
         if (!current.active || !current.paused) return
         val pauseDuration = (now - current.pauseStartedAtEpochMillis).coerceAtLeast(0L)
@@ -82,10 +89,12 @@ class ShiftSessionStore(context: Context) {
             .putLong(KEY_PAUSED_DURATION, current.pausedDurationMillis + pauseDuration)
             .putLong(KEY_PAUSE_STARTED_AT, 0L)
             .apply()
+            }
     }
 
     @Synchronized
     fun end(now: Long = System.currentTimeMillis()) {
+        synchronized(PROCESS_LOCK) {
         val current = snapshot()
         if (!current.active) return
         val extraPause = if (current.paused) (now - current.pauseStartedAtEpochMillis).coerceAtLeast(0L) else 0L
@@ -96,25 +105,31 @@ class ShiftSessionStore(context: Context) {
             .putLong(KEY_PAUSE_STARTED_AT, 0L)
             .putLong(KEY_ENDED_AT, now)
             .apply()
+            }
     }
 
     @Synchronized
     fun setMonitoringConnected(connected: Boolean) {
+        synchronized(PROCESS_LOCK) {
         preferences.edit()
             .putBoolean(KEY_MONITORING_CONNECTED, connected)
             .putLong(KEY_MONITORING_HEARTBEAT, if (connected) System.currentTimeMillis() else 0L)
             .apply()
+            }
     }
 
     @Synchronized
     fun heartbeat() {
+        synchronized(PROCESS_LOCK) {
         if (preferences.getBoolean(KEY_MONITORING_CONNECTED, false)) {
             preferences.edit().putLong(KEY_MONITORING_HEARTBEAT, System.currentTimeMillis()).apply()
         }
+            }
     }
 
     @Synchronized
     fun recordCompletedTrip(tripId: String, fareCents: Long) {
+        synchronized(PROCESS_LOCK) {
         val current = snapshot()
         if (!current.active || current.paused || tripId.isBlank() || fareCents < 0L) return
         val counted = preferences.getStringSet(KEY_COUNTED_TRIPS, emptySet()).orEmpty()
@@ -125,9 +140,14 @@ class ShiftSessionStore(context: Context) {
             .putInt(KEY_COMPLETED_TRIPS, current.completedTrips + 1)
             .putLong(KEY_RECEIVED_FARE, current.receivedFareCents + fareCents)
             .apply()
+            }
     }
 
     private companion object {
+        // @Synchronized only locks one instance. The dashboard and the
+        // accessibility service instantiate separate ShiftSessionStores and
+        // must not race while updating the same SharedPreferences keys.
+        val PROCESS_LOCK = Any()
         const val KEY_ACTIVE = "active"
         const val KEY_PAUSED = "paused"
         const val KEY_STARTED_AT = "started_at"
