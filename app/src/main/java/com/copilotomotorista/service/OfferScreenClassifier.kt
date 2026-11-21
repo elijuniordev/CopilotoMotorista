@@ -36,18 +36,21 @@ internal class OfferScreenClassifier {
         val hasOfferAction = OFFER_ACTION_REGEX.containsMatchIn(text)
         val hasRadarLabel = RADAR_LABEL_REGEX.containsMatchIn(text)
 
-        // The Radar can arrive partially through OCR: a single visible card,
-        // a missing fare, or an obscured action must NEVER be parsed as a
-        // standalone trip. Doing so can combine fields of separate cards.
-        // Keep an explicit Radar label on its own classification path.
-        if (hasRadarLabel) {
-            // A fare-rate amount like R$ 2,20/km is not a second Radar card.
-            // Use the exact same main-fare detector as RadarOfferExtractor.
-            val primaryFareCount = RadarOfferExtractor.countPrimaryFareAnchors(rawText)
+        // OCR can omit the Radar heading and can repeat equal prices.
+        // Multiple real card-fare anchors must never be parsed as one trip,
+        // even if the heading or an action was obscured.
+        // Rate/bonus amounts are excluded by the shared extractor detector.
+        val primaryFareCount = RadarOfferExtractor.countPrimaryFareAnchors(rawText)
+        if (hasRadarLabel || primaryFareCount >= 2) {
             return if (hasOfferAction && primaryFareCount >= 2 && routeSegmentCount >= 2) {
                 Result(
                     ScreenKind.RADAR_CANDIDATE,
-                    setOf("radar_label", "multiple_fares", "multiple_route_segments", "offer_action")
+                    buildSet {
+                        if (hasRadarLabel) add("radar_label")
+                        add("multiple_fares")
+                        add("multiple_route_segments")
+                        add("offer_action")
+                    }
                 )
             } else {
                 Result(ScreenKind.NOT_OFFER, setOf("incomplete_radar"))
