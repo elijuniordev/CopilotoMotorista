@@ -20,6 +20,17 @@ class RoomTripRecordRepository(
   dao.attachEvidenceIfAbsent(id, path) == 1
  override suspend fun clearEvidenceIfMatches(id: String, path: String): Boolean =
   dao.clearEvidenceIfMatches(id, path) == 1
+ override suspend fun confirmOfferFromOverlay(
+  id: String, requestedStatus: String, nowEpochMillis: Long,
+  detectedOrigin: String?, detectedDestination: String?, paymentMethod: String?,
+  vehicleId: String, vehicleName: String, costCents: Long
+ ): Boolean {
+  require(nowEpochMillis > 0L && vehicleId.isNotBlank() && vehicleName.isNotBlank() && costCents >= 0L)
+  return dao.confirmOfferFromOverlay(
+   id, requestedStatus, nowEpochMillis, detectedOrigin, detectedDestination,
+   paymentMethod, vehicleId, vehicleName, costCents
+  ) == 1
+ }
  override suspend fun deleteTrip(id: String) {
   val record = dao.findById(id) ?: return
   check(evidenceFiles.deleteIfOwned(record.evidenceUri)) {
