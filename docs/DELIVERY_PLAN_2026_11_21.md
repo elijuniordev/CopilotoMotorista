@@ -47,7 +47,10 @@ Não marcar etapas como aprovadas apenas porque o código compila.
 - [x] Corrigir configuração inicial no Android 8–10: apresentar quatro permissões no contador (inclui MediaProjection), em contraste às três etapas do Android 11+, e exigir confirmação da divulgação antes do botão de captura legado.
 - [ ] Confirmar novo smoke test instrumentado de contagem 3/4 e permissão de captura bloqueada antes da divulgação nas APIs 26 e 35.
 - [x] Fortalecer reconhecimento do serviço de acessibilidade já habilitado: `ComponentName.unflattenFromString` reconhece nomes abreviados e completos em `Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES`, sem correspondência por substring. Adicionados testes instrumentados para casos válidos, pacotes incorretos e valores inválidos.
-- [ ] Confirmar 6/6 jobs no novo HEAD incluindo o reconhecimento de acessibilidade e a tela inicial de Android 8–10. O APK anterior permanece disponível como fallback de testes internos.
+- [x] Confirmar CI #44928018573 com 6/6 jobs aprovados no commit `a648615b`, inclusive os testes instrumentados de configuração inicial e reconhecimento de acessibilidade em APIs 26 e 35.
+- [x] Remover o cartão demonstrativo associado à `MainActivity` em `onDestroy` (fechamento/rotação) sem afetar a sobreposição independente do `AccessibilityReaderService`. Adicionar smoke test de recriação da tela inicial sem exigir permissão de sobreposição.
+- [ ] Validar o comportamento de um cartão demonstrativo **visível** durante rotação/fechamento em aparelho físico; o smoke test sem permissão verifica apenas que a Activity se recria sem crash.
+- [ ] Confirmar CI 6/6 no novo HEAD após a correção do ciclo de vida do cartão demonstrativo.
 
 - [ ] Validar atribuição de Uber/99 em ofertas físicas e screenshots desidentificados que contenham texto de outras marcas.
 - [ ] Validar no Android real as trocas rápidas Uber ↔ outro app ↔ Uber enquanto consultas Room, OCR e evidências estão pendentes.
