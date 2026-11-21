@@ -16,6 +16,11 @@ class RoomTripRecordRepository(
  override suspend fun getTrip(id: String): TripRecord? = dao.findById(id)?.toDomain()
  override suspend fun findRecentMatchingOffer(platform: String, fareCents: Long, pickupDistanceKm: Double, tripDistanceKm: Double, pickupTimeMinutes: Int, tripTimeMinutes: Int, sinceEpochMillis: Long): TripRecord? = dao.findRecentMatchingOffer(platform, fareCents, pickupDistanceKm, tripDistanceKm, pickupTimeMinutes, tripTimeMinutes, sinceEpochMillis)?.toDomain()
  override suspend fun saveTrip(trip: TripRecord) = dao.upsert(trip.toEntity())
+ override suspend fun findOrInsertCapturedOffer(
+  captured: TripRecord, sinceEpochMillis: Long
+ ): TripRecord = dao.findOrInsertCapturedOffer(
+  captured.toEntity(), sinceEpochMillis
+ ).toDomain()
  override suspend fun enrichCapturedOfferIfMissing(
   id: String, rawText: String, origin: String?, destination: String?
  ): Boolean = dao.enrichCapturedOfferIfMissing(id, rawText, origin, destination) == 1
