@@ -8,6 +8,42 @@ class RadarOfferExtractorTest {
     private val extractor = RadarOfferExtractor()
 
     @Test
+    fun countsOnlyPrimaryFareAnchorsAndExcludesRatesBaseFaresAndBonuses() {
+        val count = RadarOfferExtractor.countPrimaryFareAnchors(
+            """
+            Radar de Viagens
+            R$ 12,50
+            UberX
+            Est. de R$ 2,20/km
+            +R$ 1,00 incluído
+            Tarifa base R$ 1,28
+            Tenho interesse
+            R$ 18,90
+            R$ 3,15/km
+            Ver oferta
+            """.trimIndent()
+        )
+
+        assertEquals(2, count)
+    }
+
+    @Test
+    fun doesNotCountTwoFareAmountsFromASingleRateAndOneCard() {
+        val count = RadarOfferExtractor.countPrimaryFareAnchors(
+            """
+            Radar de Viagens
+            R$ 12,50
+            20 min • 5,7 km - Est. de R$ 2,20/km
+            5 min • 1,1 km
+            15 min • 4,6 km
+            Tenho interesse
+            """.trimIndent()
+        )
+
+        assertEquals(1, count)
+    }
+
+    @Test
     fun extractsTwoIndependentCompleteOffersFromRadarReadingOrder() {
         val candidates = extractor.extract(
             """
