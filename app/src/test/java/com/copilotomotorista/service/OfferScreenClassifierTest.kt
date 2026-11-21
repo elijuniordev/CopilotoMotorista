@@ -95,6 +95,49 @@ class OfferScreenClassifierTest {
         assertEquals(OfferScreenClassifier.ScreenKind.RADAR_CANDIDATE, result.kind)
     }
     @Test
+    fun recognizesRadarWithoutHeadingWhenTwoCompleteOfferCardsRemain() {
+        val text = ScreenTextSnapshot.normalize(
+            """
+            R$ 12,50
+            UberX
+            20 min • 5,7 km - Est. de R$2,20/km
+            +R$ 1,00 incluído
+            5 min • 1,1 km
+            15 min • 4,6 km
+            Tenho interesse
+            R$ 18,90
+            UberX
+            24 min • 7,0 km - Est. de R$2,70/km
+            +R$ 2,00 incluído
+            6 min • 1,5 km
+            18 min • 5,5 km
+            Tenho interesse
+            """.trimIndent()
+        )
+
+        assertEquals(OfferScreenClassifier.ScreenKind.RADAR_CANDIDATE, classifier.classify(text).kind)
+        assertEquals(2, RadarOfferExtractor().extract(text).size)
+    }
+
+    @Test
+    fun rejectsTwoFaresWithoutActionsInsteadOfCombiningTheirRoutes() {
+        val result = classifier.classify(
+            """
+            R$ 12,50
+            UberX
+            5 min • 1,1 km
+            15 min • 4,6 km
+            R$ 18,90
+            UberX
+            6 min • 1,5 km
+            18 min • 5,5 km
+            """.trimIndent()
+        )
+
+        assertEquals(OfferScreenClassifier.ScreenKind.NOT_OFFER, result.kind)
+    }
+
+    @Test
     fun incompleteRadarNeverBecomesASingleTripWhenOnlyOneFareIsVisible() {
         val result = classifier.classify(
             """
