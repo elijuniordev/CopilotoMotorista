@@ -287,13 +287,14 @@ class AccessibilityReaderService : AccessibilityService() {
                 }
                 return@launch
             }
-            val recordId = recentRecord?.id ?: UUID.randomUUID().toString()
+            var recordId = recentRecord?.id ?: UUID.randomUUID().toString()
             val existingLookupStartedAt = SystemClock.uptimeMillis()
             val existingOffer = withContext(Dispatchers.IO) {
                 appContainer.tripRecordRepository.getTrip(recordId)
             }
             recordPipelineStage("existing_record_lookup", platform, snapshot.source.name, existingLookupStartedAt, true)
             if (!isCaptureContextAllowed(platform, generation)) return@launch
+            var persistedRecord = existingOffer
 
             // Save a complete offer before vehicle/configuration lookups. Those reads may
             // suspend while the ride app keeps emitting accessibility events.
@@ -338,7 +339,13 @@ class AccessibilityReaderService : AccessibilityService() {
                 val persistenceStartedAt = SystemClock.uptimeMillis()
                 val saved = runCatching {
                     withContext(Dispatchers.IO) {
-                        appContainer.tripRecordRepository.saveTrip(captured)
+                        // The original duplicate lookup and this insertion can
+                        // overlap another OCR callback. Find-or-insert executes
+                        // inside one Room transaction, so we reuse its row
+                        // instead of creating a second UUID for the same offer.
+                        appContainer.tripRecordRepository.findOrInsertCapturedOffer(
+                            captured, nowEpochMillis - DUPLICATE_OFFER_WINDOW_MILLIS
+                        )
                     }
                 }
                 recordPipelineStage("persist_capture", platform, snapshot.source.name, persistenceStartedAt, saved.isSuccess)
@@ -346,13 +353,35 @@ class AccessibilityReaderService : AccessibilityService() {
                     Log.e("OfferCapture", "Failed to persist captured offer", saved.exceptionOrNull())
                     return@launch
                 }
+                persistedRecord = saved.getOrThrow()
+                recordId = persistedRecord.id
+                if (persistedRecord.status == TRIP_STATUS_COMPLETED) {
+                    if (generation == captureGeneration) {
+                        currentOfferRecordId = null
+                        overlayWindowManager.hideOverlay()
+                    }
+                    return@launch
+                }
+                if (persistedRecord.rawOfferText.isNullOrBlank()) {
+                    runCatching {
+                        withContext(Dispatchers.IO) {
+                            appContainer.tripRecordRepository.enrichCapturedOfferIfMissing(
+                                recordId, snapshot.text,
+                                extractLabeledAddress(snapshot.text, true),
+                                extractLabeledAddress(snapshot.text, false)
+                            )
+                        }
+                    }.onFailure { error ->
+                        Log.e("OfferCapture", "Failed to enrich reused captured offer", error)
+                    }
+                }
             }
 
             if (!isCaptureContextAllowed(platform, generation)) return@launch
             if (generation == captureGeneration) {
                 currentOfferRecordId = recordId
             }
-            if (recentRecord?.evidenceUri == null &&
+            if (persistedRecord?.evidenceUri == null &&
                 isCaptureContextAllowed(platform, generation) &&
                 evidenceCaptureRequested.add(recordId)
             ) {
@@ -427,7 +456,7 @@ class AccessibilityReaderService : AccessibilityService() {
                 onCompleted = {
                     saveConfirmedTrip(recordId, vehicle.id, vehicle.name, validAnalysis.operatingCostCents, TRIP_STATUS_COMPLETED, detectPaymentMethod(snapshot.text), extractLabeledAddress(snapshot.text, true), extractLabeledAddress(snapshot.text, false))
                 },
-                showCompleteAction = recentRecord?.status == "in_progress"
+                showCompleteAction = persistedRecord?.status == TRIP_STATUS_IN_PROGRESS
             )
             val overlayShownAt = SystemClock.uptimeMillis()
             recordPipelineStage("overlay_show", platform, snapshot.source.name, overlayStartedAt, overlayDisplayed)
