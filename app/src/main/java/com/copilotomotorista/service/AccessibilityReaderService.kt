@@ -14,7 +14,6 @@ import com.copilotomotorista.service.MediaProjectionCaptureService
 import com.copilotomotorista.domain.model.OfferInput
 import com.copilotomotorista.domain.model.TripRecord
 import com.copilotomotorista.domain.usecase.EvaluateOfferUseCase
-import com.copilotomotorista.domain.usecase.ResolveTripCostSnapshotUseCase
 import com.copilotomotorista.presentation.overlay.RadarOfferDisplay
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -46,7 +45,6 @@ class AccessibilityReaderService : AccessibilityService() {
     private val captureLatencyMetrics = OfferCaptureLatencyMetrics()
     private val pipelineStageMetrics = OfferPipelineStageMetrics()
     private val evaluateOfferUseCase = EvaluateOfferUseCase()
-    private val resolveTripCostSnapshotUseCase = ResolveTripCostSnapshotUseCase()
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private var ocrRecognizer: LocalOcrTextRecognizer? = null
     private var screenshotInProgress = false
@@ -430,10 +428,10 @@ class AccessibilityReaderService : AccessibilityService() {
                 showDistanceAndTime = displayPreferences.showDistanceAndTime,
                 onDismiss = {},
                 onAccepted = {
-                    saveConfirmedTrip(recordId, platform, currentOffer, vehicle.id, vehicle.name, validAnalysis.operatingCostCents, TRIP_STATUS_ACCEPTED, detectPaymentMethod(snapshot.text), extractLabeledAddress(snapshot.text, true), extractLabeledAddress(snapshot.text, false))
+                    saveConfirmedTrip(recordId, currentOffer.receivedFareCents, vehicle.id, vehicle.name, validAnalysis.operatingCostCents, TRIP_STATUS_ACCEPTED, detectPaymentMethod(snapshot.text), extractLabeledAddress(snapshot.text, true), extractLabeledAddress(snapshot.text, false))
                 },
                 onCompleted = {
-                    saveConfirmedTrip(recordId, platform, currentOffer, vehicle.id, vehicle.name, validAnalysis.operatingCostCents, TRIP_STATUS_COMPLETED, detectPaymentMethod(snapshot.text), extractLabeledAddress(snapshot.text, true), extractLabeledAddress(snapshot.text, false))
+                    saveConfirmedTrip(recordId, currentOffer.receivedFareCents, vehicle.id, vehicle.name, validAnalysis.operatingCostCents, TRIP_STATUS_COMPLETED, detectPaymentMethod(snapshot.text), extractLabeledAddress(snapshot.text, true), extractLabeledAddress(snapshot.text, false))
                 },
                 showCompleteAction = recentRecord?.status == "in_progress"
             )
@@ -606,8 +604,7 @@ class AccessibilityReaderService : AccessibilityService() {
 
     private fun saveConfirmedTrip(
         recordId: String,
-        platform: String,
-        offer: OfferInput,
+        fareCents: Long,
         vehicleId: String,
         vehicleName: String,
         operatingCostCents: Long,
@@ -619,47 +616,39 @@ class AccessibilityReaderService : AccessibilityService() {
         if (serviceDestroyed) return
         serviceScope.launch {
             val now = System.currentTimeMillis()
-            val existing = withContext(Dispatchers.IO) { appContainer.tripRecordRepository.getTrip(recordId) }
-            // Never recreate a record the driver deleted while its old overlay
-            // was visible, nor downgrade/redo an already finished trip.
+            val existing = withContext(Dispatchers.IO) {
+                appContainer.tripRecordRepository.getTrip(recordId)
+            }
+            // Fast rejection for stale overlay actions. More importantly, the
+            // Room UPDATE below repeats the status check atomically at write time:
+            // a deletion or edit between this read and the write cannot be lost.
             if (!CapturedOfferConfirmationPolicy.canApply(existing?.status, status)) return@launch
-            val costSnapshot = resolveTripCostSnapshotUseCase.execute(existing, vehicleId, operatingCostCents, vehicleName)
-            val record = TripRecord(
-                id = recordId,
-                platform = platform,
-                status = status,
-                receivedFareCents = offer.receivedFareCents,
-                pickupDistanceKm = offer.pickupDistanceKm,
-                tripDistanceKm = offer.tripDistanceKm,
-                pickupTimeMinutes = offer.pickupTimeMinutes,
-                tripTimeMinutes = offer.tripTimeMinutes,
-                origin = existing?.origin ?: detectedOrigin,
-                destination = existing?.destination ?: detectedDestination,
-                passengerRating = null,
-                paymentMethod = existing?.paymentMethod ?: paymentMethod.takeUnless { it == "Pagamento não identificado" },
-                startedAtEpochMillis = existing?.startedAtEpochMillis
-                    ?: if (status == TRIP_STATUS_COMPLETED) now else null,
-                completedAtEpochMillis = if (status == TRIP_STATUS_COMPLETED) now else existing?.completedAtEpochMillis,
-                vehicleId = costSnapshot.vehicleId,
-                evidenceUri = existing?.evidenceUri ?: pendingEvidenceByRecordId[recordId],
-                notes = "Registro confirmado manualmente pelo motorista.",
-                createdAtEpochMillis = existing?.createdAtEpochMillis ?: now,
-                operatingCostCentsSnapshot = costSnapshot.operatingCostCents,
-                vehicleNameSnapshot = costSnapshot.vehicleName,
-                rawOfferText = existing?.rawOfferText
-            )
             val saved = runCatching {
                 withContext(Dispatchers.IO) {
-                    appContainer.tripRecordRepository.saveTrip(record)
+                    appContainer.tripRecordRepository.confirmOfferFromOverlay(
+                        id = recordId,
+                        requestedStatus = status,
+                        nowEpochMillis = now,
+                        detectedOrigin = detectedOrigin,
+                        detectedDestination = detectedDestination,
+                        paymentMethod = paymentMethod.takeUnless {
+                            it == "Pagamento não identificado"
+                        },
+                        vehicleId = vehicleId,
+                        vehicleName = vehicleName,
+                        costCents = operatingCostCents
+                    )
                 }
-            }.isSuccess
+            }.onFailure { error ->
+                Log.e("OfferCapture", "manual_trip_confirmation_failed", error)
+            }.getOrDefault(false)
             val shiftStartedAt = shiftSessionStore.snapshot().startedAtEpochMillis
-            val tripStartedAt = existing?.startedAtEpochMillis ?: now
+            val tripStartedAt = existing.startedAtEpochMillis ?: now
             if (saved && status == TRIP_STATUS_COMPLETED &&
-                existing?.status == TRIP_STATUS_IN_PROGRESS &&
+                existing.status == TRIP_STATUS_IN_PROGRESS &&
                 shiftStartedAt > 0L && tripStartedAt >= shiftStartedAt
             ) {
-                shiftSessionStore.recordCompletedTrip(recordId, offer.receivedFareCents)
+                shiftSessionStore.recordCompletedTrip(recordId, fareCents)
             }
             if (saved && currentOfferRecordId == recordId) {
                 overlayWindowManager.hideOverlay()
