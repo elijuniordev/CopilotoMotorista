@@ -45,6 +45,10 @@ class ShiftSessionStore(context: Context) {
 
     @Synchronized
     fun start(now: Long = System.currentTimeMillis()) {
+        // Repeated taps, stale UI callbacks or a restored screen must not
+        // reset a running shift's revenue, completed-trip IDs or elapsed time.
+        // Pause/resume and ending a shift have their own explicit actions.
+        if (snapshot().active) return
         preferences.edit()
             .putBoolean(KEY_ACTIVE, true)
             .putBoolean(KEY_PAUSED, false)
