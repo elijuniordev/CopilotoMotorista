@@ -28,6 +28,7 @@ Não marcar etapas como aprovadas apenas porque o código compila.
 ## Ciclo C — OCR, Radar e MediaProjection
 - [ ] Reunir testes de parser/classificador por plataforma e layouts de oferta reais com dados pessoais removidos.
 - [ ] Revisar política de geração obsoleta/concorrência no OCR Android 8–10 e Android 11+; preservar debounce e integridade.
+- [ ] Resolver [Issue #36](https://github.com/elijuniordev/CopilotoMotorista/issues/36): descartar capturas agendadas quando o motorista sair de Uber/99, sem perder registros válidos do mesmo app.
 - [ ] Validar Radar com ofertas múltiplas (não combinar cartões; sem aceite automático).
 - [ ] Validar permissão, rotação, término e retomada de MediaProjection em Android 8–10.
 - [ ] Medir p50/p95, reconhecimento antes de desaparecer e custo de bateria em aparelhos, sem dados pessoais nos logs.
