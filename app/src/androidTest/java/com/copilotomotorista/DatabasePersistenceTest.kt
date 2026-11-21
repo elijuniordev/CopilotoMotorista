@@ -276,6 +276,91 @@ class DatabasePersistenceTest {
     }
 
     @Test
+    fun delayedOcrAndCostEnrichmentDoNotRevertConfirmedTripOrUserEdits() = runBlocking {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val name = "ocr-enrichment-atomic-${System.currentTimeMillis()}.db"
+        val database = Room.databaseBuilder(context, AppDatabase::class.java, name).build()
+        try {
+            database.vehicleDao().upsert(
+                VehicleEntity("vehicle-ocr", "Carro", "gasoline", "GASOLINE",
+                    12.0, 590L, 10L, 20L, 5L)
+            )
+            val dao = database.tripRecordDao()
+            val captured = TripRecordEntity(
+                id = "ocr-enrich", platform = "uber", status = "captured",
+                receivedFareCents = 3_000L, pickupDistanceKm = 1.0,
+                tripDistanceKm = 7.0, pickupTimeMinutes = 4, tripTimeMinutes = 17,
+                origin = null, destination = null, passengerRating = null,
+                paymentMethod = null, startedAtEpochMillis = null,
+                completedAtEpochMillis = null, vehicleId = null,
+                evidenceUri = null, notes = "Oferta capturada automaticamente.",
+                createdAtEpochMillis = 100L
+            )
+            dao.upsert(captured)
+            assertEquals(
+                1, dao.enrichCapturedOfferIfMissing(
+                    captured.id, "Texto OCR inicial", "Origem OCR", "Destino OCR"
+                )
+            )
+            assertEquals(0, dao.enrichCapturedOfferIfMissing(
+                captured.id, "Texto repetido", "Origem nova", "Destino novo"
+            ))
+            val enriched = requireNotNull(dao.findById(captured.id))
+            assertEquals("Texto OCR inicial", enriched.rawOfferText)
+            assertEquals("Destino OCR", enriched.destination)
+
+            // Simulate the driver manually editing fare/notes and an
+            // evidence callback attaching a photo before cost enrichment.
+            dao.upsert(enriched.copy(
+                receivedFareCents = 3_350L,
+                notes = "Observação editada",
+                evidenceUri = "offer_current.jpg"
+            ))
+            assertEquals(
+                1, dao.fillCapturedCostSnapshotIfMissing(
+                    captured.id, "vehicle-ocr", 750L, "Carro"
+                )
+            )
+            assertEquals(0, dao.fillCapturedCostSnapshotIfMissing(
+                captured.id, "vehicle-ocr", 999L, "Carro novo"
+            ))
+            val withCost = requireNotNull(dao.findById(captured.id))
+            assertEquals(3_350L, withCost.receivedFareCents)
+            assertEquals("Observação editada", withCost.notes)
+            assertEquals("offer_current.jpg", withCost.evidenceUri)
+            assertEquals("Texto OCR inicial", withCost.rawOfferText)
+            assertEquals(750L, withCost.operatingCostCentsSnapshot)
+
+            // Async results that arrive after manual confirmation cannot
+            // overwrite the captured trip with an older full-row snapshot.
+            dao.upsert(withCost.copy(status = "accepted"))
+            assertEquals(0, dao.enrichCapturedOfferIfMissing(
+                captured.id, "Texto atrasado", "Origem atrasada", "Destino atrasado"
+            ))
+            assertEquals(0, dao.fillCapturedCostSnapshotIfMissing(
+                captured.id, "vehicle-ocr", 999L, "Nome atrasado"
+            ))
+            val accepted = requireNotNull(dao.findById(captured.id))
+            assertEquals("accepted", accepted.status)
+            assertEquals(3_350L, accepted.receivedFareCents)
+            assertEquals("Observação editada", accepted.notes)
+            assertEquals("offer_current.jpg", accepted.evidenceUri)
+
+            dao.deleteById(captured.id)
+            assertEquals(0, dao.enrichCapturedOfferIfMissing(
+                captured.id, "Texto de item excluído", null, null
+            ))
+            assertEquals(0, dao.fillCapturedCostSnapshotIfMissing(
+                captured.id, "vehicle-ocr", 999L, "Carro"
+            ))
+            assertEquals(null, dao.findById(captured.id))
+        } finally {
+            database.close()
+            context.deleteDatabase(name)
+        }
+    }
+
+    @Test
     fun privateTripCreateUpdateAndDeletePersistAcrossDatabaseReopen() = runBlocking {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val databaseName = "private-trip-crud-${System.currentTimeMillis()}.db"
