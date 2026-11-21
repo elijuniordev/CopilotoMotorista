@@ -51,13 +51,23 @@ internal class RadarOfferExtractor(
         }
     }
 
-    private fun isPrimaryFareAnchor(line: String): Boolean {
-        if (SECONDARY_MARKER_REGEX.containsMatchIn(line)) return false
-        return PRIMARY_FARE_REGEX.findAll(line).count() == 1
-    }
+    companion object {
+        /**
+         * Count only main fare lines. Per-kilometre rates, fare-base figures
+         * and bonuses must not be counted as separate Radar cards.
+         * Share this check with the screen classifier so the two cannot drift.
+         */
+        internal fun countPrimaryFareAnchors(rawText: String): Int =
+            rawText.lineSequence()
+                .map { it.trim().replace(WHITESPACE, " ") }
+                .count(::isPrimaryFareAnchor)
 
-    private companion object {
-        const val MINIMUM_RADAR_OFFERS = 2
+        private fun isPrimaryFareAnchor(line: String): Boolean {
+            if (SECONDARY_MARKER_REGEX.containsMatchIn(line)) return false
+            return PRIMARY_FARE_REGEX.findAll(line).count() == 1
+        }
+
+        private const val MINIMUM_RADAR_OFFERS = 2
         val WHITESPACE = Regex("\\s+")
         val PRIMARY_FARE_REGEX = Regex(
             """R\$\s*[0-9]+(?:\.[0-9]{3})*(?:,[0-9]{1,2}|\.[0-9]{1,2})?""",
