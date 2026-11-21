@@ -163,6 +163,7 @@ class AccessibilityReaderService : AccessibilityService() {
         pendingScreenshotWork.clear()
         evidenceCaptureRequested.clear()
         evidenceCaptureContexts.clear()
+        pendingEvidenceByRecordId.clear()
         lastOfferFingerprint = null
         lastOfferShownAt = 0L
         currentOfferRecordId = null
@@ -705,14 +706,41 @@ class AccessibilityReaderService : AccessibilityService() {
                                     return@launch
                                 }
                                 if (path != null) {
-                                    pendingEvidenceByRecordId[recordId] = path
-                                    withContext(Dispatchers.IO) {
-                                        val existing = appContainer.tripRecordRepository.getTrip(recordId)
-                                        if (existing != null && existing.evidenceUri == null) {
-                                            appContainer.tripRecordRepository.saveTrip(existing.copy(evidenceUri = path))
+                                    // The app can switch while Room is writing on IO.
+                                    // Attach only when the record still exists and
+                                    // has no evidence, then recheck the foreground
+                                    // session on main after the suspend point.
+                                    var attached = false
+                                    try {
+                                        attached = withContext(Dispatchers.IO) {
+                                            val existing = appContainer.tripRecordRepository.getTrip(recordId)
+                                            if (existing != null && existing.evidenceUri == null) {
+                                                appContainer.tripRecordRepository.saveTrip(
+                                                    existing.copy(evidenceUri = path)
+                                                )
+                                                true
+                                            } else {
+                                                false
+                                            }
+                                        }
+                                        evidenceSaved = attached &&
+                                            isCaptureContextAllowed(context.first, context.second)
+                                    } finally {
+                                        if (!evidenceSaved) {
+                                            // Do not leave an orphan JPEG or a stale
+                                            // reference if the user leaves Uber/99
+                                            // while the evidence write is in flight.
+                                            withContext(Dispatchers.IO) {
+                                                val record = appContainer.tripRecordRepository.getTrip(recordId)
+                                                if (attached && record?.evidenceUri == path) {
+                                                    appContainer.tripRecordRepository.saveTrip(
+                                                        record.copy(evidenceUri = null)
+                                                    )
+                                                }
+                                                File(path).delete()
+                                            }
                                         }
                                     }
-                                    evidenceSaved = true
                                 }
                             } catch (_: Exception) {
                                 // Keep the offer eligible for a later retry.
@@ -992,6 +1020,7 @@ class AccessibilityReaderService : AccessibilityService() {
         pendingScreenshotWork.clear()
         evidenceCaptureContexts.clear()
         evidenceCaptureRequested.clear()
+        pendingEvidenceByRecordId.clear()
         serviceScope.cancel()
         ocrRecognizer?.close()
         ocrRecognizer = null
