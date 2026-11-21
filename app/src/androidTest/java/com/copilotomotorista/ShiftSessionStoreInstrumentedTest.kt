@@ -10,6 +10,9 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicReference
 import org.junit.runner.RunWith
 
 /**
@@ -56,6 +59,43 @@ class ShiftSessionStoreInstrumentedTest {
         assertEquals(0L, store.snapshot().receivedFareCents)
         store.recordCompletedTrip("trip-1", 2_750L)
         assertEquals(1, store.snapshot().completedTrips)
+    }
+
+    @Test
+    fun separateStoreInstancesCannotLoseConcurrentTripsOrCountTwice() {
+        val first = ShiftSessionStore(context)
+        val second = ShiftSessionStore(context)
+        first.start(now = 1_000L)
+        second.start(now = 2_000L) // Other UI/service instance must not reset a shift.
+        assertEquals(1_000L, first.snapshot().startedAtEpochMillis)
+
+        val release = CountDownLatch(1)
+        val failure = AtomicReference<Throwable?>()
+        fun worker(store: ShiftSessionStore, prefix: String) = Thread {
+            try {
+                check(release.await(5, TimeUnit.SECONDS)) { "Parallel workers did not start" }
+                repeat(40) { index -> store.recordCompletedTrip("${prefix}-${index}", 125L) }
+                repeat(10) { store.recordCompletedTrip("same-trip", 600L) }
+            } catch (error: Throwable) {
+                failure.compareAndSet(null, error)
+            }
+        }
+
+        val one = worker(first, "first")
+        val two = worker(second, "second")
+        one.start()
+        two.start()
+        release.countDown()
+        one.join(15_000L)
+        two.join(15_000L)
+        assertFalse("First worker failed to finish", one.isAlive)
+        assertFalse("Second worker failed to finish", two.isAlive)
+        failure.get()?.let { throw AssertionError("Concurrent store writer failed", it) }
+
+        val result = ShiftSessionStore(context).snapshot()
+        assertEquals(81, result.completedTrips)
+        assertEquals(10_600L, result.receivedFareCents)
+        assertEquals(1_000L, result.startedAtEpochMillis)
     }
 
     @Test
