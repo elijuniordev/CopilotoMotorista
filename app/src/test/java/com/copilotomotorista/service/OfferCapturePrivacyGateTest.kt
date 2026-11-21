@@ -67,6 +67,40 @@ class OfferCapturePrivacyGateTest {
     }
 
     @Test
+    fun ownFloatingControlWindowDoesNotInvalidateVerifiedRideApp() {
+        val gate = newGate()
+        val ownPackage = "com.copilotomotorista"
+        gate.onWindowEvent(uber, OfferCapturePrivacyGate.WINDOW_STATE_CHANGED, 0)
+        assertFalse(
+            gate.onWindowEvent(
+                packageName = ownPackage,
+                eventType = OfferCapturePrivacyGate.WINDOW_STATE_CHANGED,
+                generation = 1,
+                verifiedForegroundPackage = uber,
+                ownPackage = ownPackage
+            )
+        )
+        assertTrue(gate.isAllowed(uber, 1, uber))
+    }
+
+    @Test
+    fun actualSwitchToOwnMainScreenInvalidatesCaptureSession() {
+        val gate = newGate()
+        val ownPackage = "com.copilotomotorista"
+        gate.onWindowEvent(uber, OfferCapturePrivacyGate.WINDOW_STATE_CHANGED, 0)
+        assertTrue(
+            gate.onWindowEvent(
+                packageName = ownPackage,
+                eventType = OfferCapturePrivacyGate.WINDOW_STATE_CHANGED,
+                generation = 1,
+                verifiedForegroundPackage = ownPackage,
+                ownPackage = ownPackage
+            )
+        )
+        assertFalse(gate.isAllowed(uber, 2, uber))
+    }
+
+    @Test
     fun verifiedContentEventCanStartSessionWithoutPriorWindowStateEvent() {
         val gate = newGate()
         assertFalse(gate.isAllowed(uber, 1, uber))
