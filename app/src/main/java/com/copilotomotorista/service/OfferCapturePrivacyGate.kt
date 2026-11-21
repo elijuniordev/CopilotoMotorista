@@ -34,6 +34,14 @@ internal class OfferCapturePrivacyGate(
         if (ownPackage != null && packageName == ownPackage &&
             activePackage != null && verifiedForegroundPackage == activePackage
         ) return false
+        // A delayed state event from Uber/99 can arrive after Android has
+        // already switched its interactive root to another app. In that case
+        // the event's package must not re-authorize a capture session.
+        if (verifiedForegroundPackage != null && verifiedForegroundPackage != packageName) {
+            if (activePackage == null) return false
+            invalidate(generation)
+            return true
+        }
         val foregroundCandidate = packageName?.takeIf { it in supportedPackages }
         if (activePackage == foregroundCandidate) return false
         invalidate(generation)
