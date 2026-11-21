@@ -85,6 +85,9 @@ Não marcar etapas como aprovadas apenas porque o código compila.
 - [x] Bloquear ações de cartão flutuante obsoleto sobre registros já excluídos, já concluídos ou em andamento: política de transição local e três testes unitários.
 - [x] Eliminar a janela entre leitura e gravação das confirmações manuais: `UPDATE` condicional atômico no Room, preservando tarifa, notas, evidência e status do motorista, com teste instrumentado de exclusão/repetição/edição.
 - [x] Eliminar gravações de linha inteira obsoletas na complementação de OCR e no snapshot financeiro do veículo: apenas `UPDATE` de campos ainda ausentes em ofertas no estado `captured`, com teste instrumentado de regressão.
+- [x] Confirmar CI #44935342593 com 6/6 jobs aprovados no commit `a36a682b`, incluindo testes do expediente e prevenção de reinício duplicado.
+- [x] Serializar as leituras/gravações de `ShiftSessionStore` entre instâncias distintas da tela principal e do serviço de acessibilidade, evitando contagem perdida ou duplicada em `SharedPreferences`; incluir teste instrumentado com duas instâncias e gravações paralelas.
+- [ ] Confirmar CI 6/6 no HEAD com o bloqueio compartilhado de expediente; validar operações simultâneas e encerramento de turno em aparelho físico.
 - [ ] Validar no aparelho a interação simultânea entre exclusão/edição do histórico, aceite manual e captura de evidência; ainda não há evidência de execução física com Uber/99.
 - [ ] Revisar a versão candidata funcionalmente e completar pré-teste interno conforme o novo roteiro.
 - [ ] Executar `docs/DEVICE_VALIDATION.md` com Uber e 99 reais e Android suportados.
