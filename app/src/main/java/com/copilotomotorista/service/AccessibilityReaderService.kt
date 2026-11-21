@@ -643,12 +643,16 @@ class AccessibilityReaderService : AccessibilityService() {
                 Log.e("OfferCapture", "manual_trip_confirmation_failed", error)
             }.getOrDefault(false)
             val shiftStartedAt = shiftSessionStore.snapshot().startedAtEpochMillis
-            val tripStartedAt = existing.startedAtEpochMillis ?: now
+            val tripStartedAt = existing?.startedAtEpochMillis ?: now
             if (saved && status == TRIP_STATUS_COMPLETED &&
-                existing.status == TRIP_STATUS_IN_PROGRESS &&
+                existing?.status == TRIP_STATUS_IN_PROGRESS &&
                 shiftStartedAt > 0L && tripStartedAt >= shiftStartedAt
             ) {
-                shiftSessionStore.recordCompletedTrip(recordId, fareCents)
+                // Prefer the driver's persisted fare, not a stale amount from
+                // the original OCR card when the record has been edited.
+                shiftSessionStore.recordCompletedTrip(
+                    recordId, existing.receivedFareCents
+                )
             }
             if (saved && currentOfferRecordId == recordId) {
                 overlayWindowManager.hideOverlay()
