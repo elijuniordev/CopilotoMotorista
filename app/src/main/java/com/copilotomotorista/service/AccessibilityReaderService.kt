@@ -620,7 +620,9 @@ class AccessibilityReaderService : AccessibilityService() {
         serviceScope.launch {
             val now = System.currentTimeMillis()
             val existing = withContext(Dispatchers.IO) { appContainer.tripRecordRepository.getTrip(recordId) }
-            if (existing?.status == TRIP_STATUS_COMPLETED && status == TRIP_STATUS_ACCEPTED) return@launch
+            // Never recreate a record the driver deleted while its old overlay
+            // was visible, nor downgrade/redo an already finished trip.
+            if (!CapturedOfferConfirmationPolicy.canApply(existing?.status, status)) return@launch
             val costSnapshot = resolveTripCostSnapshotUseCase.execute(existing, vehicleId, operatingCostCents, vehicleName)
             val record = TripRecord(
                 id = recordId,
