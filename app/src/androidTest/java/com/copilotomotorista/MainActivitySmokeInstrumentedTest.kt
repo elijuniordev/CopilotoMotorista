@@ -1,5 +1,8 @@
 package com.copilotomotorista
 
+import android.os.Build
+import androidx.compose.ui.test.assertDoesNotExist
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -26,6 +29,20 @@ class MainActivitySmokeInstrumentedTest {
         composeRule.onNodeWithText("Vamos preparar seu copiloto").assertExists()
         composeRule.onNodeWithText("ANTES DE ATIVAR O MONITORAMENTO").assertExists()
         composeRule.onNodeWithText("Abrir painel financeiro").assertExists()
+    }
+
+    @Test
+    fun legacyScreenshotPermissionIsCountedAndRequiresDisclosure() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
+            composeRule.onNodeWithText("Captura de tela compatível").assertExists()
+            composeRule.onNodeWithText("/4", substring = true).assertExists()
+            // The Android permission prompt must not start until the
+            // driver has acknowledged the in-app monitoring disclosure.
+            composeRule.onNodeWithText("Autorizar captura de tela").assertIsNotEnabled()
+        } else {
+            composeRule.onNodeWithText("Captura de tela compatível").assertDoesNotExist()
+            composeRule.onNodeWithText("/3", substring = true).assertExists()
+        }
     }
 
     @Test
