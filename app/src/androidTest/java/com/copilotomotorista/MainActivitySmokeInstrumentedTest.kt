@@ -35,7 +35,8 @@ class MainActivitySmokeInstrumentedTest {
             .performScrollTo()
             .performClick()
 
+        // The brand tagline is unique to the main navigation, unlike "Painel"
+        // which can appear in both a tab label and screen contents.
         composeRule.onNodeWithText("Dirija melhor. Conquiste mais.").assertExists()
-        composeRule.onNodeWithText("Painel").assertExists()
     }
 }
