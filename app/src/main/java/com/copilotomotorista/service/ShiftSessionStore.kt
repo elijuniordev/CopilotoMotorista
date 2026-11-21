@@ -31,7 +31,7 @@ class ShiftSessionStore(context: Context) {
 
     fun snapshot(): ShiftSnapshot = synchronized(PROCESS_LOCK) {
         ShiftSnapshot(
-                active = preferences.getBoolean(KEY_ACTIVE, false),
+            active = preferences.getBoolean(KEY_ACTIVE, false),
             paused = preferences.getBoolean(KEY_PAUSED, false),
             startedAtEpochMillis = preferences.getLong(KEY_STARTED_AT, 0L),
             pausedDurationMillis = preferences.getLong(KEY_PAUSED_DURATION, 0L),
