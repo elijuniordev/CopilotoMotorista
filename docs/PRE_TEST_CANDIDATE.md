@@ -16,10 +16,13 @@ Branch de trabalho: `fix/overlay-stability-20261121`; PR #35 sobre a PR #34. **N
 ## Obter o APK de teste
 1. Abrir a [PR #35](https://github.com/elijuniordev/CopilotoMotorista/pull/35) e localizar a execução mais recente de **Android CI**.
 2. Verificar que todos os seis jobs foram concluídos com sucesso **no HEAD** da PR; não reutilizar um resultado de commit antigo.
-3. Na página da execução, baixar o artefato `copiloto-motorista-apks-<sha-do-build>`. Pode ser necessário entrar no GitHub.
-4. Extrair o ZIP e escolher preferencialmente o APK Release **assinado e verificado**; o Debug serve para investigação. Não confundir APK instalável com AAB (distribuição).
-5. Registrar o SHA do commit, a versão do APK e a data antes de instalar ou atualizar. Não distribuir esse APK como produto final.
-6. Instalar somente em dispositivo de teste autorizado, ler as divulgações de acessibilidade e sobreposição e ativar conscientemente as permissões necessárias. Em Android 8–10, autorizar MediaProjection quando solicitado.
+3. Na página da execução, baixar o artefato `copiloto-motorista-test-<sha-da-branch>` (nos commits anteriores ao ajuste de empacotamento, o artefato se chamava `copiloto-motorista-apks-<sha-do-build>`). Pode ser necessário entrar no GitHub. Os artefatos expiram depois de 14 dias.
+4. Extrair o ZIP e consultar `BUILD_INFO.txt`: `source_commit` deve ser igual ao SHA atual da PR. O campo `checkout_commit` pode ser diferente porque o GitHub testa o commit de merge temporário de uma pull request. Não reutilizar APK de execução anterior.
+5. Conferir a integridade dos arquivos com `SHA256SUMS.txt` sempre que possível. O ZIP contém `CopilotoPro-debug.apk`; quando os secrets de assinatura estão disponíveis e as verificações foram aprovadas, também contém `CopilotoPro-release-signed.apk` e o AAB Release assinado. **Nunca instalar um Release não assinado**; o AAB não é instalável diretamente.
+6. Registrar o SHA da fonte, tipo do APK e data antes de instalar ou atualizar. Não distribuir esse APK como produto final. O Release assinado é preferível para avaliação de uso normal; o Debug serve à investigação de erros.
+7. Instalar somente em dispositivo de teste autorizado, ler as divulgações de acessibilidade e sobreposição e ativar conscientemente as permissões necessárias. Em Android 8–10, autorizar MediaProjection quando solicitado.
+
+**Verificação no computador:** após extrair, executar `sha256sum -c SHA256SUMS.txt` na pasta do pacote. No Windows, usar uma ferramenta de cálculo SHA-256 confiável ou `Get-FileHash` e comparar os hashes. No Android, guardar a identificação do pacote e do commit no relatório do teste; o download direto do GitHub não substitui a checagem de integridade.
 
 ## Roteiro mínimo para a primeira rodada
 
