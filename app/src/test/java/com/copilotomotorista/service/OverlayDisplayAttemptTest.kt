@@ -37,6 +37,39 @@ class OverlayDisplayAttemptTest {
     }
 
     @Test
+    fun reportsFailureAndCleansUpWhenLifecycleActivationFails() {
+        var cleanupCount = 0
+        var reported: RuntimeException? = null
+        val failure = IllegalStateException("lifecycle activation failed")
+
+        val displayed = OverlayDisplayAttempt.execute(
+            attach = {},
+            activate = { throw failure },
+            cleanup = { cleanupCount++ },
+            onFailure = { reported = it }
+        )
+
+        assertFalse(displayed)
+        org.junit.Assert.assertEquals(1, cleanupCount)
+        org.junit.Assert.assertSame(failure, reported)
+    }
+
+    @Test
+    fun cleanupFailureDoesNotCrashTheCaptureService() {
+        var failureReported = false
+
+        val displayed = OverlayDisplayAttempt.execute(
+            attach = { throw SecurityException("overlay revoked") },
+            activate = {},
+            cleanup = { throw IllegalArgumentException("window already gone") },
+            onFailure = { failureReported = true }
+        )
+
+        assertFalse(displayed)
+        assertTrue(failureReported)
+    }
+
+    @Test
     fun cleansUpAndReturnsFalseWhenActivationFailsAfterAttachment() {
         var attached = false
         var cleaned = false
