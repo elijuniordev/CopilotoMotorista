@@ -454,7 +454,11 @@ class DatabasePersistenceTest {
             // A different fare must still create a different offer; this
             // guard does not collapse genuinely distinct offer snapshots.
             val different = dao.findOrInsertCapturedOffer(
-                base.copy(id = "different-fare", receivedFareCents = 3_100L), 500L
+                base.copy(
+                    id = "different-fare",
+                    receivedFareCents = 3_100L,
+                    rawOfferText = "Outra oferta"
+                ), 500L
             )
             assertEquals("different-fare", different.id)
             assertEquals(2, dao.observeAll().first().size)
