@@ -108,6 +108,24 @@ class DashboardDataSourceTest {
         override suspend fun getTrip(id: String): TripRecord? = records.value.firstOrNull { it.id == id }
         override suspend fun findRecentMatchingOffer(platform: String, fareCents: Long, pickupDistanceKm: Double, tripDistanceKm: Double, pickupTimeMinutes: Int, tripTimeMinutes: Int, sinceEpochMillis: Long): TripRecord? = null
         override suspend fun saveTrip(trip: TripRecord) { records.value = records.value.filterNot { it.id == trip.id } + trip }
+        override suspend fun findOrInsertCapturedOffer(
+            captured: TripRecord, sinceEpochMillis: Long
+        ): TripRecord {
+            val existing = records.value
+                .filter { it.platform == captured.platform &&
+                    it.status in setOf("captured", "accepted", "in_progress", "completed") &&
+                    it.receivedFareCents == captured.receivedFareCents &&
+                    kotlin.math.abs(it.pickupDistanceKm - captured.pickupDistanceKm) < 0.01 &&
+                    kotlin.math.abs(it.tripDistanceKm - captured.tripDistanceKm) < 0.01 &&
+                    it.pickupTimeMinutes == captured.pickupTimeMinutes &&
+                    it.tripTimeMinutes == captured.tripTimeMinutes &&
+                    it.createdAtEpochMillis >= sinceEpochMillis
+                }.maxByOrNull { it.createdAtEpochMillis }
+                ?: records.value.firstOrNull { it.id == captured.id }
+            if (existing != null) return existing
+            records.value = records.value + captured
+            return captured
+        }
         override suspend fun enrichCapturedOfferIfMissing(
             id: String, rawText: String, origin: String?, destination: String?
         ): Boolean {
