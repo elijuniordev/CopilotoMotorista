@@ -118,6 +118,37 @@ class DashboardDataSourceTest {
             records.value = records.value.map { if (it.id == id) record.copy(evidenceUri = null) else it }
             return true
         }
+        override suspend fun confirmOfferFromOverlay(
+            id: String, requestedStatus: String, nowEpochMillis: Long,
+            detectedOrigin: String?, detectedDestination: String?, paymentMethod: String?,
+            vehicleId: String, vehicleName: String, costCents: Long
+        ): Boolean {
+            val trip = records.value.firstOrNull { it.id == id } ?: return false
+            val allowed = when (requestedStatus) {
+                "accepted" -> trip.status == "captured"
+                "completed" -> trip.status == "accepted" || trip.status == "in_progress"
+                else -> false
+            }
+            if (!allowed) return false
+            records.value = records.value.map {
+                if (it.id != id) it else it.copy(
+                    status = requestedStatus,
+                    origin = it.origin ?: detectedOrigin,
+                    destination = it.destination ?: detectedDestination,
+                    paymentMethod = it.paymentMethod ?: paymentMethod,
+                    startedAtEpochMillis = it.startedAtEpochMillis
+                        ?: if (requestedStatus == "completed") nowEpochMillis else null,
+                    completedAtEpochMillis = it.completedAtEpochMillis
+                        ?: if (requestedStatus == "completed") nowEpochMillis else null,
+                    vehicleId = it.vehicleId ?: vehicleId,
+                    vehicleNameSnapshot = it.vehicleNameSnapshot ?: vehicleName,
+                    operatingCostCentsSnapshot = it.operatingCostCentsSnapshot ?: costCents,
+                    notes = if (it.notes == null || it.notes == "Oferta capturada automaticamente.")
+                        "Registro confirmado manualmente pelo motorista." else it.notes
+                )
+            }
+            return true
+        }
         override suspend fun deleteTrip(id: String) { records.value = records.value.filterNot { it.id == id } }
     }
 
