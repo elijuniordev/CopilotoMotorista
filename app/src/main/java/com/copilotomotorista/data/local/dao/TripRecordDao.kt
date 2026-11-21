@@ -10,6 +10,50 @@ import kotlinx.coroutines.flow.Flow
 // concurrent driver status/financial edit while the JPEG is being saved.
 @Query("UPDATE trip_records SET evidenceUri=:path WHERE id=:id AND evidenceUri IS NULL") suspend fun attachEvidenceIfAbsent(id:String,path:String):Int
 @Query("UPDATE trip_records SET evidenceUri=NULL WHERE id=:id AND evidenceUri=:path") suspend fun clearEvidenceIfMatches(id:String,path:String):Int
+/**
+ * Atomic manual bookkeeping transition from the floating offer.
+ * This updates an EXISTING row only: a stale overlay cannot recreate a
+ * deleted trip or overwrite later changes to fare, evidence or driver notes.
+ */
+@Query(
+    """
+    UPDATE trip_records SET
+      status = :requestedStatus,
+      origin = COALESCE(origin, :detectedOrigin),
+      destination = COALESCE(destination, :detectedDestination),
+      paymentMethod = COALESCE(paymentMethod, :paymentMethod),
+      startedAtEpochMillis = CASE
+        WHEN :requestedStatus = 'completed' THEN COALESCE(startedAtEpochMillis, :nowEpochMillis)
+        ELSE startedAtEpochMillis END,
+      completedAtEpochMillis = CASE
+        WHEN :requestedStatus = 'completed' THEN COALESCE(completedAtEpochMillis, :nowEpochMillis)
+        ELSE completedAtEpochMillis END,
+      vehicleId = COALESCE(vehicleId, :vehicleId),
+      operatingCostCentsSnapshot = COALESCE(operatingCostCentsSnapshot, :costCents),
+      vehicleNameSnapshot = COALESCE(vehicleNameSnapshot, :vehicleName),
+      notes = CASE
+        WHEN notes IS NULL OR notes = 'Oferta capturada automaticamente.'
+        THEN 'Registro confirmado manualmente pelo motorista.'
+        ELSE notes END
+    WHERE id = :id
+      AND (
+        (:requestedStatus = 'accepted' AND status = 'captured')
+        OR (:requestedStatus = 'completed' AND status IN ('accepted', 'in_progress'))
+      )
+    """
+)
+suspend fun confirmOfferFromOverlay(
+    id: String,
+    requestedStatus: String,
+    nowEpochMillis: Long,
+    detectedOrigin: String?,
+    detectedDestination: String?,
+    paymentMethod: String?,
+    vehicleId: String,
+    vehicleName: String,
+    costCents: Long
+): Int
+
 @Insert(onConflict=OnConflictStrategy.REPLACE) suspend fun upsert(record:TripRecordEntity)
 @Query("DELETE FROM trip_records WHERE id=:id") suspend fun deleteById(id:String)
 }
