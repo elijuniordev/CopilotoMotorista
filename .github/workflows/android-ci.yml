@@ -195,6 +195,24 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
       - name: Verify repository wrapper
         run: test -f ./gradlew && chmod +x ./gradlew
+      - name: Enable KVM or supported software fallback
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Hosted Ubuntu runners may expose /dev/kvm without user permission.
+          # The emulator runner selects '-accel off' when KVM is not accessible.
+          if [ -e /dev/kvm ]; then
+            echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+            sudo udevadm control --reload-rules
+            sudo udevadm trigger --name-match=kvm || true
+          fi
+          if [ -r /dev/kvm ] && [ -w /dev/kvm ]; then
+            echo "Android emulator: KVM is available."
+          else
+            # Emulator 37.3+ refuses -accel off unless TCG is explicitly opted in.
+            echo "ANDROID_I_WANT_MY_TCG=yes" >> "$GITHUB_ENV"
+            echo "::warning::KVM unavailable; Android emulator will use slower TCG."
+          fi
       - name: Run database persistence tests on emulator
         uses: reactivecircus/android-emulator-runner@v2
         with:
