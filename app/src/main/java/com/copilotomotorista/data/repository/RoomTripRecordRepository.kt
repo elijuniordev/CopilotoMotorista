@@ -45,6 +45,12 @@ class RoomTripRecordRepository(
   check(evidenceFiles.deleteIfOwned(record.evidenceUri)) {
    "Não foi possível excluir a captura associada com segurança. O registro foi preservado."
   }
-  dao.deleteById(id)
+  // A screenshot may be attached after findById suspended. A conditional
+  // DELETE prevents removing that newer record/evidence as if it were the
+  // stale snapshot. The UI can retry using the current attachment.
+  val deleted = dao.deleteIfEvidenceMatches(id, record.evidenceUri)
+  check(deleted == 1 || dao.findById(id) == null) {
+   "A captura da corrida mudou durante a exclusão. Atualize o histórico e tente novamente."
+  }
  }
 }
