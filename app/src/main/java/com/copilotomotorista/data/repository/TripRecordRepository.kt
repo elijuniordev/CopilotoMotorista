@@ -6,6 +6,8 @@ interface TripRecordRepository {
  suspend fun getTrip(id: String): TripRecord?
  suspend fun findRecentMatchingOffer(platform: String, fareCents: Long, pickupDistanceKm: Double, tripDistanceKm: Double, pickupTimeMinutes: Int, tripTimeMinutes: Int, sinceEpochMillis: Long): TripRecord?
  suspend fun saveTrip(trip: TripRecord)
+ /** Transactionally reuse a matching recent offer or create one new row. */
+ suspend fun findOrInsertCapturedOffer(captured: TripRecord, sinceEpochMillis: Long): TripRecord
  /** Update only a missing OCR payload on a still-captured offer. */
  suspend fun enrichCapturedOfferIfMissing(
   id: String, rawText: String, origin: String?, destination: String?
