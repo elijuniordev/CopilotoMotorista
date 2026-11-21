@@ -2,9 +2,9 @@ name: Android CI
 
 on:
   push:
-    branches: [master, feat/copiloto-pro-brand-identity, fix/overlay-stability-20261121]
+    branches: [master, feat/copiloto-pro-brand-identity]
   pull_request:
-    branches: [master]
+    branches: [master, feat/copiloto-pro-brand-identity]
   workflow_dispatch:
 
 permissions:
