@@ -26,6 +26,8 @@ Não marcar etapas como aprovadas apenas porque o código compila.
 - [ ] Confirmar regras: faturamento por lançamentos manuais nos relatórios, apenas corridas concluídas no indicador de corridas realizadas, estimativas devidamente identificadas; particulares não somadas automaticamente.
 
 ## Ciclo C — OCR, Radar e MediaProjection
+- [x] Reforçar o classificador: Radar com OCR parcial e título próprio nunca é processado como oferta única; três testes JVM de regressão adicionados.
+- [x] Proteger eventos de janela do próprio Copiloto sobre Uber/99: ignorar apenas quando a janela ativa da plataforma é verificada; dois testes adicionais cobrem overlay versus tela principal.
 - [ ] Reunir testes de parser/classificador por plataforma e layouts de oferta reais com dados pessoais removidos.
 - [x] Alinhar o processamento do OCR MediaProjection às regras de preservação de ofertas completas: eventos posteriores do mesmo app não descartam o resultado válido, enquanto a sessão de privacidade descarta trocas de aplicativo.
 - [ ] Validar fisicamente a política de geração e concorrência no OCR Android 8–10 e Android 11+; preservar debounce e integridade.
