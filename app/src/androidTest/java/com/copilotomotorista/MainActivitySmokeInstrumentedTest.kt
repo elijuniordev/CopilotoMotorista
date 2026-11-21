@@ -30,6 +30,20 @@ class MainActivitySmokeInstrumentedTest {
     }
 
     @Test
+    fun dashboardRemainsOpenAfterActivityRecreation() {
+        composeRule.onNodeWithText("Abrir painel financeiro")
+            .performScrollTo()
+            .performClick()
+        composeRule.onNodeWithText("Dirija melhor. Conquiste mais.").assertExists()
+
+        // A rotation or OS activity recreation must not return the
+        // driver to the permission onboarding screen.
+        composeRule.activityRule.scenario.recreate()
+
+        composeRule.onNodeWithText("Dirija melhor. Conquiste mais.").assertExists()
+    }
+
+    @Test
     fun financialDashboardOpensWithoutGrantingMonitoringPermissions() {
         composeRule.onNodeWithText("Abrir painel financeiro")
             .performScrollTo()
