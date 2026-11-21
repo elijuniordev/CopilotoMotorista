@@ -30,6 +30,7 @@ Não marcar etapas como aprovadas apenas porque o código compila.
 - [x] Resolver falha real de CI #44895678186: classificador contava a tarifa por quilômetro como segunda oferta; agora reutiliza o reconhecimento de tarifas principais do RadarOfferExtractor, com dois novos testes de borda. Antes do patch, 157/158 testes unitários passavam; **nova CI precisa confirmar**.
 - [ ] Validar extração de dois ou mais cartões do Radar em imagens reais de Uber Driver com OCR e redigir qualquer dado pessoal antes de armazenar os exemplos.
 - [x] Proteger eventos de janela do próprio Copiloto sobre Uber/99: ignorar apenas quando a janela ativa da plataforma é verificada; dois testes adicionais cobrem overlay versus tela principal.
+- [x] Preservar linhas repetidas na normalização OCR para não perder cartões do Radar com mesma tarifa ou ação. Adicionar dois testes de normalização e um teste de ponta a ponta (normalização → classificação → extração).
 - [ ] Reunir testes de parser/classificador por plataforma e layouts de oferta reais com dados pessoais removidos.
 - [x] Alinhar o processamento do OCR MediaProjection às regras de preservação de ofertas completas: eventos posteriores do mesmo app não descartam o resultado válido, enquanto a sessão de privacidade descarta trocas de aplicativo.
 - [ ] Validar fisicamente a política de geração e concorrência no OCR Android 8–10 e Android 11+; preservar debounce e integridade.
