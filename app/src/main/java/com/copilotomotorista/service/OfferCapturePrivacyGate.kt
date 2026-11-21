@@ -18,8 +18,22 @@ internal class OfferCapturePrivacyGate(
      * Window-content events can also come from background apps and must not
      * alone establish foreground ownership.
      */
-    fun onWindowEvent(packageName: String?, eventType: Int, generation: Long): Boolean {
+    fun onWindowEvent(
+        packageName: String?,
+        eventType: Int,
+        generation: Long,
+        verifiedForegroundPackage: String? = null,
+        ownPackage: String? = null
+    ): Boolean {
         if (eventType != WINDOW_STATE_CHANGED) return false
+        // A TYPE_WINDOW_STATE_CHANGED from our *own floating window* is not
+        // a navigation away from Uber/99 when Android still verifies the ride
+        // app as the active interactive root. A real switch to our own app
+        // must invalidate the session, because its active root is no longer
+        // the ride app.
+        if (ownPackage != null && packageName == ownPackage &&
+            activePackage != null && verifiedForegroundPackage == activePackage
+        ) return false
         val foregroundCandidate = packageName?.takeIf { it in supportedPackages }
         if (activePackage == foregroundCandidate) return false
         invalidate(generation)
