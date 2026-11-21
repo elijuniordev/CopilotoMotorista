@@ -683,6 +683,7 @@ class AccessibilityReaderService : AccessibilityService() {
                         hardware?.recycle()
                         if (bitmap == null) {
                             evidenceCaptureRequested.remove(recordId)
+                            evidenceCaptureContexts.remove(recordId)
                             drainPendingScreenshotWork()
                             return
                         }
@@ -837,17 +838,19 @@ class AccessibilityReaderService : AccessibilityService() {
             screenshotInProgress = true
             lastScreenshotRequestAt = requestedAtMillis
             val accepted = MediaProjectionCaptureService.requestScreenshot { bitmap ->
-                if (serviceDestroyed) {
-                    bitmap?.recycle()
+                // MediaProjection frame callbacks may arrive on a background
+                // thread. Foreground package checks must run on main.
+                ContextCompat.getMainExecutor(this).execute {
                     screenshotInProgress = false
-                    return@requestScreenshot
-                }
-                screenshotInProgress = false
-                if (bitmap == null) {
-                    Log.w("OfferCapture", "legacy_visual_screenshot_unavailable")
-                    drainPendingScreenshotWork()
-                } else {
-                    processCapturedBitmap(bitmap, requestedAtMillis, platform, generation)
+                    if (!isCaptureContextAllowed(platform, generation)) {
+                        bitmap?.recycle()
+                        drainPendingScreenshotWork()
+                    } else if (bitmap == null) {
+                        Log.w("OfferCapture", "legacy_visual_screenshot_unavailable")
+                        drainPendingScreenshotWork()
+                    } else {
+                        processCapturedBitmap(bitmap, requestedAtMillis, platform, generation)
+                    }
                 }
             }
             if (!accepted) {
