@@ -60,6 +60,8 @@ import com.copilotomotorista.service.OverlayWindowManager
 import com.copilotomotorista.presentation.navigation.MainNavigationScreen
 import com.copilotomotorista.ui.theme.CopilotoMotoristaTheme
 
+private const val DASHBOARD_OPEN_STATE_KEY = "copiloto.dashboard_open"
+
 private data class PermissionStatus(
     val overlayGranted: Boolean = false,
     val accessibilityEnabled: Boolean = false,
@@ -133,6 +135,9 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Preserve the chosen area across rotation/process recreation.
+        // The default remains onboarding for a fresh install.
+        showDashboard = savedInstanceState?.getBoolean(DASHBOARD_OPEN_STATE_KEY) ?: false
         overlayWindowManager = OverlayWindowManager(this)
         evaluateOfferUseCase = EvaluateOfferUseCase()
         val appContainer = AppContainer(applicationContext)
@@ -177,6 +182,11 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        outState.putBoolean(DASHBOARD_OPEN_STATE_KEY, showDashboard)
+        super.onSaveInstanceState(outState)
     }
 
     override fun onResume() {
