@@ -16,6 +16,15 @@ class RoomTripRecordRepository(
  override suspend fun getTrip(id: String): TripRecord? = dao.findById(id)?.toDomain()
  override suspend fun findRecentMatchingOffer(platform: String, fareCents: Long, pickupDistanceKm: Double, tripDistanceKm: Double, pickupTimeMinutes: Int, tripTimeMinutes: Int, sinceEpochMillis: Long): TripRecord? = dao.findRecentMatchingOffer(platform, fareCents, pickupDistanceKm, tripDistanceKm, pickupTimeMinutes, tripTimeMinutes, sinceEpochMillis)?.toDomain()
  override suspend fun saveTrip(trip: TripRecord) = dao.upsert(trip.toEntity())
+ override suspend fun enrichCapturedOfferIfMissing(
+  id: String, rawText: String, origin: String?, destination: String?
+ ): Boolean = dao.enrichCapturedOfferIfMissing(id, rawText, origin, destination) == 1
+ override suspend fun fillCapturedCostSnapshotIfMissing(
+  id: String, vehicleId: String, costCents: Long, vehicleName: String
+ ): Boolean {
+  require(vehicleId.isNotBlank() && vehicleName.isNotBlank() && costCents >= 0L)
+  return dao.fillCapturedCostSnapshotIfMissing(id, vehicleId, costCents, vehicleName) == 1
+ }
  override suspend fun attachEvidenceIfAbsent(id: String, path: String): Boolean =
   dao.attachEvidenceIfAbsent(id, path) == 1
  override suspend fun clearEvidenceIfMatches(id: String, path: String): Boolean =
