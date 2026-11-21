@@ -70,6 +70,8 @@ Não marcar etapas como aprovadas apenas porque o código compila.
 - [ ] Confirmar CI completo 6/6 no HEAD depois das mudanças atômicas de evidência e dos novos testes.
 - [x] Reforçar compensação da escrita de evidência: apagar JPEG e desvincular o registro se a sessão do aplicativo mudar durante a gravação.
 - [x] Evitar substituição de outros campos da corrida pela gravação de evidência: `UPDATE` SQL condicional para vinculação e rollback, com teste instrumentado de integridade.
+- [x] Bloquear ações de cartão flutuante obsoleto sobre registros já excluídos, já concluídos ou em andamento: política de transição local e três testes unitários.
+- [ ] Validar no aparelho e em cenário de concorrência as confirmações manuais contra exclusão/edição simultânea do histórico; a regra em memória não substitui uma transação de banco.
 - [ ] Revisar a versão candidata funcionalmente e completar pré-teste interno conforme o novo roteiro.
 - [ ] Executar `docs/DEVICE_VALIDATION.md` com Uber e 99 reais e Android suportados.
 - [ ] Revisar licença e privacidade, política pública, retenção/exclusão, Data Safety e declaração de AccessibilityService.
