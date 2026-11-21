@@ -27,6 +27,16 @@ internal class OfferCapturePrivacyGate(
         return true
     }
 
+    /** Establish a session when accessibility was enabled mid-screen and the
+     * active window package has already been verified independently. */
+    fun onVerifiedForeground(packageName: String?, generation: Long): Boolean {
+        if (packageName == null || packageName !in supportedPackages) return false
+        if (activePackage == packageName) return false
+        invalidate(generation)
+        activePackage = packageName
+        return true
+    }
+
     fun isAllowed(
         expectedPackage: String?,
         generation: Long,
