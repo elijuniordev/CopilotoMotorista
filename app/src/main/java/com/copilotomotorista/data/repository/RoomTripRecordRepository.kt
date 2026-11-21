@@ -16,6 +16,10 @@ class RoomTripRecordRepository(
  override suspend fun getTrip(id: String): TripRecord? = dao.findById(id)?.toDomain()
  override suspend fun findRecentMatchingOffer(platform: String, fareCents: Long, pickupDistanceKm: Double, tripDistanceKm: Double, pickupTimeMinutes: Int, tripTimeMinutes: Int, sinceEpochMillis: Long): TripRecord? = dao.findRecentMatchingOffer(platform, fareCents, pickupDistanceKm, tripDistanceKm, pickupTimeMinutes, tripTimeMinutes, sinceEpochMillis)?.toDomain()
  override suspend fun saveTrip(trip: TripRecord) = dao.upsert(trip.toEntity())
+ override suspend fun attachEvidenceIfAbsent(id: String, path: String): Boolean =
+  dao.attachEvidenceIfAbsent(id, path) == 1
+ override suspend fun clearEvidenceIfMatches(id: String, path: String): Boolean =
+  dao.clearEvidenceIfMatches(id, path) == 1
  override suspend fun deleteTrip(id: String) {
   val record = dao.findById(id) ?: return
   check(evidenceFiles.deleteIfOwned(record.evidenceUri)) {
