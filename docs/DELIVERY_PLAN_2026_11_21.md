@@ -1,0 +1,54 @@
+# Plano de estabilização e entrega — Copiloto Pro
+
+Data de referência: 21/11/2026. Fonte de verdade: código e CI do GitHub.
+**Não mesclar nenhuma PR sem autorização explícita do responsável.**
+Não marcar etapas como aprovadas apenas porque o código compila.
+
+## Base e dependências
+- Branch padrão: `master`.
+- PRs #25–#34 ainda abertas no início desta revisão. A #34 tem base na #33 e agrega a identidade visual mais recente.
+- Esta branch de estabilização nasce do commit `7e7757b` da PR #34. Abrir PR com base na branch da #34 para isolar apenas os novos patches.
+- Integrar as PRs antigas somente após verificar o grafo completo de dependências, duplicidade de alterações e comportamento financeiro. Não alterar a `master` automaticamente.
+
+## Ciclo A — Bloqueadores de estabilidade
+- [x] Recuperar de falhas de anexação/ativação do ComposeView no controle flutuante.
+- [x] Separar operações de limpeza para reduzir risco de janela e owners órfãos.
+- [x] Adicionar testes de unidade para falha de ativação e de limpeza no mecanismo de overlay.
+- [ ] Confirmar em aparelho físico qual janela falha e obter evidência sem dados pessoais.
+- [ ] Testar abrir/fechar/reabrir, mudança de app, rotação, lock/unlock, permissão revogada e interrupção do serviço.
+- [ ] Avaliar logs de travamento e corrigir apenas causas observadas.
+
+## Ciclo B — Integridade dos dados e regras de negócio
+- [x] Evitar JPEG truncado quando o codificador de evidência retorna falha.
+- [x] Adicionar teste instrumentado de gravação/decodificação de evidência no diretório privado.
+- [ ] Validar exclusão de evidências e registro Room, inclusive falhas parciais.
+- [ ] Revisar regressões de captura, deduplicação, mudança de status e confirmação tardia.
+- [ ] Confirmar regras: faturamento por lançamentos manuais nos relatórios, apenas corridas concluídas no indicador de corridas realizadas, estimativas devidamente identificadas; particulares não somadas automaticamente.
+
+## Ciclo C — OCR, Radar e MediaProjection
+- [ ] Reunir testes de parser/classificador por plataforma e layouts de oferta reais com dados pessoais removidos.
+- [ ] Revisar política de geração obsoleta/concorrência no OCR Android 8–10 e Android 11+; preservar debounce e integridade.
+- [ ] Validar Radar com ofertas múltiplas (não combinar cartões; sem aceite automático).
+- [ ] Validar permissão, rotação, término e retomada de MediaProjection em Android 8–10.
+- [ ] Medir p50/p95, reconhecimento antes de desaparecer e custo de bateria em aparelhos, sem dados pessoais nos logs.
+
+## Ciclo D — Identidade visual Premium e relatórios
+- [x] Adequar card de oferta ao navy da marca, explicitar lucro estimado e registro manual do aceite.
+- [x] Corrigir o gráfico mensal para semanas reais do calendário, com testes de fuso horário e mês de seis semanas.
+- [ ] Conferir fidelidade dos vetores/ícone, Montserrat, contraste e áreas seguras em diferentes tamanhos.
+- [ ] Revisar formulários, histórico, agenda, despesas, veículos, fechamento e Radar sem mudar regras de negócio.
+- [ ] Conferir acessibilidade de toque e rótulos das ações, inclusive cards sobrepostos.
+
+## Ciclo E — Qualidade e distribuição
+- [ ] Confirmar resultado de CI para o HEAD desta PR (build Debug/Release, testes unitários e instrumentados).
+- [ ] Executar `docs/DEVICE_VALIDATION.md` com Uber e 99 reais e Android suportados.
+- [ ] Revisar licença e privacidade, política pública, retenção/exclusão, Data Safety e declaração de AccessibilityService.
+- [ ] Auditar dependências, permissões e comportamento runtime; concluir documentação de Play Console.
+- [ ] Validar assinatura, instalação e atualização; incrementar versionCode somente na distribuição.
+- [ ] Solicitar autorização expressa antes de qualquer merge ou publicação.
+
+## Critérios de pronto
+Um ciclo de código é implementado quando commitado em branch de trabalho.
+Um ciclo automatizado é validado quando os respectivos jobs de CI aprovam o commit indicado.
+Uma funcionalidade dependente de Uber/99 só é validada depois de teste físico documentado.
+A versão só é candidata à publicação quando os bloqueadores do checklist de release estiverem fechados.
