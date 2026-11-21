@@ -88,6 +88,33 @@ suspend fun fillCapturedCostSnapshotIfMissing(
     id: String, vehicleId: String, costCents: Long, vehicleName: String
 ): Int
 
+/**
+ * The OCR and accessibility callbacks can finish repository lookups out of
+ * order. Find + insert must share a Room transaction so two screenshots of
+ * the same offer cannot each create a separate UUID-backed history row.
+ */
+@Insert(onConflict = OnConflictStrategy.IGNORE)
+suspend fun insertCapturedIfAbsent(record: TripRecordEntity): Long
+
+@Transaction
+suspend fun findOrInsertCapturedOffer(
+    captured: TripRecordEntity, sinceEpochMillis: Long
+): TripRecordEntity {
+    require(captured.status == "captured")
+    val existing = findRecentMatchingOffer(
+        captured.platform, captured.receivedFareCents, captured.pickupDistanceKm,
+        captured.tripDistanceKm, captured.pickupTimeMinutes,
+        captured.tripTimeMinutes, sinceEpochMillis
+    )
+    if (existing != null) return existing
+    val inserted = insertCapturedIfAbsent(captured)
+    // IGNORE also protects against reusing the same UUID in an unexpected
+    // stale callback. Preserve the current record instead of REPLACE.
+    return if (inserted == -1L) {
+        requireNotNull(findById(captured.id))
+    } else captured
+}
+
 @Insert(onConflict=OnConflictStrategy.REPLACE) suspend fun upsert(record:TripRecordEntity)
 /**
  * Refuse a stale delete if a screenshot callback attached/replaced evidence
