@@ -61,6 +61,10 @@ Não marcar etapas como aprovadas apenas porque o código compila.
 ## Ciclo E — Qualidade e distribuição
 - [ ] Confirmar resultado de CI para o **HEAD mais recente** desta PR (build Debug/Release, testes unitários e instrumentados).
 - [x] Criar roteiro objetivo de versão candidata a testes e retirada de APKs em `docs/PRE_TEST_CANDIDATE.md`.
+- [x] Validar CI #44917060453: 6/6 jobs aprovados e artefato de teste com metadados/checksums; é evidência apenas do commit `8bf56f3`, não do HEAD posterior.
+- [x] Corrigir import inválido em `MainActivitySmokeInstrumentedTest.kt` após CI #44918439348 (4 builds/unitários aprovados; 2 jobs de instrumentação falharam antes de executar os testes por erro de compilação de `assertExists`).
+- [x] Compilar `assembleDebugAndroidTest` antecipadamente no job API 35 para detectar erros de compilação de instrumentação antes de inicializar os emuladores.
+- [ ] Confirmar CI 6/6 no HEAD que inclui os novos smoke tests de UI e a correção de compilação; só então atualizar o status da versão de testes.
 - [x] Reforçar compensação da escrita de evidência: apagar JPEG e desvincular o registro se a sessão do aplicativo mudar durante a gravação.
 - [ ] Revisar a versão candidata funcionalmente e completar pré-teste interno conforme o novo roteiro.
 - [ ] Executar `docs/DEVICE_VALIDATION.md` com Uber e 99 reais e Android suportados.
