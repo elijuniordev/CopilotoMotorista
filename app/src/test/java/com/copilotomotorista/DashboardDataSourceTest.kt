@@ -108,6 +108,16 @@ class DashboardDataSourceTest {
         override suspend fun getTrip(id: String): TripRecord? = records.value.firstOrNull { it.id == id }
         override suspend fun findRecentMatchingOffer(platform: String, fareCents: Long, pickupDistanceKm: Double, tripDistanceKm: Double, pickupTimeMinutes: Int, tripTimeMinutes: Int, sinceEpochMillis: Long): TripRecord? = null
         override suspend fun saveTrip(trip: TripRecord) { records.value = records.value.filterNot { it.id == trip.id } + trip }
+        override suspend fun attachEvidenceIfAbsent(id: String, path: String): Boolean {
+            val record = records.value.firstOrNull { it.id == id && it.evidenceUri == null } ?: return false
+            records.value = records.value.map { if (it.id == id) record.copy(evidenceUri = path) else it }
+            return true
+        }
+        override suspend fun clearEvidenceIfMatches(id: String, path: String): Boolean {
+            val record = records.value.firstOrNull { it.id == id && it.evidenceUri == path } ?: return false
+            records.value = records.value.map { if (it.id == id) record.copy(evidenceUri = null) else it }
+            return true
+        }
         override suspend fun deleteTrip(id: String) { records.value = records.value.filterNot { it.id == id } }
     }
 
