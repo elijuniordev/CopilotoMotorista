@@ -10,5 +10,11 @@ interface TripRecordRepository {
  suspend fun attachEvidenceIfAbsent(id: String, path: String): Boolean
  /** Clears only the expected attachment, preserving a newer replacement. */
  suspend fun clearEvidenceIfMatches(id: String, path: String): Boolean
+ /** Atomic local transition. Returns false if the row was removed or its status changed. */
+ suspend fun confirmOfferFromOverlay(
+  id: String, requestedStatus: String, nowEpochMillis: Long,
+  detectedOrigin: String?, detectedDestination: String?, paymentMethod: String?,
+  vehicleId: String, vehicleName: String, costCents: Long
+ ): Boolean
  suspend fun deleteTrip(id: String)
 }
