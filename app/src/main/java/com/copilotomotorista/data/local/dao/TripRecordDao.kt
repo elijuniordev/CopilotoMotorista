@@ -89,5 +89,11 @@ suspend fun fillCapturedCostSnapshotIfMissing(
 ): Int
 
 @Insert(onConflict=OnConflictStrategy.REPLACE) suspend fun upsert(record:TripRecordEntity)
+/**
+ * Refuse a stale delete if a screenshot callback attached/replaced evidence
+ * after the caller read the row. SQL IS compares null values safely as well.
+ */
+@Query("DELETE FROM trip_records WHERE id=:id AND evidenceUri IS :expectedEvidenceUri")
+suspend fun deleteIfEvidenceMatches(id: String, expectedEvidenceUri: String?): Int
 @Query("DELETE FROM trip_records WHERE id=:id") suspend fun deleteById(id:String)
 }
