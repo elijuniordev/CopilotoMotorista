@@ -745,17 +745,25 @@ class AccessibilityReaderService : AccessibilityService() {
         platform: String,
         generation: Long
     ) {
-        val recognizer = ocrRecognizer
-        if (recognizer == null) {
-            bitmap.recycle()
-            drainPendingScreenshotWork()
-            return
-        }
-        recognizer.recognize(bitmap) { recognizedText ->
+        // MediaProjection can deliver its bitmap after the user has left
+        // the source app. Perform this check on Android's main executor.
+        ContextCompat.getMainExecutor(this).execute {
+            if (!isCaptureContextAllowed(platform, generation)) {
+                bitmap.recycle()
+                drainPendingScreenshotWork()
+                return@execute
+            }
+            val recognizer = ocrRecognizer
+            if (recognizer == null) {
+                bitmap.recycle()
+                drainPendingScreenshotWork()
+                return@execute
+            }
+            recognizer.recognize(bitmap) { recognizedText ->
             ContextCompat.getMainExecutor(this).execute {
                 val resultAge = SystemClock.uptimeMillis() - requestedAtMillis
-                if (!serviceDestroyed &&
-                    generation == captureGeneration &&
+                if (generation == captureGeneration &&
+                    isCaptureContextAllowed(platform, generation) &&
                     resultAge in 0..OCR_MAX_RESULT_AGE_MILLIS &&
                     recognizedText.isNotBlank()
                 ) {
@@ -780,6 +788,7 @@ class AccessibilityReaderService : AccessibilityService() {
                 }
                 drainPendingScreenshotWork()
             }
+            }
         }
     }
 
@@ -788,7 +797,7 @@ class AccessibilityReaderService : AccessibilityService() {
         platform: String,
         generation: Long
     ) {
-        if (serviceDestroyed || generation != captureGeneration) return
+        if (generation != captureGeneration || !isCaptureContextAllowed(platform, generation)) return
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
             if (screenshotInProgress) {
                 pendingScreenshotWork.enqueueOcr(PendingOcrRequest(requestedAtMillis, platform, generation))
@@ -853,8 +862,9 @@ class AccessibilityReaderService : AccessibilityService() {
                 object : TakeScreenshotCallback {
                     override fun onSuccess(screenshot: ScreenshotResult) {
                         screenshotInProgress = false
-                        if (serviceDestroyed) {
+                        if (!isCaptureContextAllowed(platform, generation)) {
                             screenshot.hardwareBuffer.close()
+                            drainPendingScreenshotWork()
                             return
                         }
                         val hardwareBitmap = Bitmap.wrapHardwareBuffer(
@@ -880,8 +890,9 @@ class AccessibilityReaderService : AccessibilityService() {
                         }
 
                         ocrRecognizer?.recognize(softwareBitmap) { recognizedText ->
+                            ContextCompat.getMainExecutor(this@AccessibilityReaderService).execute {
                             val resultAge = SystemClock.uptimeMillis() - requestedAtMillis
-                            if (!serviceDestroyed &&
+                            if (isCaptureContextAllowed(platform, generation) &&
                                 resultAge in 0..OCR_MAX_RESULT_AGE_MILLIS &&
                                 recognizedText.isNotBlank()
                             ) {
@@ -908,6 +919,7 @@ class AccessibilityReaderService : AccessibilityService() {
                                 Log.d("OfferCapture", "ocr_result_empty ageMs=$resultAge")
                             }
                             drainPendingScreenshotWork()
+                            }
                         } ?: run {
                             softwareBitmap.recycle()
                             drainPendingScreenshotWork()
