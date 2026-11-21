@@ -108,6 +108,38 @@ class DashboardDataSourceTest {
         override suspend fun getTrip(id: String): TripRecord? = records.value.firstOrNull { it.id == id }
         override suspend fun findRecentMatchingOffer(platform: String, fareCents: Long, pickupDistanceKm: Double, tripDistanceKm: Double, pickupTimeMinutes: Int, tripTimeMinutes: Int, sinceEpochMillis: Long): TripRecord? = null
         override suspend fun saveTrip(trip: TripRecord) { records.value = records.value.filterNot { it.id == trip.id } + trip }
+        override suspend fun enrichCapturedOfferIfMissing(
+            id: String, rawText: String, origin: String?, destination: String?
+        ): Boolean {
+            val current = records.value.firstOrNull {
+                it.id == id && it.status == "captured" && it.rawOfferText == null
+            } ?: return false
+            records.value = records.value.map {
+                if (it.id == id) current.copy(
+                    rawOfferText = rawText,
+                    origin = current.origin ?: origin,
+                    destination = current.destination ?: destination
+                ) else it
+            }
+            return true
+        }
+        override suspend fun fillCapturedCostSnapshotIfMissing(
+            id: String, vehicleId: String, costCents: Long, vehicleName: String
+        ): Boolean {
+            val current = records.value.firstOrNull {
+                it.id == id && it.status == "captured" &&
+                    (it.vehicleId == null || it.operatingCostCentsSnapshot == null ||
+                        it.vehicleNameSnapshot == null)
+            } ?: return false
+            records.value = records.value.map {
+                if (it.id == id) current.copy(
+                    vehicleId = current.vehicleId ?: vehicleId,
+                    operatingCostCentsSnapshot = current.operatingCostCentsSnapshot ?: costCents,
+                    vehicleNameSnapshot = current.vehicleNameSnapshot ?: vehicleName
+                ) else it
+            }
+            return true
+        }
         override suspend fun attachEvidenceIfAbsent(id: String, path: String): Boolean {
             val record = records.value.firstOrNull { it.id == id && it.evidenceUri == null } ?: return false
             records.value = records.value.map { if (it.id == id) record.copy(evidenceUri = path) else it }
