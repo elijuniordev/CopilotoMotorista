@@ -41,6 +41,9 @@ Não marcar etapas como aprovadas apenas porque o código compila.
 - [x] Implementar em branch a proteção de contexto da [Issue #36](https://github.com/elijuniordev/CopilotoMotorista/issues/36): descartar snapshots e JPEGs quando o motorista sair de Uber/99; adicionar testes JVM.
 - [x] Endurecer o caminho assíncrono das ofertas: revalidar app/janela depois de consultas suspendidas no Room e antes de anexar evidência, enriquecer registro ou mostrar card.
 - [x] Bloquear eventos atrasados da Uber/99 quando a janela interativa verificada já pertence a outro app; adicionar dois testes JVM para impedir reautorização indevida.
+- [x] Confirmar CI #44923318825: 6/6 jobs aprovados no commit `2017ec59`, com APK/AAB assinados e SHA-256 verificados para teste interno; novas mudanças exigem novo CI.
+- [x] Garantir atribuição da plataforma pela identidade do pacote Uber/99 verificada pelo Android; o texto OCR não pode trocar uma captura Uber por 99 nem o contrário. Testar pacotes oficiais e rejeição de outros apps.
+- [ ] Validar atribuição de Uber/99 em ofertas físicas e screenshots desidentificados que contenham texto de outras marcas.
 - [ ] Validar no Android real as trocas rápidas Uber ↔ outro app ↔ Uber enquanto consultas Room, OCR e evidências estão pendentes.
 - [ ] **Validar** a proteção da Issue #36 nos dois fluxos Android e com trocas reais de janela, inclusive controle flutuante ativo e retorno rápido para o mesmo app. Manter a issue aberta até essa validação.
 - [x] Diagnosticar CI #44892429379: quatro builds/unitários aprovados; emuladores falharam ao iniciar por falta de KVM e recusa de `-accel off` no Android Emulator 37.3.10.
