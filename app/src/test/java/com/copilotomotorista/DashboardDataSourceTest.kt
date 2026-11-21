@@ -121,6 +121,14 @@ class DashboardDataSourceTest {
                     it.tripTimeMinutes == captured.tripTimeMinutes &&
                     it.createdAtEpochMillis >= sinceEpochMillis
                 }.maxByOrNull { it.createdAtEpochMillis }
+                ?: records.value
+                    .filter {
+                        it.platform == captured.platform &&
+                            it.status in setOf("captured", "accepted", "in_progress", "completed") &&
+                            !captured.rawOfferText.isNullOrBlank() &&
+                            it.rawOfferText == captured.rawOfferText &&
+                            it.createdAtEpochMillis >= sinceEpochMillis
+                    }.maxByOrNull { it.createdAtEpochMillis }
                 ?: records.value.firstOrNull { it.id == captured.id }
             if (existing != null) return existing
             records.value = records.value + captured
