@@ -39,15 +39,11 @@ internal class RadarOfferExtractor(
             if (parsed.status != OfferTextParseStatus.COMPLETE || offer == null) {
                 return@mapIndexedNotNull null
             }
+            // The OCR reading order has a real fare anchor and action for
+            // this specific card. Two distinct Radar cards can legitimately
+            // have identical fare, duration and distance; financial equality
+            // alone is not evidence that a card was repeated by OCR.
             Candidate(anchorPosition + 1, blockText, offer)
-        }.distinctBy { candidate ->
-            listOf(
-                candidate.offer.receivedFareCents,
-                candidate.offer.pickupDistanceKm,
-                candidate.offer.tripDistanceKm,
-                candidate.offer.pickupTimeMinutes,
-                candidate.offer.tripTimeMinutes
-            )
         }
     }
 
