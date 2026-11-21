@@ -46,6 +46,8 @@ Não marcar etapas como aprovadas apenas porque o código compila.
 - [x] Confirmar CI #44925083485: 6/6 jobs aprovados no commit `35bba793`, com APK Release assinado e checksum SHA-256 verificado; uma correção posterior exige aprovação própria.
 - [x] Corrigir configuração inicial no Android 8–10: apresentar quatro permissões no contador (inclui MediaProjection), em contraste às três etapas do Android 11+, e exigir confirmação da divulgação antes do botão de captura legado.
 - [ ] Confirmar novo smoke test instrumentado de contagem 3/4 e permissão de captura bloqueada antes da divulgação nas APIs 26 e 35.
+- [x] Fortalecer reconhecimento do serviço de acessibilidade já habilitado: `ComponentName.unflattenFromString` reconhece nomes abreviados e completos em `Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES`, sem correspondência por substring. Adicionados testes instrumentados para casos válidos, pacotes incorretos e valores inválidos.
+- [ ] Confirmar 6/6 jobs no novo HEAD incluindo o reconhecimento de acessibilidade e a tela inicial de Android 8–10. O APK anterior permanece disponível como fallback de testes internos.
 
 - [ ] Validar atribuição de Uber/99 em ofertas físicas e screenshots desidentificados que contenham texto de outras marcas.
 - [ ] Validar no Android real as trocas rápidas Uber ↔ outro app ↔ Uber enquanto consultas Room, OCR e evidências estão pendentes.
