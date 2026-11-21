@@ -136,6 +136,55 @@ class DatabasePersistenceTest {
     }
 
     @Test
+    fun evidenceOnlyUpdatesNeverOverwriteDriverChangesOrAnotherAttachment() = runBlocking {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val databaseName = "evidence-atomic-${System.currentTimeMillis()}.db"
+        val database = Room.databaseBuilder(context, AppDatabase::class.java, databaseName).build()
+        try {
+            val dao = database.tripRecordDao()
+            val record = TripRecordEntity(
+                id = "trip-atomic", platform = "uber", status = "accepted",
+                receivedFareCents = 3250L, pickupDistanceKm = 1.0,
+                tripDistanceKm = 8.0, pickupTimeMinutes = 3, tripTimeMinutes = 18,
+                origin = "Origem", destination = "Destino", passengerRating = null,
+                paymentMethod = "pix", startedAtEpochMillis = null,
+                completedAtEpochMillis = null, vehicleId = null,
+                evidenceUri = null, notes = "Nota manual do motorista",
+                createdAtEpochMillis = 100L
+            )
+            dao.upsert(record)
+            assertEquals(1, dao.attachEvidenceIfAbsent(record.id, "offer_first.jpg"))
+            assertEquals(0, dao.attachEvidenceIfAbsent(record.id, "offer_second.jpg"))
+            val attached = requireNotNull(dao.findById(record.id))
+            assertEquals("accepted", attached.status)
+            assertEquals("Nota manual do motorista", attached.notes)
+            assertEquals(3250L, attached.receivedFareCents)
+            assertEquals("offer_first.jpg", attached.evidenceUri)
+
+            dao.upsert(attached.copy(status = "completed", notes = "Confirmada"))
+            assertEquals(0, dao.clearEvidenceIfMatches(record.id, "offer_second.jpg"))
+            val confirmed = requireNotNull(dao.findById(record.id))
+            assertEquals("completed", confirmed.status)
+            assertEquals("Confirmada", confirmed.notes)
+            assertEquals("offer_first.jpg", confirmed.evidenceUri)
+
+            assertEquals(1, dao.clearEvidenceIfMatches(record.id, "offer_first.jpg"))
+            val cleared = requireNotNull(dao.findById(record.id))
+            assertEquals("completed", cleared.status)
+            assertEquals("Confirmada", cleared.notes)
+            assertEquals(null, cleared.evidenceUri)
+            assertEquals(0, dao.clearEvidenceIfMatches(record.id, "offer_first.jpg"))
+
+            dao.deleteById(record.id)
+            assertEquals(0, dao.attachEvidenceIfAbsent(record.id, "offer_after_delete.jpg"))
+            assertEquals(null, dao.findById(record.id))
+        } finally {
+            database.close()
+            context.deleteDatabase(databaseName)
+        }
+    }
+
+    @Test
     fun privateTripCreateUpdateAndDeletePersistAcrossDatabaseReopen() = runBlocking {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val databaseName = "private-trip-crud-${System.currentTimeMillis()}.db"
