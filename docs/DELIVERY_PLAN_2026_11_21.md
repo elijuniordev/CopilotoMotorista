@@ -64,8 +64,12 @@ Não marcar etapas como aprovadas apenas porque o código compila.
 - [x] Validar CI #44917060453: 6/6 jobs aprovados e artefato de teste com metadados/checksums; é evidência apenas do commit `8bf56f3`, não do HEAD posterior.
 - [x] Corrigir import inválido em `MainActivitySmokeInstrumentedTest.kt` após CI #44918439348 (4 builds/unitários aprovados; 2 jobs de instrumentação falharam antes de executar os testes por erro de compilação de `assertExists`).
 - [x] Compilar `assembleDebugAndroidTest` antecipadamente no job API 35 para detectar erros de compilação de instrumentação antes de inicializar os emuladores.
-- [ ] Confirmar CI 6/6 no HEAD que inclui os novos smoke tests de UI e a correção de compilação; só então atualizar o status da versão de testes.
+- [x] Confirmar CI #44920600467: 6/6 jobs aprovados no commit `9f6a0fa`, inclusive smoke tests de primeira abertura, navegação e recriação da Activity; não confundir com aprovação do HEAD posterior.
+- [x] Corrigir a falha de CI #44921599654: `FakeTripRepository` do teste `DashboardDataSourceTest` não implementava as novas operações condicionais de evidência.
+- [x] Incluir smoke test instrumentado para navegar de `Mais` até Relatórios e Veículos sem permissões de captura.
+- [ ] Confirmar CI completo 6/6 no HEAD depois das mudanças atômicas de evidência e dos novos testes.
 - [x] Reforçar compensação da escrita de evidência: apagar JPEG e desvincular o registro se a sessão do aplicativo mudar durante a gravação.
+- [x] Evitar substituição de outros campos da corrida pela gravação de evidência: `UPDATE` SQL condicional para vinculação e rollback, com teste instrumentado de integridade.
 - [ ] Revisar a versão candidata funcionalmente e completar pré-teste interno conforme o novo roteiro.
 - [ ] Executar `docs/DEVICE_VALIDATION.md` com Uber e 99 reais e Android suportados.
 - [ ] Revisar licença e privacidade, política pública, retenção/exclusão, Data Safety e declaração de AccessibilityService.
