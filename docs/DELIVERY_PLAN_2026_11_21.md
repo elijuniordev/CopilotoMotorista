@@ -71,7 +71,9 @@ Não marcar etapas como aprovadas apenas porque o código compila.
 - [x] Reforçar compensação da escrita de evidência: apagar JPEG e desvincular o registro se a sessão do aplicativo mudar durante a gravação.
 - [x] Evitar substituição de outros campos da corrida pela gravação de evidência: `UPDATE` SQL condicional para vinculação e rollback, com teste instrumentado de integridade.
 - [x] Bloquear ações de cartão flutuante obsoleto sobre registros já excluídos, já concluídos ou em andamento: política de transição local e três testes unitários.
-- [ ] Validar no aparelho e em cenário de concorrência as confirmações manuais contra exclusão/edição simultânea do histórico; a regra em memória não substitui uma transação de banco.
+- [x] Eliminar a janela entre leitura e gravação das confirmações manuais: `UPDATE` condicional atômico no Room, preservando tarifa, notas, evidência e status do motorista, com teste instrumentado de exclusão/repetição/edição.
+- [x] Eliminar gravações de linha inteira obsoletas na complementação de OCR e no snapshot financeiro do veículo: apenas `UPDATE` de campos ainda ausentes em ofertas no estado `captured`, com teste instrumentado de regressão.
+- [ ] Validar no aparelho a interação simultânea entre exclusão/edição do histórico, aceite manual e captura de evidência; ainda não há evidência de execução física com Uber/99.
 - [ ] Revisar a versão candidata funcionalmente e completar pré-teste interno conforme o novo roteiro.
 - [ ] Executar `docs/DEVICE_VALIDATION.md` com Uber e 99 reais e Android suportados.
 - [ ] Revisar licença e privacidade, política pública, retenção/exclusão, Data Safety e declaração de AccessibilityService.
