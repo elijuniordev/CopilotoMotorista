@@ -55,6 +55,7 @@ import com.copilotomotorista.domain.model.VehicleOperatingCosts
 import com.copilotomotorista.domain.usecase.EvaluateOfferUseCase
 import com.copilotomotorista.presentation.dashboard.DashboardDataSource
 import com.copilotomotorista.service.AccessibilityReaderService
+import com.copilotomotorista.service.AccessibilityServicePermissionStatus
 import com.copilotomotorista.service.MediaProjectionCaptureService
 import com.copilotomotorista.service.OverlayWindowManager
 import com.copilotomotorista.presentation.navigation.MainNavigationScreen
@@ -199,11 +200,10 @@ class MainActivity : ComponentActivity() {
         val enabledServices = Settings.Secure.getString(
             contentResolver,
             Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
-        ).orEmpty().split(':')
-
-        val accessibilityEnabled = enabledServices.any { enabled ->
-            enabled.equals(serviceComponent.flattenToString(), ignoreCase = true)
-        }
+        )
+        val accessibilityEnabled = AccessibilityServicePermissionStatus.isEnabled(
+            enabledServices, serviceComponent
+        )
 
         val powerManager = getSystemService(POWER_SERVICE) as PowerManager
         permissionStatus = PermissionStatus(
