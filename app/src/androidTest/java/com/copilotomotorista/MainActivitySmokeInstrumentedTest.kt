@@ -43,6 +43,23 @@ class MainActivitySmokeInstrumentedTest {
     }
 
     @Test
+    fun moreMenuNavigatesToReportsAndVehicleConfiguration() {
+        composeRule.onNodeWithText("Abrir painel financeiro")
+            .performScrollTo()
+            .performClick()
+
+        // Exercise the real Premium navigation and two data-backed screens
+        // without requesting accessibility, overlay or capture permissions.
+        composeRule.onNodeWithText("Mais").performClick()
+        composeRule.onNodeWithText("Relatórios").performClick()
+        composeRule.onNodeWithText("DESEMPENHO E RESULTADOS").assertExists()
+
+        composeRule.onNodeWithText("Mais").performClick()
+        composeRule.onNodeWithText("Veículos").performClick()
+        composeRule.onNodeWithText("CONFIGURAÇÃO FINANCEIRA").assertExists()
+    }
+
+    @Test
     fun financialDashboardOpensWithoutGrantingMonitoringPermissions() {
         composeRule.onNodeWithText("Abrir painel financeiro")
             .performScrollTo()
