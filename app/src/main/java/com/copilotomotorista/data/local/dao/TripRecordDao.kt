@@ -89,6 +89,24 @@ suspend fun fillCapturedCostSnapshotIfMissing(
 ): Int
 
 /**
+ * OCR text can remain identical after the driver manually edits a captured
+ * fare. It is a secondary exact-match key scoped to the same app and window.
+ * Never match merely by a common phrase or by another platform's text.
+ */
+@Query(
+    """
+    SELECT * FROM trip_records
+    WHERE platform = :platform AND rawOfferText = :rawText
+      AND status IN ('captured', 'accepted', 'in_progress', 'completed')
+      AND createdAtEpochMillis >= :sinceEpochMillis
+    ORDER BY createdAtEpochMillis DESC LIMIT 1
+    """
+)
+suspend fun findRecentMatchingRawText(
+    platform: String, rawText: String, sinceEpochMillis: Long
+): TripRecordEntity?
+
+/**
  * The OCR and accessibility callbacks can finish repository lookups out of
  * order. Find + insert must share a Room transaction so two screenshots of
  * the same offer cannot each create a separate UUID-backed history row.
@@ -105,7 +123,9 @@ suspend fun findOrInsertCapturedOffer(
         captured.platform, captured.receivedFareCents, captured.pickupDistanceKm,
         captured.tripDistanceKm, captured.pickupTimeMinutes,
         captured.tripTimeMinutes, sinceEpochMillis
-    )
+    ) ?: captured.rawOfferText?.takeIf { it.isNotBlank() }?.let { rawText ->
+        findRecentMatchingRawText(captured.platform, rawText, sinceEpochMillis)
+    }
     if (existing != null) return existing
     val inserted = insertCapturedIfAbsent(captured)
     // IGNORE also protects against reusing the same UUID in an unexpected
