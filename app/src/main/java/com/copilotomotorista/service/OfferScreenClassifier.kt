@@ -41,7 +41,10 @@ internal class OfferScreenClassifier {
         // standalone trip. Doing so can combine fields of separate cards.
         // Keep an explicit Radar label on its own classification path.
         if (hasRadarLabel) {
-            return if (hasOfferAction && fareCount >= 2 && routeSegmentCount >= 2) {
+            // A fare-rate amount like R$ 2,20/km is not a second Radar card.
+            // Use the exact same main-fare detector as RadarOfferExtractor.
+            val primaryFareCount = RadarOfferExtractor.countPrimaryFareAnchors(rawText)
+            return if (hasOfferAction && primaryFareCount >= 2 && routeSegmentCount >= 2) {
                 Result(
                     ScreenKind.RADAR_CANDIDATE,
                     setOf("radar_label", "multiple_fares", "multiple_route_segments", "offer_action")
