@@ -40,7 +40,8 @@ class ShiftSessionStore(context: Context) {
             completedTrips = preferences.getInt(KEY_COMPLETED_TRIPS, 0),
             receivedFareCents = preferences.getLong(KEY_RECEIVED_FARE, 0L),
             monitoringConnected = preferences.getBoolean(KEY_MONITORING_CONNECTED, false) &&
-                System.currentTimeMillis() - preferences.getLong(KEY_MONITORING_HEARTBEAT, 0L) <= MONITORING_HEARTBEAT_TIMEOUT_MILLIS
+                (System.currentTimeMillis() - preferences.getLong(KEY_MONITORING_HEARTBEAT, 0L))
+                    .let { ageMillis -> ageMillis in 0L..MONITORING_HEARTBEAT_TIMEOUT_MILLIS }
         )
     }
 
