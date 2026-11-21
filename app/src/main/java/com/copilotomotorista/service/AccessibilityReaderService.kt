@@ -24,6 +24,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.File
 import java.util.UUID
 
 /**
@@ -37,6 +38,7 @@ class AccessibilityReaderService : AccessibilityService() {
     private lateinit var shiftSessionStore: ShiftSessionStore
     private lateinit var floatingControlWindowManager: FloatingControlWindowManager
     private val eventGate = AccessibilityEventGate(supportedPackages = SupportedRideApps.packages)
+    private val capturePrivacyGate = OfferCapturePrivacyGate(SupportedRideApps.packages)
     private val offerTextParser = OfferTextParser()
     private val offerScreenClassifier = OfferScreenClassifier()
     private val radarOfferExtractor = RadarOfferExtractor()
@@ -56,6 +58,7 @@ class AccessibilityReaderService : AccessibilityService() {
     private val evidenceCaptureRequested = mutableSetOf<String>()
     private val pendingScreenshotWork = PendingScreenshotWorkCoordinator()
     private val pendingEvidenceByRecordId = mutableMapOf<String, String>()
+    private val evidenceCaptureContexts = mutableMapOf<String, Pair<String, Long>>()
 
     override fun onCreate() {
         super.onCreate()
@@ -97,6 +100,14 @@ class AccessibilityReaderService : AccessibilityService() {
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         event ?: return
+        val packageName = event.packageName?.toString()
+        // Window transitions are observed for invalidation only. Never read
+        // accessibility text or capture a screenshot of a different app.
+        val windowChanged = capturePrivacyGate.onWindowEvent(
+            packageName, event.eventType, captureGeneration
+        )
+        if (windowChanged) invalidatePendingCaptureWork()
+
         val shift = shiftSessionStore.snapshot()
         if (shift.active) {
             floatingControlWindowManager.show()
@@ -104,14 +115,24 @@ class AccessibilityReaderService : AccessibilityService() {
             floatingControlWindowManager.hide()
         }
         if (!shift.canProcessOffers) {
-            overlayWindowManager.hideOverlay()
+            capturePrivacyGate.invalidate(captureGeneration)
+            invalidatePendingCaptureWork()
             return
         }
-        val packageName = event.packageName?.toString()
         if (packageName == null || packageName == applicationContext.packageName) return
-        // Package ID is used only to avoid capturing unrelated apps. Offer content
-        // still comes exclusively from the visible screenshot + local OCR.
         if (!SupportedRideApps.contains(packageName)) return
+
+        // Accessibility can be enabled while Uber/99 is already foreground.
+        // In that case a verified content event may establish the first
+        // capture session without inspecting any node text.
+        val foregroundPackage = rootInActiveWindow?.packageName?.toString()
+        if (foregroundPackage == packageName &&
+            capturePrivacyGate.onVerifiedForeground(packageName, captureGeneration)
+        ) {
+            invalidatePendingCaptureWork()
+        }
+        if (foregroundPackage != packageName) return
+
         val accepted = eventGate.shouldAccept(
             packageName = packageName,
             eventType = event.eventType,
@@ -133,12 +154,36 @@ class AccessibilityReaderService : AccessibilityService() {
         requestLocalOcr(capturedAt, platformHint, generation)
     }
 
+    private fun invalidatePendingCaptureWork() {
+        captureGeneration++
+        pendingScreenshotWork.clear()
+        evidenceCaptureRequested.clear()
+        evidenceCaptureContexts.clear()
+        lastOfferFingerprint = null
+        lastOfferShownAt = 0L
+        currentOfferRecordId = null
+        if (::overlayWindowManager.isInitialized) overlayWindowManager.hideOverlay()
+    }
+
+    private fun isCaptureContextAllowed(platform: String, generation: Long): Boolean {
+        if (serviceDestroyed || !::shiftSessionStore.isInitialized ||
+            !shiftSessionStore.snapshot().canProcessOffers) return false
+        val expectedPackage = when (platform) {
+            "uber" -> SupportedRideApps.UBER_DRIVER
+            "99" -> SupportedRideApps.NINETY_NINE_DRIVER
+            else -> return false
+        }
+        // Package metadata only; never read another app's accessibility text.
+        val foregroundPackage = rootInActiveWindow?.packageName?.toString()
+        return capturePrivacyGate.isAllowed(expectedPackage, generation, foregroundPackage)
+    }
+
     private fun processSnapshot(
         snapshot: ScreenTextSnapshot,
         platform: String,
         generation: Long
     ) {
-        if (serviceDestroyed) return
+        if (!isCaptureContextAllowed(platform, generation)) return
         recordPipelineStage("capture_to_snapshot_ready", platform, snapshot.source.name, snapshot.capturedAtMillis, true)
 
         // O OCR pode ler valores e distâncias de mapas, notificações e telas
@@ -304,7 +349,10 @@ class AccessibilityReaderService : AccessibilityService() {
             if (generation == captureGeneration) {
                 currentOfferRecordId = recordId
             }
-            if (recentRecord?.evidenceUri == null && evidenceCaptureRequested.add(recordId)) {
+            if (recentRecord?.evidenceUri == null && evidenceCaptureRequested.add(recordId) &&
+                isCaptureContextAllowed(platform, generation)
+            ) {
+                evidenceCaptureContexts[recordId] = platform to generation
                 captureOfferEvidence(recordId)
             }
 
