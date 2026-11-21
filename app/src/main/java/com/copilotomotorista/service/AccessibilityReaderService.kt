@@ -303,12 +303,11 @@ class AccessibilityReaderService : AccessibilityService() {
             if (existingOffer != null && existingOffer.rawOfferText.isNullOrBlank()) {
                 runCatching {
                     withContext(Dispatchers.IO) {
-                        appContainer.tripRecordRepository.saveTrip(
-                            existingOffer.copy(
-                                rawOfferText = snapshot.text,
-                                origin = existingOffer.origin ?: extractLabeledAddress(snapshot.text, true),
-                                destination = existingOffer.destination ?: extractLabeledAddress(snapshot.text, false)
-                            )
+                        appContainer.tripRecordRepository.enrichCapturedOfferIfMissing(
+                            id = recordId,
+                            rawText = snapshot.text,
+                            origin = extractLabeledAddress(snapshot.text, true),
+                            destination = extractLabeledAddress(snapshot.text, false)
                         )
                     }
                 }.onFailure { error ->
@@ -397,16 +396,14 @@ class AccessibilityReaderService : AccessibilityService() {
             // screen generation; only overlay presentation is generation-sensitive.
             runCatching {
                 withContext(Dispatchers.IO) {
-                    val capturedRecord = appContainer.tripRecordRepository.getTrip(recordId)
-                    if (capturedRecord != null && capturedRecord.status == TRIP_STATUS_CAPTURED) {
-                        appContainer.tripRecordRepository.saveTrip(
-                            capturedRecord.copy(
-                                vehicleId = vehicle.id,
-                                operatingCostCentsSnapshot = validAnalysis.operatingCostCents,
-                                vehicleNameSnapshot = vehicle.name
-                            )
-                        )
-                    }
+                    // A single conditional UPDATE cannot overwrite a more
+                    // recent driver edit, JPEG attachment or status transition.
+                    appContainer.tripRecordRepository.fillCapturedCostSnapshotIfMissing(
+                        id = recordId,
+                        vehicleId = vehicle.id,
+                        costCents = validAnalysis.operatingCostCents,
+                        vehicleName = vehicle.name
+                    )
                 }
             }.onFailure { error ->
                 Log.e("OfferCapture", "Failed to update captured offer cost snapshot", error)
