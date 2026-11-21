@@ -12,6 +12,10 @@ import com.copilotomotorista.data.local.entity.ExpenseEntity
 import com.copilotomotorista.data.local.entity.PrivateTripEntity
 import com.copilotomotorista.data.local.entity.TripRecordEntity
 import com.copilotomotorista.data.local.entity.VehicleEntity
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
@@ -397,6 +401,66 @@ class DatabasePersistenceTest {
         } finally {
             database.close()
             context.deleteDatabase(databaseName)
+        }
+    }
+
+    @Test
+    fun simultaneousOcrClaimsReuseOneTripAndNeverReplaceDriverChanges() = runBlocking {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val name = "capture-claim-atomic-${System.currentTimeMillis()}.db"
+        val database = Room.databaseBuilder(context, AppDatabase::class.java, name).build()
+        try {
+            val dao = database.tripRecordDao()
+            val base = TripRecordEntity(
+                id = "candidate-0", platform = "uber", status = "captured",
+                receivedFareCents = 2_700L, pickupDistanceKm = 1.5,
+                tripDistanceKm = 7.0, pickupTimeMinutes = 5, tripTimeMinutes = 19,
+                origin = "A", destination = "B", passengerRating = null,
+                paymentMethod = null, startedAtEpochMillis = null,
+                completedAtEpochMillis = null, vehicleId = null,
+                evidenceUri = null, notes = "Oferta capturada automaticamente.",
+                createdAtEpochMillis = 1_000L, rawOfferText = "Oferta original"
+            )
+            // Sixteen async snapshots can finish their lookups at once.
+            // A transactional lookup+insert must return one persisted ID.
+            val results = (0 until 16).map { index ->
+                async(Dispatchers.Default) {
+                    dao.findOrInsertCapturedOffer(base.copy(id = "candidate-$index"), 500L)
+                }
+            }.awaitAll()
+            assertEquals(1, results.map { it.id }.toSet().size)
+            assertEquals(1, dao.observeAll().first().size)
+            val first = results.first()
+
+            // An already confirmed offer must be reused, NOT overwritten
+            // by a delayed OCR callback carrying an old captured state.
+            dao.upsert(first.copy(
+                status = "completed",
+                receivedFareCents = 2_900L,
+                evidenceUri = "offer_confirmed.jpg",
+                notes = "Notas particulares",
+                completedAtEpochMillis = 1_500L
+            ))
+            val reused = dao.findOrInsertCapturedOffer(
+                base.copy(id = "stale-ocr-new-id"), 500L
+            )
+            assertEquals(first.id, reused.id)
+            assertEquals("completed", reused.status)
+            assertEquals(2_900L, reused.receivedFareCents)
+            assertEquals("offer_confirmed.jpg", reused.evidenceUri)
+            assertEquals("Notas particulares", reused.notes)
+            assertEquals(null, dao.findById("stale-ocr-new-id"))
+
+            // A different fare must still create a different offer; this
+            // guard does not collapse genuinely distinct offer snapshots.
+            val different = dao.findOrInsertCapturedOffer(
+                base.copy(id = "different-fare", receivedFareCents = 3_100L), 500L
+            )
+            assertEquals("different-fare", different.id)
+            assertEquals(2, dao.observeAll().first().size)
+        } finally {
+            database.close()
+            context.deleteDatabase(name)
         }
     }
 
