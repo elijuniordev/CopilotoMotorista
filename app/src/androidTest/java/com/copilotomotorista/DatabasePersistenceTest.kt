@@ -185,6 +185,97 @@ class DatabasePersistenceTest {
     }
 
     @Test
+    fun manualOverlayConfirmationIsAtomicAndPreservesDriverEdits() = runBlocking {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val databaseName = "manual-confirmation-${System.currentTimeMillis()}.db"
+        val database = Room.databaseBuilder(context, AppDatabase::class.java, databaseName).build()
+        try {
+            database.vehicleDao().upsert(
+                VehicleEntity("vehicle-confirm", "Veículo", "gasoline", "GASOLINE",
+                    12.0, 590L, 10L, 20L, 5L)
+            )
+            val dao = database.tripRecordDao()
+            val captured = TripRecordEntity(
+                id = "offer-manual", platform = "uber", status = "captured",
+                receivedFareCents = 3_250L, pickupDistanceKm = 1.0,
+                tripDistanceKm = 8.0, pickupTimeMinutes = 3, tripTimeMinutes = 18,
+                origin = null, destination = null, passengerRating = null,
+                paymentMethod = null, startedAtEpochMillis = null,
+                completedAtEpochMillis = null, vehicleId = null,
+                evidenceUri = "offer_original.jpg", notes = "Nota do motorista",
+                createdAtEpochMillis = 100L,
+                rawOfferText = "Oferta capturada"
+            )
+            dao.upsert(captured)
+            // A driver edit can happen after the service reads this record.
+            dao.upsert(captured.copy(
+                receivedFareCents = 3_500L,
+                destination = "Destino corrigido",
+                notes = "Observação preservada"
+            ))
+            assertEquals(
+                1,
+                dao.confirmOfferFromOverlay(
+                    id = captured.id, requestedStatus = "accepted", nowEpochMillis = 200L,
+                    detectedOrigin = "Origem OCR", detectedDestination = "Destino OCR",
+                    paymentMethod = "pix", vehicleId = "vehicle-confirm",
+                    vehicleName = "Veículo", costCents = 800L
+                )
+            )
+            val accepted = requireNotNull(dao.findById(captured.id))
+            assertEquals("accepted", accepted.status)
+            assertEquals(3_500L, accepted.receivedFareCents)
+            assertEquals("Destino corrigido", accepted.destination)
+            assertEquals("Origem OCR", accepted.origin)
+            assertEquals("Observação preservada", accepted.notes)
+            assertEquals("offer_original.jpg", accepted.evidenceUri)
+            assertEquals("Oferta capturada", accepted.rawOfferText)
+            assertEquals(800L, accepted.operatingCostCentsSnapshot)
+            assertEquals("vehicle-confirm", accepted.vehicleId)
+            assertEquals("pix", accepted.paymentMethod)
+            assertEquals(0, dao.confirmOfferFromOverlay(
+                captured.id, "accepted", 205L, null, null, null,
+                "vehicle-confirm", "Veículo", 800L
+            ))
+
+            assertEquals(1, dao.confirmOfferFromOverlay(
+                captured.id, "completed", 300L, null, null, null,
+                "vehicle-confirm", "Veículo", 999L
+            ))
+            val completed = requireNotNull(dao.findById(captured.id))
+            assertEquals("completed", completed.status)
+            assertEquals(300L, completed.startedAtEpochMillis)
+            assertEquals(300L, completed.completedAtEpochMillis)
+            assertEquals(800L, completed.operatingCostCentsSnapshot)
+            assertEquals("Observação preservada", completed.notes)
+            assertEquals(0, dao.confirmOfferFromOverlay(
+                captured.id, "accepted", 310L, null, null, null,
+                "vehicle-confirm", "Veículo", 800L
+            ))
+            assertEquals(0, dao.confirmOfferFromOverlay(
+                captured.id, "completed", 310L, null, null, null,
+                "vehicle-confirm", "Veículo", 800L
+            ))
+            assertEquals(300L, dao.findById(captured.id)?.completedAtEpochMillis)
+
+            dao.upsert(captured.copy(id = "offer-unaccepted"))
+            assertEquals(0, dao.confirmOfferFromOverlay(
+                "offer-unaccepted", "completed", 350L, null, null, null,
+                "vehicle-confirm", "Veículo", 800L
+            ))
+            dao.deleteById(captured.id)
+            assertEquals(0, dao.confirmOfferFromOverlay(
+                captured.id, "accepted", 400L, null, null, null,
+                "vehicle-confirm", "Veículo", 800L
+            ))
+            assertEquals(null, dao.findById(captured.id))
+        } finally {
+            database.close()
+            context.deleteDatabase(databaseName)
+        }
+    }
+
+    @Test
     fun privateTripCreateUpdateAndDeletePersistAcrossDatabaseReopen() = runBlocking {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val databaseName = "private-trip-crud-${System.currentTimeMillis()}.db"
