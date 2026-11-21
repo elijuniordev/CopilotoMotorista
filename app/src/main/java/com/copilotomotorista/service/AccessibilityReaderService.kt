@@ -732,7 +732,7 @@ class AccessibilityReaderService : AccessibilityService() {
                                             // while the evidence write is in flight.
                                             withContext(Dispatchers.IO) {
                                                 val record = appContainer.tripRecordRepository.getTrip(recordId)
-                                                if (attached && record?.evidenceUri == path) {
+                                                if (record?.evidenceUri == path) {
                                                     appContainer.tripRecordRepository.saveTrip(
                                                         record.copy(evidenceUri = null)
                                                     )
