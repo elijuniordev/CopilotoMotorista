@@ -766,49 +766,57 @@ class AccessibilityReaderService : AccessibilityService() {
         platform: String,
         generation: Long
     ) {
-        // MediaProjection can deliver its bitmap after the user has left
-        // the source app. Perform this check on Android's main executor.
+        // MediaProjection callbacks may come from a capture worker. Android
+        // foreground checks and service state must be evaluated on main.
         ContextCompat.getMainExecutor(this).execute {
             if (!isCaptureContextAllowed(platform, generation)) {
                 bitmap.recycle()
                 drainPendingScreenshotWork()
                 return@execute
             }
+
             val recognizer = ocrRecognizer
             if (recognizer == null) {
                 bitmap.recycle()
                 drainPendingScreenshotWork()
                 return@execute
             }
+
             recognizer.recognize(bitmap) { recognizedText ->
-            ContextCompat.getMainExecutor(this).execute {
-                val resultAge = SystemClock.uptimeMillis() - requestedAtMillis
-                if (generation == captureGeneration &&
-                    isCaptureContextAllowed(platform, generation) &&
-                    resultAge in 0..OCR_MAX_RESULT_AGE_MILLIS &&
-                    recognizedText.isNotBlank()
-                ) {
-                    val normalizedText = ScreenTextSnapshot.normalize(recognizedText)
-                    val detectedPlatform = when {
-                        Regex("\\buber\\b", RegexOption.IGNORE_CASE).containsMatchIn(normalizedText) -> "uber"
-                        Regex("\\b99(?:pop|plus|comfort|moto|entrega|taxi)\\b", RegexOption.IGNORE_CASE).containsMatchIn(normalizedText) -> "99"
-                        else -> platform
+                ContextCompat.getMainExecutor(this).execute {
+                    val resultAge = SystemClock.uptimeMillis() - requestedAtMillis
+                    // A newer event from the SAME ride app must not erase a
+                    // complete older offer. The session gate rejects any
+                    // transition to a different app; overlay still uses
+                    // captureGeneration to show only the latest offer.
+                    if (isCaptureContextAllowed(platform, generation) &&
+                        resultAge in 0..OCR_MAX_RESULT_AGE_MILLIS &&
+                        recognizedText.isNotBlank()
+                    ) {
+                        val normalizedText = ScreenTextSnapshot.normalize(recognizedText)
+                        val detectedPlatform = when {
+                            Regex("\\buber\\b", RegexOption.IGNORE_CASE).containsMatchIn(normalizedText) -> "uber"
+                            Regex("\\b99(?:pop|plus|comfort|moto|entrega|taxi)\\b", RegexOption.IGNORE_CASE).containsMatchIn(normalizedText) -> "99"
+                            else -> platform
+                        }
+                        Log.d(
+                            "OfferCapture",
+                            "ocr_result chars=${normalizedText.length} platform=$detectedPlatform ageMs=$resultAge"
+                        )
+                        processSnapshot(
+                            ScreenTextSnapshot(
+                                text = normalizedText,
+                                source = ScreenTextSource.OCR,
+                                capturedAtMillis = requestedAtMillis
+                            ),
+                            detectedPlatform,
+                            generation
+                        )
+                    } else if (!serviceDestroyed && resultAge in 0..OCR_MAX_RESULT_AGE_MILLIS) {
+                        Log.d("OfferCapture", "ocr_result_empty ageMs=$resultAge")
                     }
-                    Log.d("OfferCapture", "ocr_result chars=${normalizedText.length} platform=$detectedPlatform ageMs=$resultAge")
-                    processSnapshot(
-                        ScreenTextSnapshot(
-                            text = normalizedText,
-                            source = ScreenTextSource.OCR,
-                            capturedAtMillis = requestedAtMillis
-                        ),
-                        detectedPlatform,
-                        generation
-                    )
-                } else if (!serviceDestroyed && resultAge in 0..OCR_MAX_RESULT_AGE_MILLIS) {
-                    Log.d("OfferCapture", "ocr_result_empty ageMs=$resultAge")
+                    drainPendingScreenshotWork()
                 }
-                drainPendingScreenshotWork()
-            }
             }
         }
     }
