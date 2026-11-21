@@ -99,6 +99,29 @@ class ShiftSessionStoreInstrumentedTest {
     }
 
     @Test
+    fun monitoringStateRejectsStaleOrFutureHeartbeatAfterClockChange() {
+        val store = ShiftSessionStore(context)
+        val preferences = context.getSharedPreferences("shift_session", Context.MODE_PRIVATE)
+        val now = System.currentTimeMillis()
+
+        // A manually changed clock must not keep a disconnected service
+        // showing as connected simply because its old heartbeat is future-dated.
+        preferences.edit()
+            .putBoolean("monitoring_connected", true)
+            .putLong("monitoring_heartbeat", now + 60_000L)
+            .commit()
+        assertFalse(store.snapshot().monitoringConnected)
+
+        preferences.edit().putLong("monitoring_heartbeat", now - 60_000L).commit()
+        assertFalse(store.snapshot().monitoringConnected)
+
+        store.setMonitoringConnected(true)
+        assertTrue(store.snapshot().monitoringConnected)
+        store.setMonitoringConnected(false)
+        assertFalse(store.snapshot().monitoringConnected)
+    }
+
+    @Test
     fun pausedAndEndedShiftsRejectNewTripsAndExcludePausedTime() {
         val store = ShiftSessionStore(context)
         store.start(now = 1_000L)
