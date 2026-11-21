@@ -43,6 +43,10 @@ Não marcar etapas como aprovadas apenas porque o código compila.
 - [x] Bloquear eventos atrasados da Uber/99 quando a janela interativa verificada já pertence a outro app; adicionar dois testes JVM para impedir reautorização indevida.
 - [x] Confirmar CI #44923318825: 6/6 jobs aprovados no commit `2017ec59`, com APK/AAB assinados e SHA-256 verificados para teste interno; novas mudanças exigem novo CI.
 - [x] Garantir atribuição da plataforma pela identidade do pacote Uber/99 verificada pelo Android; o texto OCR não pode trocar uma captura Uber por 99 nem o contrário. Testar pacotes oficiais e rejeição de outros apps.
+- [x] Confirmar CI #44925083485: 6/6 jobs aprovados no commit `35bba793`, com APK Release assinado e checksum SHA-256 verificado; uma correção posterior exige aprovação própria.
+- [x] Corrigir configuração inicial no Android 8–10: apresentar quatro permissões no contador (inclui MediaProjection), em contraste às três etapas do Android 11+, e exigir confirmação da divulgação antes do botão de captura legado.
+- [ ] Confirmar novo smoke test instrumentado de contagem 3/4 e permissão de captura bloqueada antes da divulgação nas APIs 26 e 35.
+
 - [ ] Validar atribuição de Uber/99 em ofertas físicas e screenshots desidentificados que contenham texto de outras marcas.
 - [ ] Validar no Android real as trocas rápidas Uber ↔ outro app ↔ Uber enquanto consultas Room, OCR e evidências estão pendentes.
 - [ ] **Validar** a proteção da Issue #36 nos dois fluxos Android e com trocas reais de janela, inclusive controle flutuante ativo e retorno rápido para o mesmo app. Manter a issue aberta até essa validação.
