@@ -36,14 +36,19 @@ internal class OfferScreenClassifier {
         val hasOfferAction = OFFER_ACTION_REGEX.containsMatchIn(text)
         val hasRadarLabel = RADAR_LABEL_REGEX.containsMatchIn(text)
 
-        // Radar é uma tela com várias opções, não uma oferta exclusiva. Não a
-        // enviamos ao parser de oferta única: isso evita um card inventado com
-        // valores pertencentes a cartões diferentes.
-        if (hasRadarLabel && hasOfferAction && fareCount >= 2 && routeSegmentCount >= 2) {
-            return Result(
-                ScreenKind.RADAR_CANDIDATE,
-                setOf("radar_label", "multiple_fares", "multiple_route_segments", "offer_action")
-            )
+        // The Radar can arrive partially through OCR: a single visible card,
+        // a missing fare, or an obscured action must NEVER be parsed as a
+        // standalone trip. Doing so can combine fields of separate cards.
+        // Keep an explicit Radar label on its own classification path.
+        if (hasRadarLabel) {
+            return if (hasOfferAction && fareCount >= 2 && routeSegmentCount >= 2) {
+                Result(
+                    ScreenKind.RADAR_CANDIDATE,
+                    setOf("radar_label", "multiple_fares", "multiple_route_segments", "offer_action")
+                )
+            } else {
+                Result(ScreenKind.NOT_OFFER, setOf("incomplete_radar"))
+            }
         }
 
         val hasRouteStructure = routeSegmentCount >= 2 ||
