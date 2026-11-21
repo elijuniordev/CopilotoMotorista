@@ -54,6 +54,40 @@ suspend fun confirmOfferFromOverlay(
     costCents: Long
 ): Int
 
+/**
+ * Append OCR text only while the offer is still captured and its raw text is
+ * missing. Never REPLACE a row after a suspend point: status, amount, evidence
+ * and user-edited notes may have changed in the meantime.
+ */
+@Query(
+    """
+    UPDATE trip_records SET
+      rawOfferText = :rawText,
+      origin = COALESCE(origin, :origin),
+      destination = COALESCE(destination, :destination)
+    WHERE id = :id AND status = 'captured' AND rawOfferText IS NULL
+    """
+)
+suspend fun enrichCapturedOfferIfMissing(
+    id: String, rawText: String, origin: String?, destination: String?
+): Int
+
+/** Fill only missing vehicle/cost fields on a still-unconfirmed offer. */
+@Query(
+    """
+    UPDATE trip_records SET
+      vehicleId = COALESCE(vehicleId, :vehicleId),
+      operatingCostCentsSnapshot = COALESCE(operatingCostCentsSnapshot, :costCents),
+      vehicleNameSnapshot = COALESCE(vehicleNameSnapshot, :vehicleName)
+    WHERE id = :id AND status = 'captured'
+      AND (vehicleId IS NULL OR operatingCostCentsSnapshot IS NULL
+           OR vehicleNameSnapshot IS NULL)
+    """
+)
+suspend fun fillCapturedCostSnapshotIfMissing(
+    id: String, vehicleId: String, costCents: Long, vehicleName: String
+): Int
+
 @Insert(onConflict=OnConflictStrategy.REPLACE) suspend fun upsert(record:TripRecordEntity)
 @Query("DELETE FROM trip_records WHERE id=:id") suspend fun deleteById(id:String)
 }
